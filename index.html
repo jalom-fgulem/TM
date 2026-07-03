@@ -231,7 +231,7 @@
   .gmail-item-from{font-size:11px;color:var(--text-soft);}
   /* Label dropdown */
   .email-label-dd{position:relative;display:inline-block;}
-  .email-label-menu{position:absolute;top:calc(100% + 5px);left:0;z-index:60;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.13);min-width:230px;padding:7px;}
+  .email-label-menu{position:fixed;z-index:60;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.13);min-width:230px;padding:7px;}
   .email-label-search{width:100%;box-sizing:border-box;padding:6px 9px;border:1px solid var(--border);border-radius:6px;font-size:12.5px;margin-bottom:5px;background:var(--bg);}
   .email-label-search:focus{outline:none;border-color:var(--accent);}
   .email-label-list{max-height:210px;overflow-y:auto;}
@@ -2068,6 +2068,9 @@ function toggleLabelDropdown(e){
   e.stopPropagation();
   const menu=document.getElementById('emailLabelMenu'); if(!menu) return;
   if(menu.style.display==='none'){
+    const rect=e.currentTarget.getBoundingClientRect();
+    menu.style.top=(rect.bottom+5)+'px';
+    menu.style.left=rect.left+'px';
     menu.style.display='block';
     const s=document.getElementById('emailLabelSearch');
     if(s){ s.value=''; renderEmailLabelList(gmailUserLabels); s.focus(); }
