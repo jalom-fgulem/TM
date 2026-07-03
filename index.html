@@ -325,7 +325,28 @@
   .cal-event-pill{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:1px 5px;border-radius:3px;margin-bottom:2px;color:#fff;line-height:1.4;}
   .cal-event-more{font-size:10px;color:var(--text-muted);}
   .cal-day-detail{margin-top:14px;border-top:1px solid var(--border);padding-top:14px;}
-  .cal-day-detail-head{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-soft);margin-bottom:10px;text-transform:capitalize;}
+  .cal-day-detail-head{font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--text-soft);margin-bottom:10px;text-transform:capitalize;}
+  /* Calendar view switcher */
+  .cal-view-tabs{display:flex;gap:2px;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:2px;margin-left:auto;}
+  .cal-view-tab{padding:3px 11px;border-radius:5px;font-size:12px;font-weight:500;color:var(--text-soft);cursor:pointer;border:none;background:transparent;transition:all .1s;}
+  .cal-view-tab.active{background:var(--surface);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.1);}
+  /* Week view */
+  .cal-week-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
+  .cal-week-col-head{text-align:center;padding:5px 2px 3px;border-radius:7px 7px 0 0;background:var(--bg);}
+  .cal-week-col-head.today-col{background:var(--accent-bg);}
+  .cal-week-col-head-name{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-soft);}
+  .cal-week-col-head-day{font-size:18px;font-weight:700;line-height:1.2;color:var(--text);}
+  .cal-week-col-head.today-col .cal-week-col-head-day{color:var(--accent);}
+  .cal-week-col-body{border:1px solid var(--border);border-top:none;border-radius:0 0 7px 7px;padding:4px;min-height:160px;background:var(--surface);}
+  .cal-week-event{font-size:10.5px;padding:2px 5px;border-radius:3px;margin-bottom:3px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  /* Day view */
+  .cal-day-event-row{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:7px;}
+  .cal-day-event-time{font-size:12px;font-weight:600;color:var(--text-soft);min-width:100px;flex-shrink:0;}
+  .cal-day-event-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:3px;}
+  .cal-day-event-info{flex:1;min-width:0;}
+  .cal-day-event-title{font-size:13px;font-weight:500;}
+  .cal-day-event-calname{font-size:11px;color:var(--text-soft);}
+  @media(max-width:600px){.cal-week-grid{grid-template-columns:repeat(7,1fr);} .cal-week-col-head-day{font-size:13px;} .cal-week-event{display:none;} }
 
   /* Email labels / query switcher */
   .email-filters{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none;}
@@ -1670,6 +1691,8 @@ let gTokenClient = null;
 let googleCalendars = []; // [{id, summary, backgroundColor, selected}]
 let _tokenRefreshTimer = null;
 let calViewMonth = new Date();
+let calViewDate = new Date();
+let calView = 'month';
 let calSelectedDay = null;
 let calMonthEvents = [];
 let currentEmailQuery = 'is:starred';
@@ -1783,30 +1806,127 @@ function renderCalendarSelector(){
   }).join('');
 }
 
+function getWeekRange(d){
+  const day=d.getDay();
+  const mon=new Date(d); mon.setDate(d.getDate()-(day===0?6:day-1)); mon.setHours(0,0,0,0);
+  const sun=new Date(mon); sun.setDate(mon.getDate()+6); sun.setHours(23,59,59,999);
+  return{mon,sun};
+}
 function renderCalendario(){
   if(!googleToken) return `<div class="agenda-connect">
     <p>Conecta tu cuenta de Google en ⚙️ Configuración para ver tu calendario.</p>
     <button class="btn-primary btn-small" onclick="openConfigDrawer()">Conectar con Google</button>
   </div>`;
-  const monthLabel = calViewMonth.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
+  let navMid='';
+  if(calView==='month'){
+    const lbl=calViewMonth.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
+    navMid=`<button class="btn-ghost btn-small" onclick="changeCalMonth(-1)"><i class="ti ti-chevron-left"></i></button>
+      <span class="cal-nav-label" id="calNavLabel">${lbl}</span>
+      <button class="btn-ghost btn-small" onclick="changeCalMonth(0)">Hoy</button>
+      <button class="btn-ghost btn-small" onclick="changeCalMonth(1)"><i class="ti ti-chevron-right"></i></button>`;
+  } else if(calView==='day'){
+    const lbl=calViewDate.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+    navMid=`<button class="btn-ghost btn-small" onclick="changeCalDay(-1)"><i class="ti ti-chevron-left"></i></button>
+      <span class="cal-nav-label" id="calNavLabel" style="text-transform:capitalize;">${lbl}</span>
+      <button class="btn-ghost btn-small" onclick="changeCalDay(0)">Hoy</button>
+      <button class="btn-ghost btn-small" onclick="changeCalDay(1)"><i class="ti ti-chevron-right"></i></button>`;
+  } else {
+    const {mon,sun}=getWeekRange(calViewDate);
+    const lbl=mon.toLocaleDateString('es-ES',{day:'numeric',month:'short'})+' – '+sun.toLocaleDateString('es-ES',{day:'numeric',month:'short',year:'numeric'});
+    navMid=`<button class="btn-ghost btn-small" onclick="changeCalWeek(-1)"><i class="ti ti-chevron-left"></i></button>
+      <span class="cal-nav-label" id="calNavLabel">${lbl}</span>
+      <button class="btn-ghost btn-small" onclick="changeCalWeek(0)">Hoy</button>
+      <button class="btn-ghost btn-small" onclick="changeCalWeek(1)"><i class="ti ti-chevron-right"></i></button>`;
+  }
+  const content = calView==='month'
+    ? `<div class="cal-grid" id="calMonthGrid"><div class="empty" style="grid-column:span 7;padding:16px;">Cargando...</div></div>
+       <div class="cal-day-detail" id="calDayDetail" style="display:none;"></div>`
+    : `<div id="calViewContent"><p class="empty" style="padding:16px;">Cargando...</p></div>`;
   return `<div class="cal-month">
     <div class="cal-nav">
-      <button class="btn-ghost btn-small" onclick="changeCalMonth(-1)"><i class="ti ti-chevron-left"></i></button>
-      <span class="cal-nav-label" id="calMonthLabel">${monthLabel}</span>
-      <button class="btn-ghost btn-small" onclick="changeCalMonth(0)">Hoy</button>
-      <button class="btn-ghost btn-small" onclick="changeCalMonth(1)"><i class="ti ti-chevron-right"></i></button>
-      <button class="btn-ghost btn-small" onclick="loadCalendarMonth()" title="Actualizar"><i class="ti ti-refresh"></i></button>
+      ${navMid}
+      <div class="cal-view-tabs">
+        <button class="cal-view-tab ${calView==='day'?'active':''}" onclick="setCalView('day')">Día</button>
+        <button class="cal-view-tab ${calView==='week'?'active':''}" onclick="setCalView('week')">Semana</button>
+        <button class="cal-view-tab ${calView==='month'?'active':''}" onclick="setCalView('month')">Mes</button>
+      </div>
+      <button class="btn-ghost btn-small" onclick="loadCalendarData()" title="Actualizar"><i class="ti ti-refresh"></i></button>
     </div>
-    <div class="cal-grid" id="calMonthGrid"><div class="empty" style="grid-column:span 7;">Cargando...</div></div>
-    <div class="cal-day-detail" id="calDayDetail" style="display:none;"></div>
+    ${content}
   </div>`;
 }
+function setCalView(v){ calView=v; calSelectedDay=null; if(v!=='month') calViewDate=new Date(); render(); loadCalendarData(); }
 function changeCalMonth(delta){
-  if(delta===0){ calViewMonth=new Date(); }
-  else{ calViewMonth=new Date(calViewMonth.getFullYear(), calViewMonth.getMonth()+delta, 1); }
-  calSelectedDay=null;
-  render();
-  loadCalendarMonth();
+  if(delta===0){ calViewMonth=new Date(); } else { calViewMonth=new Date(calViewMonth.getFullYear(),calViewMonth.getMonth()+delta,1); }
+  calSelectedDay=null; render(); loadCalendarMonth();
+}
+function changeCalDay(delta){
+  if(delta===0){ calViewDate=new Date(); } else { const d=new Date(calViewDate); d.setDate(d.getDate()+delta); calViewDate=d; }
+  render(); loadCalendarData();
+}
+function changeCalWeek(delta){
+  if(delta===0){ calViewDate=new Date(); } else { const d=new Date(calViewDate); d.setDate(d.getDate()+delta*7); calViewDate=d; }
+  render(); loadCalendarData();
+}
+async function loadCalendarData(){
+  if(calView==='month'){ loadCalendarMonth(); return; }
+  let tMin,tMax;
+  if(calView==='day'){
+    const d=new Date(calViewDate); d.setHours(0,0,0,0);
+    tMin=d.toISOString();
+    const end=new Date(d); end.setDate(d.getDate()+1);
+    tMax=end.toISOString();
+  } else {
+    const {mon,sun}=getWeekRange(calViewDate);
+    tMin=mon.toISOString(); tMax=sun.toISOString();
+  }
+  calMonthEvents=await fetchCalendarEvents(tMin,tMax);
+  updateHeaderEvents();
+  const el=document.getElementById('calViewContent'); if(!el) return;
+  el.innerHTML = calView==='day' ? renderCalDayGrid() : renderCalWeekGrid();
+}
+function renderCalDayGrid(){
+  if(!calMonthEvents.length) return '<p class="empty" style="padding:16px;">Sin eventos este día.</p>';
+  return calMonthEvents.map(ev=>{
+    const t=ev.start.dateTime?new Date(ev.start.dateTime).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'Todo el día';
+    const tend=ev.end?.dateTime?new Date(ev.end.dateTime).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'';
+    const dot=ev._calColor?`<span class="cal-day-event-dot" style="background:${ev._calColor};"></span>`:'';
+    return `<div class="cal-day-event-row">
+      ${dot}
+      <div class="cal-day-event-info">
+        <div class="cal-day-event-time">${t}${tend?' – '+tend:''}</div>
+        <div class="cal-day-event-title">${escapeHtml(ev.summary||'(sin título)')}</div>
+        ${ev._calName?`<div class="cal-day-event-calname">${escapeHtml(ev._calName)}</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+function renderCalWeekGrid(){
+  const{mon}=getWeekRange(calViewDate);
+  const today=todayStr();
+  const byDay={};
+  calMonthEvents.forEach(ev=>{
+    const d=ev.start.dateTime?ev.start.dateTime.slice(0,10):ev.start.date;
+    if(!byDay[d])byDay[d]=[]; byDay[d].push(ev);
+  });
+  const names=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+  return '<div class="cal-week-grid">'+Array.from({length:7},(_,i)=>{
+    const d=new Date(mon); d.setDate(mon.getDate()+i);
+    const ds=d.toISOString().slice(0,10);
+    const isT=ds===today;
+    const evs=byDay[ds]||[];
+    const evHtml=evs.map(ev=>{
+      const t=ev.start.dateTime?new Date(ev.start.dateTime).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'';
+      return `<div class="cal-week-event" style="background:${ev._calColor||'var(--accent)'};">${t?t+' ':''}${escapeHtml(ev.summary||'')}</div>`;
+    }).join('');
+    return `<div class="cal-week-col">
+      <div class="cal-week-col-head ${isT?'today-col':''}">
+        <div class="cal-week-col-head-name">${names[i]}</div>
+        <div class="cal-week-col-head-day">${d.getDate()}</div>
+      </div>
+      <div class="cal-week-col-body">${evHtml}</div>
+    </div>`;
+  }).join('')+'</div>';
 }
 function selectCalDay(dateStr){
   calSelectedDay = calSelectedDay===dateStr ? null : dateStr;
@@ -1967,7 +2087,7 @@ function renderAgendaView(){
   </div>`;
 }
 async function loadAgendaData(){
-  if(currentView==='calendario'){ loadCalendarMonth(); }
+  if(currentView==='calendario'){ loadCalendarData(); }
   else if(currentView==='correo') loadGmailWidget();
 }
 
@@ -2003,7 +2123,12 @@ async function loadCalendarWidget(){
 async function fetchCalendarEvents(timeMin, timeMax){
   if(!googleToken) return [];
   if(!googleCalendars.length) await fetchCalendarList();
-  const activeCals = googleCalendars.filter(c=>isCalEnabled(c.id));
+  // Si el usuario ha configurado calendarios principal/secundario, usar solo esos
+  const cfg=state.calendarConfig||{};
+  const cfgIds=[cfg.primary,cfg.secondary].filter(Boolean);
+  const activeCals = cfgIds.length
+    ? googleCalendars.filter(c=>cfgIds.includes(c.id))
+    : googleCalendars.filter(c=>isCalEnabled(c.id));
   if(!activeCals.length) return [];
   const now=timeMin||new Date().toISOString();
   const end=timeMax||new Date(Date.now()+7*24*60*60*1000).toISOString();
