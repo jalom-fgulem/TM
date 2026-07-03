@@ -99,7 +99,6 @@
   .modal-bg{position:fixed; inset:0; background:rgba(30,28,24,0.45); display:flex; align-items:center; justify-content:center; padding:20px; z-index:50; overflow-y:auto;}
   .modal{background:#fff; border-radius:12px; padding:20px; width:100%; max-width:500px; max-height:90vh; overflow-y:auto;}
   .modal h3{margin:0 0 6px; font-family:Georgia,serif; font-size:18px;}
-  .ai-note{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:11.5px; color:var(--accent); background:#E4EEF6; padding:6px 10px; border-radius:6px; margin-bottom:12px; line-height:1.4;}
   .field{margin-bottom:11px;}
   .field label{display:block; font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:var(--ink-soft); margin-bottom:4px; font-weight:600;}
   .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:14px; flex-wrap:wrap;}
@@ -202,7 +201,6 @@ const DEFAULT_TIPOS = ['Correo pendiente','Llamada','Reunión por montar','Tema 
 let state = { notes:[], tasks:[], areas:DEFAULT_AREAS.slice(), tipos:DEFAULT_TIPOS.slice(), projects:[], meetings:[], contacts:[] };
 let currentPersonFilter = null;
 let tempParticipants = [];
-let tempSuggestedTasks = [];
 let meetingDraftStash = null;
 let currentView = 'panel';
 let currentProjectId = null;
@@ -305,174 +303,9 @@ function saveNote(){
 }
 function deleteNote(id){ state.notes=state.notes.filter(n=>n.id!==id); persist(); render(); }
 
-// ---- IA ----
-async function classifyWithAI(text){
-  const areasDesc = state.areas.map(a=>'- '+a).join('\n');
-  const projDesc = state.projects.length ? state.projects.map(p=>'- '+p.id+': '+p.name+(p.areas.length?' ['+p.areas.join(', ')+']':'')).join('\n') : '(ninguno)';
-  const openTasks = state.tasks.filter(t=>t.status!=='hecha').slice(0,40)
-    .map(t=>'- '+t.id+': '+t.title+(t.areas&&t.areas.length?' ['+t.areas.join(', ')+']':'')+(t.projectId&&projName(t.projectId)?' (proyecto: '+projName(t.projectId)+')':''))
-    .join('\n') || '(ninguna)';
-
-  const systemPrompt = `Eres un asistente que interpreta notas de trabajo de José Carlos Alonso Marcos, Director de FGULEM (Fundación General de la Universidad de León y de la Empresa). Debes decidir si la nota es (a) una TAREA NUEVA, (b) información/avance sobre una TAREA YA ABIERTA, o (c) un APUNTE DE DIARIO de un proyecto (avance informativo, sin acción pendiente nueva). Devuelve SOLO un objeto JSON, sin texto adicional, sin backticks.
-
-Tarea nueva:
-{"action":"new","title":"...","areas":["Área tal cual"],"tipo":"uno de la lista de tipos, o cadena vacía si no encaja ninguno","urgency":"alta|media|baja","context":"...","projectId":"id o null"}
-
-Amplía una tarea abierta:
-{"action":"append","taskId":"id de la lista","addition":"texto a añadir","urgency":"alta|media|baja o null"}
-
-Apunte de diario de un proyecto (solo si menciona claramente un proyecto existente y NO implica una acción pendiente nueva):
-{"action":"log","projectId":"id del proyecto","entry":"texto del apunte"}
-
-Tareas abiertas:
-${openTasks}
-
-Proyectos existentes:
-${projDesc}
-
-Áreas disponibles (texto EXACTO):
-${areasDesc}
-
-Tipos disponibles (texto EXACTO; usa cadena vacía si ninguno encaja):
-${state.tipos.map(t=>'- '+t).join('\n')}
-
-Reglas:
-- "append" solo con coincidencia clara de tema; "log" solo con proyecto claro y sin acción nueva; ante la duda, "new".
-- "Dirección / Transversal" es para temas que gestiona el propio director y cruzan áreas (licitaciones, normativa interna).
-- Si menciona un encargo concreto (Colegio Mayor La Tebaida, Hospital Veterinario, Clínica de Podología, Centro de Idiomas, AlumniLeón, Instituto Confucio, Vivero de Empresas), marca "Encargos de gestión" además de otras áreas relevantes.
-- "title" corto y accionable (máx 90 caracteres). No inventes información.
-- Si no hay pistas de urgencia, "media".`;
-
-  const response = await fetch("https://api.anthropic.com/v1/messages",{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({
-      model:"claude-sonnet-4-6",
-      max_tokens:1000,
-      system:systemPrompt,
-      messages:[{role:"user",content:text}]
-    })
-  });
-  const data = await response.json();
-  const textBlock=(data.content||[]).find(b=>b.type==='text');
-  if(!textBlock) throw new Error('Sin respuesta');
-  return JSON.parse(textBlock.text.replace(/```json|```/g,'').trim());
-}
-
-async function captureAndClassify(){
-  const input=document.getElementById('noteInput'); const text=input.value.trim();
-  if(!text) return;
-  setStatus('Interpretando...');
-  try{
-    const s = await classifyWithAI(text);
-    input.value='';
-    handleAISuggestion(s, null, text);
-  }catch(e){
-    setStatus('No se pudo interpretar. Guardada como nota para procesar a mano.');
-    state.notes.unshift({id:uid(), text, created:todayStr()});
-    persist(); render();
-  }
-}
-async function convertNoteAI(id){
-  const note=state.notes.find(n=>n.id===id); if(!note) return;
-  const btn=document.getElementById('note-ai-'+id);
-  if(btn){ btn.disabled=true; btn.textContent='Analizando...'; }
-  try{
-    const s = await classifyWithAI(note.text);
-    handleAISuggestion(s, id, note.text);
-  }catch(e){
-    setStatus('No se pudo clasificar. Abriendo formulario manual.');
-    openTaskModal(null,{title:note.text},id,false);
-  }
-}
 function convertNoteManual(id){
   const note=state.notes.find(n=>n.id===id); if(!note) return;
-  openTaskModal(null,{title:note.text},id,false);
-}
-
-function handleAISuggestion(s, fromNoteId, originalText){
-  if(s.action==='append' && state.tasks.find(t=>t.id===s.taskId)){
-    openAppendModal(s, fromNoteId);
-  } else if(s.action==='log' && getProj(s.projectId)){
-    openLogModal(s, fromNoteId, originalText);
-  } else {
-    openTaskModal(null, s, fromNoteId, true);
-  }
-}
-
-function openLogModal(s, fromNoteId, originalText){
-  const p=getProj(s.projectId);
-  const root=document.getElementById('modalRoot');
-  root.innerHTML=`
-    <div class="modal-bg" onclick="if(event.target===this) closeModal()">
-      <div class="modal">
-        <h3>Apuntar al diario del proyecto</h3>
-        <div class="ai-note">La IA interpreta que esto es un avance informativo, no una acción pendiente nueva.</div>
-        <div class="field">
-          <label>Proyecto</label>
-          <p style="font-size:14.5px; margin:0; font-weight:600;">${escapeHtml(p.name)}</p>
-        </div>
-        <div class="field">
-          <label>Apunte (con fecha de hoy)</label>
-          <textarea id="logText">${escapeHtml(s.entry||originalText||'')}</textarea>
-        </div>
-        <div class="modal-actions">
-          <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
-          <button class="btn-ghost" onclick="rejectAppend('${escapeAttr(s.entry||originalText||'')}','${fromNoteId||''}')">Es una tarea, no un apunte</button>
-          <button class="btn-primary" onclick="confirmLog('${p.id}','${fromNoteId||''}')">Apuntar al diario</button>
-        </div>
-      </div>
-    </div>`;
-}
-function confirmLog(projectId, fromNoteId){
-  const p=getProj(projectId);
-  const text=document.getElementById('logText').value.trim();
-  if(!text){ setStatus('El apunte no puede estar vacío.'); return; }
-  p.log.unshift({id:uid(), date:todayStr(), text});
-  if(fromNoteId) state.notes=state.notes.filter(n=>n.id!==fromNoteId);
-  closeModal(); persist(); render();
-  setStatus('Apunte añadido al diario de '+p.name+'.');
-}
-
-function openAppendModal(s, fromNoteId){
-  const t = state.tasks.find(x=>x.id===s.taskId);
-  const root=document.getElementById('modalRoot');
-  root.innerHTML=`
-    <div class="modal-bg" onclick="if(event.target===this) closeModal()">
-      <div class="modal">
-        <h3>Ampliar tarea existente</h3>
-        <div class="ai-note">La IA interpreta que esto es un avance de una tarea ya abierta.</div>
-        <div class="field">
-          <label>Tarea abierta</label>
-          <p style="font-size:14.5px; margin:0; font-weight:600;">${escapeHtml(t.title)}</p>
-        </div>
-        <div class="field">
-          <label>Texto que se añadirá a su contexto</label>
-          <textarea id="appendText">${escapeHtml(s.addition||'')}</textarea>
-        </div>
-        ${s.urgency && s.urgency!==t.urgency ? `<div class="field"><label>Cambio de urgencia sugerido</label><p style="font-size:13px;margin:0;">${t.urgency} → <strong>${s.urgency}</strong></p></div>`:''}
-        <div class="modal-actions">
-          <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
-          <button class="btn-ghost" onclick="rejectAppend('${escapeAttr(s.addition||'')}','${fromNoteId||''}')">Crear tarea nueva</button>
-          <button class="btn-primary" onclick="confirmAppend('${t.id}','${fromNoteId||''}','${s.urgency||''}')">Añadir a la tarea</button>
-        </div>
-      </div>
-    </div>`;
-}
-function confirmAppend(taskId, fromNoteId, newUrgency){
-  const t=state.tasks.find(x=>x.id===taskId);
-  const addition=document.getElementById('appendText').value.trim();
-  if(addition){
-    t.context = (t.context ? t.context+'\n' : '') + '['+fmtDateShort(todayStr())+'] '+addition;
-  }
-  if(newUrgency && ['alta','media','baja'].includes(newUrgency)) t.urgency=newUrgency;
-  if(fromNoteId) state.notes=state.notes.filter(n=>n.id!==fromNoteId);
-  closeModal(); persist(); render();
-  setStatus('Tarea ampliada.');
-}
-function rejectAppend(text, fromNoteId){
-  closeModal();
-  openTaskModal(null,{title:text},fromNoteId,false);
+  openTaskModal(null,{title:note.text},id);
 }
 
 function renderMeetingLinkBlock(task){
@@ -544,7 +377,7 @@ function unlinkMeeting(taskId){
 }
 
 // ---- Tareas ----
-function openTaskModal(taskId, prefill, fromNoteId, aiSuggested){
+function openTaskModal(taskId, prefill, fromNoteId){
   const editing = taskId ? state.tasks.find(t=>t.id===taskId) : null;
   const data = editing || prefill || {};
   if(!editing && !data.projectId && (currentView==='proyectos' || currentView==='desarrollo') && currentProjectId) data.projectId = currentProjectId;
@@ -556,7 +389,6 @@ function openTaskModal(taskId, prefill, fromNoteId, aiSuggested){
     <div class="modal-bg" onclick="if(event.target===this) closeModal()">
       <div class="modal">
         <h3>${editing?'Editar tarea':'Nueva tarea'}</h3>
-        ${aiSuggested?'<div class="ai-note">Clasificación sugerida por IA — revisa y ajusta antes de guardar.</div>':''}
         <div class="field">
           <label>Título</label>
           <input type="text" id="mTitle" value="${escapeAttr(data.title||'')}">
@@ -827,14 +659,13 @@ function restoreMeetingDraft(){
   const stash = meetingDraftStash;
   meetingDraftStash = null;
   tempParticipants = stash.participants.slice();
-  tempSuggestedTasks = stash.suggestedTasks.slice();
   const draftData = {
     title: stash.title, date: stash.date, importance: stash.importance,
     projectId: stash.projectId, summary: stash.summary, acuerdos: stash.acuerdos,
     participants: stash.participants
   };
   const editing = stash.meetingId ? state.meetings.find(m=>m.id===stash.meetingId) : null;
-  openMeetingModal(stash.meetingId||null, draftData, tempSuggestedTasks.length>0);
+  openMeetingModal(stash.meetingId||null, draftData);
   if(editing){ document.getElementById('modalRoot').dataset.meetingId = stash.meetingId; }
 }
 function deleteContact(contactId){
@@ -845,77 +676,16 @@ function deleteContact(contactId){
 }
 
 // ---- Reuniones ----
-async function summarizeMeetingAI(transcript){
-  const projDesc = state.projects.length ? state.projects.map(p=>'- '+p.id+': '+p.name).join('\n') : '(ninguno)';
-  const systemPrompt = `Eres un asistente que procesa transcripciones de reuniones de José Carlos Alonso Marcos, Director de FGULEM (Fundación General de la Universidad de León y de la Empresa). A partir de la transcripción, genera una ficha de reunión. Devuelve SOLO un objeto JSON, sin texto adicional, sin backticks:
-
-{"title":"título corto de la reunión","participants":["Nombre Apellido","..."],"importance":"alta|media|baja","summary":"resumen ejecutivo de 5-10 líneas en castellano neutro","acuerdos":"acuerdos y decisiones tomadas, una por línea","projectId":"id de proyecto si encaja claramente, o null","tasks":[{"title":"...","tipo":"uno de la lista o cadena vacía","urgency":"alta|media|baja","areas":["Área tal cual"],"context":"..."}]}
-
-Proyectos existentes:
-${projDesc}
-
-Áreas disponibles (texto EXACTO):
-${state.areas.map(a=>'- '+a).join('\n')}
-
-Tipos disponibles (texto EXACTO):
-${state.tipos.map(t=>'- '+t).join('\n')}
-
-Reglas:
-- "participants": solo personas que intervienen o se citan como asistentes; no inventes nombres.
-- "tasks": solo compromisos accionables que salgan de la reunión, con responsable JC o su equipo. Si no hay, lista vacía.
-- "importance": alta si se toman decisiones estratégicas o con implicación económica/legal; baja si es informativa.
-- No inventes información que no esté en la transcripción.`;
-
-  const response = await fetch("https://api.anthropic.com/v1/messages",{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({
-      model:"claude-sonnet-4-6",
-      max_tokens:2000,
-      system:systemPrompt,
-      messages:[{role:"user",content:transcript}]
-    })
-  });
-  const data = await response.json();
-  const textBlock=(data.content||[]).find(b=>b.type==='text');
-  if(!textBlock) throw new Error('Sin respuesta');
-  return JSON.parse(textBlock.text.replace(/```json|```/g,'').trim());
-}
-
-async function processTranscript(){
-  const input=document.getElementById('transcriptInput');
-  const text=input.value.trim();
-  if(!text) return;
-  const btn=document.getElementById('processBtn');
-  btn.disabled=true; btn.textContent='Procesando...';
-  try{
-    const s = await summarizeMeetingAI(text);
-    input.value='';
-    tempSuggestedTasks = (s.tasks||[]).map(t=>Object.assign({include:true},t));
-    openMeetingModal(null, {
-      title:s.title||'', date:todayStr(), importance:s.importance||'media',
-      participants:s.participants||[], summary:s.summary||'', acuerdos:s.acuerdos||'',
-      projectId:s.projectId||null
-    }, true);
-  }catch(e){
-    setStatus('No se pudo procesar la transcripción. Crea la ficha a mano.');
-  }
-  btn.disabled=false; btn.textContent='Procesar transcripción con IA';
-}
-
-function openMeetingModal(meetingId, prefill, aiSuggested){
+function openMeetingModal(meetingId, prefill){
   const editing = meetingId ? state.meetings.find(m=>m.id===meetingId) : null;
   const data = prefill || editing || {};
   tempParticipants = (data.participants||[]).slice();
-  if(!aiSuggested && !editing) tempSuggestedTasks = [];
-  if(editing) tempSuggestedTasks = [];
   const root=document.getElementById('modalRoot');
   root.dataset.meetingId = meetingId || '';
   root.innerHTML=`
     <div class="modal-bg" onclick="if(event.target===this) closeModal()">
       <div class="modal">
         <h3>${editing?'Editar reunión':'Nueva ficha de reunión'}</h3>
-        ${aiSuggested?'<div class="ai-note">Ficha generada por IA a partir de la transcripción. La transcripción NO se guarda; revisa y ajusta.</div>':''}
         <div class="field">
           <label>Título</label>
           <input type="text" id="rTitle" value="${escapeAttr(data.title||'')}">
@@ -960,11 +730,6 @@ function openMeetingModal(meetingId, prefill, aiSuggested){
           <label>Acuerdos y decisiones</label>
           <textarea id="rAcuerdos">${escapeHtml(data.acuerdos||'')}</textarea>
         </div>
-        ${tempSuggestedTasks.length?`
-        <div class="field">
-          <label>Tareas detectadas en la reunión (se crean al guardar las marcadas)</label>
-          <ul class="sub-list" id="rTaskList"></ul>
-        </div>`:''}
         <div class="modal-actions">
           <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
           <button class="btn-primary" onclick="saveMeeting('${editing?editing.id:''}')">Guardar ficha</button>
@@ -972,7 +737,6 @@ function openMeetingModal(meetingId, prefill, aiSuggested){
       </div>
     </div>`;
   renderParticipants();
-  renderSuggestedTasks();
 }
 function renderParticipants(){
   const el=document.getElementById('rPartList'); if(!el) return;
@@ -995,8 +759,7 @@ function quickAddContactFromParticipant(fullName){
       projectId: document.getElementById('rProject').value,
       summary: document.getElementById('rSummary').value,
       acuerdos: document.getElementById('rAcuerdos').value,
-      participants: tempParticipants.slice(),
-      suggestedTasks: tempSuggestedTasks.slice()
+      participants: tempParticipants.slice()
     };
   }
   const parts = fullName.trim().split(/\s+/);
@@ -1009,14 +772,6 @@ function addParticipant(){
   if(!val) return;
   if(!tempParticipants.includes(val)) tempParticipants.push(val);
   input.value=''; renderParticipants();
-}
-function renderSuggestedTasks(){
-  const el=document.getElementById('rTaskList'); if(!el) return;
-  el.innerHTML = tempSuggestedTasks.map((t,i)=>`
-    <li>
-      <input type="checkbox" ${t.include?'checked':''} onchange="tempSuggestedTasks[${i}].include=this.checked;">
-      <span>[${t.urgency||'media'}] ${escapeHtml(t.title)}</span>
-    </li>`).join('');
 }
 function saveMeeting(meetingId){
   const title=document.getElementById('rTitle').value.trim();
@@ -1036,22 +791,9 @@ function saveMeeting(meetingId){
     m={id:uid(),title,date,importance,projectId,summary,acuerdos,participants};
     state.meetings.unshift(m);
   }
-  let created=0;
-  tempSuggestedTasks.filter(t=>t.include).forEach(t=>{
-    state.tasks.unshift({
-      id:uid(), title:t.title,
-      areas:(t.areas||[]).filter(a=>state.areas.includes(a)),
-      projectId: projectId,
-      tipo:(t.tipo && state.tipos.includes(t.tipo))?t.tipo:'',
-      urgency:['alta','media','baja'].includes(t.urgency)?t.urgency:'media',
-      due:'', context:(t.context||'')+'\n[Origen: reunión "'+title+'" de '+fmtDateShort(date)+']',
-      subtasks:[], status:'pendiente', created:todayStr()
-    });
-    created++;
-  });
-  tempSuggestedTasks=[]; tempParticipants=[];
+  tempParticipants=[];
   closeModal(); persist(); render();
-  setStatus('Ficha guardada'+(created?' y '+created+' tarea'+(created>1?'s':'')+' creada'+(created>1?'s':'')+'.':'.'));
+  setStatus('Ficha guardada.');
 }
 function deleteMeeting(id,ev){
   if(ev) ev.stopPropagation();
@@ -1085,7 +827,7 @@ function renderReuniones(){
   const procBox=`
     <div class="panel-box" style="margin-bottom:14px;">
       <h2>Nueva reunión</h2>
-      <p class="help">Clasificación por IA no disponible en esta versión web. Da de alta la ficha a mano con el resumen que ya tengas preparado.</p>
+      <p class="help">Da de alta la ficha a mano con el resumen que ya tengas preparado.</p>
       <div style="display:flex; justify-content:flex-end;">
         <button class="btn-primary btn-small" onclick="openMeetingModal(null)">Nueva ficha</button>
       </div>
@@ -1485,7 +1227,7 @@ function renderProjectDetail(){
     <div class="log-entry">
       <div class="log-date">${fmtDate(e.date)} <button class="btn-ghost btn-small" onclick="deleteLogEntry('${p.id}','${e.id}')">×</button></div>
       <div class="log-text">${escapeHtml(e.text)}</div>
-    </div>`).join('') : '<p class="empty">El diario está vacío. Los apuntes que hagas (a mano o vía IA) quedan aquí con fecha.</p>';
+    </div>`).join('') : '<p class="empty">El diario está vacío. Los apuntes que hagas quedan aquí con fecha.</p>';
 
   return `
     <div class="proj-head">
