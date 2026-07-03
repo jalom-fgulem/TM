@@ -1650,10 +1650,17 @@ let gmailUserLabels = [];
 
 function scheduleTokenRefresh(expiresIn){
   if(_tokenRefreshTimer) clearTimeout(_tokenRefreshTimer);
-  const delay = Math.max((expiresIn - 120) * 1000, 10000); // 2 min antes de expirar
+  // Refrescar 5 minutos antes de que expire (el token dura 1h)
+  const delay = Math.max((expiresIn - 300) * 1000, 10000);
   _tokenRefreshTimer = setTimeout(()=>{
     if(gTokenClient) gTokenClient.requestAccessToken({prompt:''});
   }, delay);
+}
+
+function _saveGoogleToken(t, expiry){
+  googleToken = t; googleTokenExpiry = expiry;
+  localStorage.setItem('g_tok', JSON.stringify({t, e: expiry}));
+  localStorage.setItem('g_authorized', '1'); // marca: ya autorizó alguna vez
 }
 
 function initGoogleTokenClient(){
@@ -1662,10 +1669,14 @@ function initGoogleTokenClient(){
     client_id: GOOGLE_CLIENT_ID,
     scope: GOOGLE_SCOPES,
     callback: async (resp) => {
-      if(resp.error){ setStatus('Error Google: '+resp.error); return; }
-      googleToken = resp.access_token;
-      googleTokenExpiry = Date.now() + (resp.expires_in - 60)*1000;
-      sessionStorage.setItem('g_tok', JSON.stringify({t:googleToken, e:googleTokenExpiry}));
+      if(resp.error){
+        // Si el refresco silencioso falla, no molestamos al usuario; simplemente desconectamos
+        if(resp.error === 'interaction_required' || resp.error === 'access_denied'){
+          googleToken=null; googleTokenExpiry=0; updateGoogleUI(); return;
+        }
+        setStatus('Error Google: '+resp.error); return;
+      }
+      _saveGoogleToken(resp.access_token, Date.now() + (resp.expires_in - 60)*1000);
       scheduleTokenRefresh(resp.expires_in);
       await fetchCalendarList();
       updateGoogleUI();
@@ -1673,12 +1684,18 @@ function initGoogleTokenClient(){
       if(currentView==='calendario'||currentView==='correo'){ render(); loadAgendaData(); }
     }
   });
+
+  // Restaurar token guardado o intentar refresco silencioso si ya autorizó antes
   try{
-    const s=JSON.parse(sessionStorage.getItem('g_tok')||'null');
+    const s = JSON.parse(localStorage.getItem('g_tok')||'null');
     if(s && s.e > Date.now()){
+      // Token todavía válido
       googleToken=s.t; googleTokenExpiry=s.e;
       scheduleTokenRefresh(Math.round((s.e - Date.now())/1000));
       fetchCalendarList().then(()=>{ updateGoogleUI(); fetchGmailLabels(); if(currentView==='calendario'||currentView==='correo'){ render(); loadAgendaData(); } });
+    } else if(localStorage.getItem('g_authorized')==='1'){
+      // Token expirado pero el usuario ya autorizó antes → refresco silencioso
+      gTokenClient.requestAccessToken({prompt:''});
     }
   }catch(e){}
 }
@@ -1691,7 +1708,8 @@ function disconnectGoogle(){
   if(_tokenRefreshTimer){ clearTimeout(_tokenRefreshTimer); _tokenRefreshTimer=null; }
   if(googleToken) try{ google.accounts.oauth2.revoke(googleToken,()=>{}); }catch(e){}
   googleToken=null; googleTokenExpiry=0; googleCalendars=[];
-  sessionStorage.removeItem('g_tok');
+  localStorage.removeItem('g_tok');
+  localStorage.removeItem('g_authorized');
   updateGoogleUI();
   if(currentView==='calendario'||currentView==='correo') render();
 }
