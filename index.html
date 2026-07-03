@@ -224,11 +224,29 @@
   .agenda-event:hover{border-color:var(--border-strong);}
   .agenda-event-time{font-size:11.5px;color:var(--text-soft);white-space:nowrap;min-width:52px;}
   .agenda-event-title{font-size:13px;font-weight:500;}
-  .gmail-item{display:flex;gap:9px;align-items:center;padding:9px 11px;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:5px;transition:border-color .1s;}
-  .gmail-item:hover{border-color:var(--border-strong);}
+  .gmail-item{display:flex;gap:9px;align-items:center;padding:9px 11px;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:5px;transition:border-color .1s;cursor:pointer;}
+  .gmail-item:hover{border-color:var(--accent);box-shadow:0 1px 6px rgba(37,99,235,.07);}
   .gmail-item-info{flex:1;min-width:0;}
   .gmail-item-subject{font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .gmail-item-from{font-size:11px;color:var(--text-soft);}
+  /* Label dropdown */
+  .email-label-dd{position:relative;display:inline-block;}
+  .email-label-menu{position:absolute;top:calc(100% + 5px);left:0;z-index:60;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.13);min-width:230px;padding:7px;}
+  .email-label-search{width:100%;box-sizing:border-box;padding:6px 9px;border:1px solid var(--border);border-radius:6px;font-size:12.5px;margin-bottom:5px;background:var(--bg);}
+  .email-label-search:focus{outline:none;border-color:var(--accent);}
+  .email-label-list{max-height:210px;overflow-y:auto;}
+  .email-label-opt{padding:6px 9px;border-radius:6px;font-size:12.5px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .email-label-opt:hover{background:var(--bg);}
+  .email-label-opt.active{background:var(--accent-bg);color:var(--accent);font-weight:600;}
+  /* Email modal */
+  .email-modal-bd{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;}
+  .email-modal-box{background:var(--surface);border-radius:14px;box-shadow:0 8px 40px rgba(0,0,0,.22);width:100%;max-width:700px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;}
+  .email-modal-head{padding:16px 18px 12px;border-bottom:1px solid var(--border);flex-shrink:0;}
+  .email-modal-subject{font-size:15px;font-weight:700;line-height:1.35;margin-bottom:7px;}
+  .email-modal-meta{font-size:11.5px;color:var(--text-soft);line-height:1.7;}
+  .email-modal-body{flex:1;overflow:auto;padding:14px 18px;}
+  .email-modal-iframe{width:100%;border:none;display:block;}
+  .email-modal-foot{padding:10px 18px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:7px;flex-shrink:0;}
   .agenda-connect{text-align:center;padding:48px 20px;}
   .agenda-connect p{margin-bottom:14px;font-size:14px;color:var(--text-soft);}
   .cal-selector{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
@@ -1890,7 +1908,15 @@ function renderCorreo(){
       <button class="email-filter-btn ${currentEmailQuery==='is:starred'?'active':''}" onclick="setEmailQuery('is:starred')">⭐ Estrella</button>
       <button class="email-filter-btn ${currentEmailQuery==='in:inbox'?'active':''}" onclick="setEmailQuery('in:inbox')">📥 Entrada</button>
       <button class="email-filter-btn ${currentEmailQuery==='is:unread'?'active':''}" onclick="setEmailQuery('is:unread')">🔵 No leídos</button>
-      <span id="gmailLabelBtns"></span>
+      <div class="email-label-dd" id="emailLabelDd">
+        <button class="email-filter-btn ${currentEmailQuery.startsWith('label:')?'active':''}" onclick="toggleLabelDropdown(event)">
+          <i class="ti ti-tag" aria-hidden="true"></i> ${currentEmailQuery.startsWith('label:')?currentEmailQuery.replace('label:',''):'Etiqueta'} <i class="ti ti-chevron-down" style="font-size:10px;" aria-hidden="true"></i>
+        </button>
+        <div class="email-label-menu" id="emailLabelMenu" style="display:none;">
+          <input class="email-label-search" type="text" id="emailLabelSearch" placeholder="Buscar etiqueta..." oninput="filterEmailLabels(this.value)">
+          <div class="email-label-list" id="emailLabelList"><p class="empty" style="font-size:12px;padding:2px 4px;">Cargando...</p></div>
+        </div>
+      </div>
     </div>
     <div id="gmailWidget"><p class="empty">Cargando...</p></div>
   </div>`;
@@ -1989,13 +2015,15 @@ async function loadGmailWidget(){
     const hdrs=msg.payload?.headers||[];
     const subject=hdrs.find(h=>h.name==='Subject')?.value||'(sin asunto)';
     const from=(hdrs.find(h=>h.name==='From')?.value||'').replace(/<[^>]+>/,'').trim();
+    const date=hdrs.find(h=>h.name==='Date')?.value||'';
     const msgId=msg.id;
-    return `<div class="gmail-item" id="email-${msgId}">
+    const unread=(msg.labelIds||[]).includes('UNREAD');
+    return `<div class="gmail-item" id="email-${msgId}" onclick="openEmailModal('${msgId}')">
       <div class="gmail-item-info">
-        <div class="gmail-item-subject">${escapeHtml(subject)}</div>
-        <div class="gmail-item-from">${escapeHtml(from)}</div>
+        <div class="gmail-item-subject" style="${unread?'font-weight:700;':''}">${escapeHtml(subject)}</div>
+        <div class="gmail-item-from">${escapeHtml(from)}${date?' · <span style="font-size:10.5px;">'+escapeHtml(formatEmailDate(date))+'</span>':''}</div>
       </div>
-      <div style="display:flex;gap:5px;flex-shrink:0;">
+      <div style="display:flex;gap:5px;flex-shrink:0;" onclick="event.stopPropagation()">
         <button class="btn-ghost btn-small" style="white-space:nowrap;" onclick="importEmailAsTask('${escapeAttr(subject)}','${escapeAttr(from)}')">+ Tarea</button>
         <button class="btn-danger btn-small" onclick="deleteEmail('${msgId}')" title="Mover a papelera"><i class="ti ti-trash" aria-hidden="true"></i></button>
       </div>
@@ -2012,7 +2040,7 @@ async function fetchGmailUnread(){
     const ids=((await lr.json()).messages||[]).map(m=>m.id);
     if(!ids.length) return[];
     return await Promise.all(ids.map(id=>
-      fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From`,
+      fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`,
         {headers:{Authorization:`Bearer ${googleToken}`}}).then(r=>r.json())
     ));
   }catch(e){return[];}
@@ -2029,8 +2057,96 @@ async function fetchGmailLabels(){
   }catch(e){}
 }
 function renderGmailLabelBtns(){
-  const el=document.getElementById('gmailLabelBtns'); if(!el) return;
-  el.innerHTML=gmailUserLabels.map(l=>`<button class="email-filter-btn ${currentEmailQuery==='label:'+l.name?'active':''}" onclick="setEmailQuery('label:${escapeAttr(l.name)}')">${escapeHtml(l.name)}</button>`).join('');
+  renderEmailLabelList(gmailUserLabels);
+}
+function renderEmailLabelList(labels){
+  const el=document.getElementById('emailLabelList'); if(!el) return;
+  if(!labels.length){ el.innerHTML='<p class="empty" style="font-size:12px;padding:2px 4px;">Sin etiquetas</p>'; return; }
+  el.innerHTML=labels.map(l=>`<div class="email-label-opt ${currentEmailQuery==='label:'+l.name?'active':''}" onclick="setEmailQuery('label:${escapeAttr(l.name)}');closeLabelDropdown()">${escapeHtml(l.name)}</div>`).join('');
+}
+function toggleLabelDropdown(e){
+  e.stopPropagation();
+  const menu=document.getElementById('emailLabelMenu'); if(!menu) return;
+  if(menu.style.display==='none'){
+    menu.style.display='block';
+    const s=document.getElementById('emailLabelSearch');
+    if(s){ s.value=''; renderEmailLabelList(gmailUserLabels); s.focus(); }
+    setTimeout(()=>document.addEventListener('click',_closeLabelDdHandler,{once:true}),0);
+  } else { closeLabelDropdown(); }
+}
+function closeLabelDropdown(){ const m=document.getElementById('emailLabelMenu'); if(m) m.style.display='none'; }
+function _closeLabelDdHandler(){ closeLabelDropdown(); }
+function filterEmailLabels(q){
+  renderEmailLabelList(q ? gmailUserLabels.filter(l=>l.name.toLowerCase().includes(q.toLowerCase())) : gmailUserLabels);
+}
+function formatEmailDate(dateStr){
+  try{
+    const d=new Date(dateStr), now=new Date();
+    if(d.toDateString()===now.toDateString()) return d.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+    if(now-d < 7*86400000) return d.toLocaleDateString('es-ES',{weekday:'short',day:'numeric'});
+    return d.toLocaleDateString('es-ES',{day:'numeric',month:'short'});
+  }catch(e){return'';}
+}
+async function openEmailModal(msgId){
+  const old=document.getElementById('emailModalBd'); if(old) old.remove();
+  const bd=document.createElement('div'); bd.id='emailModalBd'; bd.className='email-modal-bd';
+  bd.onclick=e=>{ if(e.target===bd) bd.remove(); };
+  bd.innerHTML=`<div class="email-modal-box">
+    <div class="email-modal-head"><div class="email-modal-subject">Cargando...</div></div>
+    <div class="email-modal-body"><p class="empty">Cargando mensaje...</p></div>
+    <div class="email-modal-foot"><button class="btn-ghost btn-small" onclick="document.getElementById('emailModalBd').remove()">Cerrar</button></div>
+  </div>`;
+  document.body.appendChild(bd);
+  try{
+    const r=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}?format=full`,{headers:{Authorization:`Bearer ${googleToken}`}});
+    if(r.status===401){handleGoogleExpired();bd.remove();return;}
+    if(!r.ok) throw new Error();
+    const msg=await r.json();
+    const hdrs=msg.payload?.headers||[];
+    const subject=hdrs.find(h=>h.name==='Subject')?.value||'(sin asunto)';
+    const from=hdrs.find(h=>h.name==='From')?.value||'';
+    const date=hdrs.find(h=>h.name==='Date')?.value||'';
+    const fromClean=from.replace(/<[^>]+>/,'').trim();
+    const body=extractEmailBody(msg.payload);
+    const box=bd.querySelector('.email-modal-box');
+    box.innerHTML=`<div class="email-modal-head">
+        <div class="email-modal-subject">${escapeHtml(subject)}</div>
+        <div class="email-modal-meta"><strong>De:</strong> ${escapeHtml(from)}<br><strong>Fecha:</strong> ${escapeHtml(date)}</div>
+      </div>
+      <div class="email-modal-body" id="emailModalBody"></div>
+      <div class="email-modal-foot">
+        <button class="btn-ghost btn-small" onclick="importEmailAsTask('${escapeAttr(subject)}','${escapeAttr(fromClean)}')">+ Tarea</button>
+        <button class="btn-danger btn-small" onclick="deleteEmail('${msgId}');document.getElementById('emailModalBd').remove()"><i class="ti ti-trash"></i></button>
+        <button class="btn-ghost btn-small" onclick="document.getElementById('emailModalBd').remove()">Cerrar</button>
+      </div>`;
+    const bodyEl=document.getElementById('emailModalBody');
+    if(body.html){
+      const iframe=document.createElement('iframe');
+      iframe.className='email-modal-iframe';
+      iframe.setAttribute('sandbox','allow-popups allow-same-origin');
+      bodyEl.appendChild(iframe);
+      iframe.srcdoc=`<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:system-ui,sans-serif;font-size:13px;line-height:1.6;margin:0;padding:0;color:#1A1A18;}a{color:#2563EB;}</style></head><body>${body.html}</body></html>`;
+      iframe.onload=()=>{ try{ iframe.style.height=iframe.contentDocument.body.scrollHeight+30+'px'; }catch(e){} };
+    } else {
+      bodyEl.innerHTML=`<pre style="white-space:pre-wrap;font-size:13px;font-family:system-ui,sans-serif;margin:0;">${escapeHtml(body.text||'(sin contenido)')}</pre>`;
+    }
+  }catch(e){
+    const b=bd.querySelector('.email-modal-body'); if(b) b.innerHTML='<p class="empty">Error al cargar el mensaje.</p>';
+  }
+}
+function extractEmailBody(payload){
+  if(!payload) return{text:'',html:''};
+  let text='',html='';
+  function decode(data){ try{ return decodeURIComponent(escape(atob(data.replace(/-/g,'+').replace(/_/g,'/')||''))); }catch(e){ return atob((data||'').replace(/-/g,'+').replace(/_/g,'/')); } }
+  function walk(p){
+    if(!p) return;
+    if(p.mimeType==='text/html' && p.body?.data && !html) html=decode(p.body.data);
+    else if(p.mimeType==='text/plain' && p.body?.data && !text) text=decode(p.body.data);
+    if(p.parts) p.parts.forEach(walk);
+  }
+  if(payload.body?.data){ return payload.mimeType==='text/html'?{html:decode(payload.body.data),text:''}:{text:decode(payload.body.data),html:''}; }
+  walk(payload);
+  return{text,html};
 }
 function importEmailAsTask(subject, from){
   openTaskModal(null,{title:subject+(from?` (${from})`:''), tipo:'Correo pendiente'});
