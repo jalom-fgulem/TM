@@ -1,0 +1,1522 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Gestor de tareas</title>
+<style>
+  :root{
+    --bg:#F6F4EF; --panel:#FFFFFF; --ink:#22201C; --ink-soft:#6B655C; --line:#E4DFD4;
+    --alta:#B8154F; --alta-bg:#FBE6EC; --media:#B8791A; --media-bg:#FCEFDB;
+    --baja:#2F7A55; --baja-bg:#E3F1E9; --accent:#1E4C7A;
+    --area-bg:#EFEAE0; --area-ink:#4A4438; --proj:#5B3E8C; --proj-bg:#EDE6F7;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--bg); color:var(--ink); font-family:'Iowan Old Style','Georgia',serif; -webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1240px;margin:0 auto;padding:24px 18px 60px;}
+  h1{font-family:Georgia,'Times New Roman',serif; font-size:26px; margin:0 0 2px;}
+  .datebar{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:12.5px; color:var(--ink-soft); margin-bottom:18px; text-transform:uppercase; letter-spacing:0.08em;}
+
+  .viewtabs{display:flex; gap:6px; margin-bottom:16px; font-family:-apple-system,Helvetica,Arial,sans-serif;}
+  .viewtabs button{background:#fff; border:1px solid var(--line); color:var(--ink-soft); font-weight:500;}
+  .viewtabs button.active{background:var(--ink); color:#fff; border-color:var(--ink);}
+
+  .layout{display:grid; grid-template-columns:300px 1fr; gap:18px;}
+  @media (max-width:820px){ .layout{grid-template-columns:1fr;} }
+
+  .panel-box{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px;}
+  .panel-box h2, .sect-h{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:11.5px; text-transform:uppercase; letter-spacing:0.09em; color:var(--ink-soft); margin:0 0 10px; font-weight:600;}
+  .help{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:12px; color:var(--ink-soft); margin:0 0 8px; line-height:1.4;}
+
+  textarea,input[type=text],input[type=date]{width:100%; font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:14px; border:1px solid var(--line); border-radius:7px; padding:8px 10px; background:#FDFCFA; color:var(--ink);}
+  textarea{resize:vertical; min-height:74px;}
+  textarea:focus,input:focus,select:focus{outline:2px solid var(--accent); outline-offset:1px;}
+  select{width:100%; font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:13.5px; padding:8px 10px; border:1px solid var(--line); border-radius:7px; background:#FDFCFA; color:var(--ink);}
+
+  button{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:13px; font-weight:600; border:none; border-radius:7px; padding:8px 13px; cursor:pointer;}
+  .btn-primary{background:var(--accent); color:#fff;}
+  .btn-primary:hover{background:#163b5e;}
+  .btn-primary:disabled{background:#9db4c6; cursor:wait;}
+  .btn-ghost{background:transparent; color:var(--ink-soft); border:1px solid var(--line);}
+  .btn-ghost:hover{border-color:var(--ink-soft); color:var(--ink);}
+  .btn-small{padding:5px 10px; font-size:12px;}
+  .btn-mic{background:#fff; border:1px solid var(--line); border-radius:50%; width:34px; height:34px; padding:0; display:flex; align-items:center; justify-content:center; font-size:15px;}
+  .btn-mic.rec{background:var(--alta-bg); border-color:var(--alta); color:var(--alta);}
+  .row-flex{display:flex; gap:8px; align-items:flex-start;}
+  .row-flex textarea{flex:1;}
+
+  .note-item{border:1px solid var(--line); border-radius:8px; padding:10px; margin-bottom:9px; background:#FDFCFA;}
+  .note-item p{margin:0 0 7px; font-size:13.5px; line-height:1.4;}
+  .note-meta{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:11px; color:var(--ink-soft); margin-bottom:7px;}
+  .note-actions{display:flex; gap:5px; flex-wrap:wrap;}
+  .empty{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:12.5px; color:var(--ink-soft); font-style:italic;}
+
+  .kanban{display:grid; grid-template-columns:repeat(auto-fit,minmax(215px,1fr)); gap:12px; align-items:start;}
+  .kcol{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; min-height:100px;}
+  .kcol h3{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:12px; text-transform:uppercase; letter-spacing:0.07em; margin:0 0 10px; font-weight:700; display:flex; justify-content:space-between; align-items:center;}
+  .kcol.urgente h3{color:var(--alta);}
+  .kcol .count{font-size:11px; background:var(--area-bg); color:var(--area-ink); border-radius:12px; padding:1px 8px; font-weight:600;}
+  .kcol.urgente .count{background:var(--alta-bg); color:var(--alta);}
+
+  .task{border:1px solid var(--line); border-left-width:4px; border-radius:8px; padding:10px 11px; margin-bottom:9px; background:#FDFCFA; cursor:pointer;}
+  .task:hover{border-color:var(--ink-soft);}
+  .task.alta{border-left-color:var(--alta);}
+  .task.media{border-left-color:var(--media);}
+  .task.baja{border-left-color:var(--baja);}
+  .task.done{opacity:0.5;}
+  .task-title{font-size:14.5px; font-weight:600; margin:0 0 4px; line-height:1.3;}
+  .task-title.done{text-decoration:line-through;}
+  .badge{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; padding:2px 7px; border-radius:20px; white-space:nowrap;}
+  .badge.alta{background:var(--alta-bg); color:var(--alta);}
+  .badge.media{background:var(--media-bg); color:var(--media);}
+  .badge.baja{background:var(--baja-bg); color:var(--baja);}
+  .badge.area{background:var(--area-bg); color:var(--area-ink); font-weight:600;}
+  .badge.tipo{background:#E4EEF6; color:var(--accent); font-weight:600;}
+  .badge.proj{background:var(--proj-bg); color:var(--proj); font-weight:600;}
+  .badges-row{display:flex; gap:4px; flex-wrap:wrap; margin-top:6px;}
+  .task-meta{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:11.5px; color:var(--ink-soft); margin-top:6px;}
+  .overdue{color:var(--alta); font-weight:700;}
+  .subprogress{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:11px; color:var(--ink-soft); margin-top:5px;}
+
+  .filters{display:flex; gap:5px; font-family:-apple-system,Helvetica,Arial,sans-serif; flex-wrap:wrap; margin-bottom:8px;}
+  .filters button{background:#fff; border:1px solid var(--line); color:var(--ink-soft); font-weight:500;}
+  .filters button.active{background:var(--ink); color:#fff; border-color:var(--ink);}
+  .filter-label{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:10.5px; text-transform:uppercase; letter-spacing:0.06em; color:var(--ink-soft); margin-right:4px; align-self:center;}
+
+  .proj-list-card{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; margin-bottom:12px; cursor:pointer;}
+  .proj-list-card:hover{border-color:var(--proj);}
+  .proj-list-card h3{font-family:Georgia,serif; font-size:17px; margin:0 0 5px;}
+  .proj-list-card .proj-meta{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:12px; color:var(--ink-soft);}
+  .proj-add{display:flex; gap:6px; margin-bottom:14px;}
+  .proj-add input{flex:1;}
+
+  .proj-head{background:var(--panel); border:1px solid var(--line); border-left:5px solid var(--proj); border-radius:10px; padding:16px; margin-bottom:14px;}
+  .proj-head h3{font-family:Georgia,serif; font-size:20px; margin:0 0 6px; display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:center;}
+  .log-entry{border-bottom:1px dashed var(--line); padding:9px 0;}
+  .log-entry:last-child{border-bottom:none;}
+  .log-date{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:var(--proj); font-weight:700; margin-bottom:3px; display:flex; justify-content:space-between; align-items:center;}
+  .log-text{font-size:14px; line-height:1.45; white-space:pre-wrap;}
+
+  .modal-bg{position:fixed; inset:0; background:rgba(30,28,24,0.45); display:flex; align-items:center; justify-content:center; padding:20px; z-index:50; overflow-y:auto;}
+  .modal{background:#fff; border-radius:12px; padding:20px; width:100%; max-width:500px; max-height:90vh; overflow-y:auto;}
+  .modal h3{margin:0 0 6px; font-family:Georgia,serif; font-size:18px;}
+  .ai-note{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:11.5px; color:var(--accent); background:#E4EEF6; padding:6px 10px; border-radius:6px; margin-bottom:12px; line-height:1.4;}
+  .field{margin-bottom:11px;}
+  .field label{display:block; font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:var(--ink-soft); margin-bottom:4px; font-weight:600;}
+  .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:14px; flex-wrap:wrap;}
+  .checks{display:flex; flex-wrap:wrap; gap:5px;}
+  .chk{display:flex; align-items:center; gap:5px; font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:12px; border:1px solid var(--line); border-radius:20px; padding:4px 9px; background:#FDFCFA; cursor:pointer;}
+  .chk input{margin:0;}
+  .chk.checked{background:var(--area-bg); border-color:var(--area-ink);}
+
+  .sub-list{margin:0 0 8px; padding:0; list-style:none;}
+  .sub-list li{display:flex; align-items:center; gap:7px; font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:13px; padding:4px 0; border-bottom:1px dashed var(--line);}
+  .sub-list li span.done{text-decoration:line-through; color:var(--ink-soft);}
+  .sub-list li button{margin-left:auto;}
+  .sub-add{display:flex; gap:6px;}
+  .sub-add input{flex:1;}
+
+  .area-manage{display:flex; flex-wrap:wrap; gap:5px; margin-bottom:8px;}
+  .area-chip{display:flex; align-items:center; gap:5px; font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:11.5px; background:var(--area-bg); color:var(--area-ink); border-radius:20px; padding:4px 5px 4px 9px;}
+  .area-chip button{background:none; border:none; color:var(--area-ink); font-weight:700; padding:0 4px; cursor:pointer; font-size:13px; line-height:1;}
+  .area-add{display:flex; gap:6px;}
+  .area-add input{flex:1;}
+  details.manage summary{cursor:pointer; font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:12px; color:var(--ink-soft); margin-bottom:8px;}
+  details.manage{margin-bottom:12px;}
+
+  .status-msg{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:12px; color:var(--ink-soft); margin-top:12px; min-height:16px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Gestor de tareas</h1>
+  <div class="datebar" id="datebar"></div>
+
+  <div class="layout">
+    <div>
+      <div class="panel-box">
+        <h2>Captura rápida</h2>
+        <div class="row-flex">
+          <textarea id="noteInput" placeholder="Escribe, o usa el dictado de tu teclado (icono del micrófono del propio teclado, no de aquí)."></textarea>
+        </div>
+        <div style="margin-top:9px; display:flex; justify-content:flex-end; gap:6px;">
+          <button class="btn-primary btn-small" onclick="saveNote()">Guardar nota</button>
+        </div>
+        <div style="margin-top:16px;">
+          <h2>Notas sin procesar</h2>
+          <div id="notesList"></div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="viewtabs">
+        <button id="tab-panel" class="btn-small active" onclick="setView('panel')">Panel</button>
+        <button id="tab-lista" class="btn-small" onclick="setView('lista')">Lista</button>
+        <button id="tab-proyectos" class="btn-small" onclick="setView('proyectos')">Proyectos</button>
+        <button id="tab-reuniones" class="btn-small" onclick="setView('reuniones')">Reuniones</button>
+        <button id="tab-crm" class="btn-small" onclick="setView('crm')">CRM</button>
+        <button id="tab-desarrollo" class="btn-small" onclick="setView('desarrollo')">Desarrollo</button>
+      </div>
+
+      <details class="manage">
+        <summary>Gestionar áreas y tipos</summary>
+        <p class="help" style="margin-top:6px;">Áreas</p>
+        <div class="area-manage" id="areaManageList"></div>
+        <div class="area-add">
+          <input type="text" id="newAreaInput" placeholder="Nueva área...">
+          <button class="btn-ghost btn-small" onclick="addArea()">Añadir</button>
+        </div>
+        <p class="help" style="margin-top:12px;">Tipos (cada tipo es una columna del Panel; mantenlos pocos)</p>
+        <div class="area-manage" id="tipoManageList"></div>
+        <div class="area-add">
+          <input type="text" id="newTipoInput" placeholder="Nuevo tipo...">
+          <button class="btn-ghost btn-small" onclick="addTipo()">Añadir</button>
+        </div>
+      </details>
+
+      <div id="viewRoot"></div>
+
+      <div style="margin-top:12px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+        <button class="btn-ghost btn-small" onclick="openTaskModal(null)">+ Añadir tarea</button>
+        <span style="display:flex; gap:6px; flex-wrap:wrap;">
+          <button class="btn-ghost btn-small" onclick="copySummary()">Copiar resumen de pendientes</button>
+          <button class="btn-ghost btn-small" onclick="copyBackupToClipboard()">Ver copia (para copiar a mano)</button>
+          <button class="btn-ghost btn-small" onclick="document.getElementById('importFile').click()">Importar copia (archivo)</button>
+          <button class="btn-ghost btn-small" onclick="openPasteImportModal()">Importar copia (pegar texto)</button>
+          <input type="file" id="importFile" accept=".json" style="display:none;" onchange="importBackup(this)">
+        </span>
+      </div>
+    </div>
+  </div>
+  <div class="status-msg" id="statusMsg"></div>
+</div>
+
+<div id="modalRoot"></div>
+
+<script>
+const STORAGE_KEY = 'tablero-fgulem-datos';
+const SUPABASE_URL = 'https://awnitqzydpqvbjxqgjfk.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_3cqXbZ0mntG4tGgqzVA3JQ_xNWHlmbJ';
+const DEFAULT_AREAS = ['Desarrollo profesional','Formación y congresos','Transferencia e innovación','Encargos de gestión','Desarrollo digital','Servicios generales','Dirección / Transversal'];
+const DEFAULT_TIPOS = ['Correo pendiente','Llamada','Reunión por montar','Tema general'];
+let state = { notes:[], tasks:[], areas:DEFAULT_AREAS.slice(), tipos:DEFAULT_TIPOS.slice(), projects:[], meetings:[], contacts:[] };
+let currentPersonFilter = null;
+let tempParticipants = [];
+let tempSuggestedTasks = [];
+let meetingDraftStash = null;
+let currentView = 'panel';
+let currentProjectId = null;
+let currentUrgFilter = 'todas';
+let expandedSubtasks = new Set();
+let currentAreaFilter = 'todas';
+let currentTipoFilter = 'todas';
+let tempSubtasks = [];
+let tempExpectedParticipants = [];
+
+const monthsEs = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+function fmtDate(d){ const dt=new Date(d+'T00:00:00'); return dt.getDate()+' de '+monthsEs[dt.getMonth()]+' de '+dt.getFullYear(); }
+function fmtDateShort(d){ const dt=new Date(d+'T00:00:00'); return dt.getDate()+' de '+monthsEs[dt.getMonth()]; }
+function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+document.getElementById('datebar').textContent = new Date().toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+
+function setStatus(msg){
+  const el=document.getElementById('statusMsg'); el.textContent=msg;
+  if(msg) setTimeout(()=>{ if(el.textContent===msg) el.textContent=''; },3500);
+}
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function escapeHtml(s){ return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function escapeAttr(s){ return escapeHtml(s).replace(/"/g,'&quot;'); }
+function getProj(id){ return state.projects.find(x=>x.id===id) || null; }
+function projName(id){ const p=getProj(id); return p?p.name:null; }
+
+async function loadState(){
+  let loaded=null;
+  setStatus('Cargando...');
+  try{
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/board?id=eq.${STORAGE_KEY}&select=data`, {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+    });
+    if(res.ok){
+      const rows = await res.json();
+      if(rows && rows.length && rows[0].data) loaded = rows[0].data;
+      setStatus('');
+    } else {
+      setStatus('Error al conectar con la base de datos (HTTP '+res.status+').');
+    }
+  }catch(e){
+    setStatus('Error de red al cargar los datos.');
+  }
+  if(loaded){
+    state = Object.assign({notes:[],tasks:[],areas:DEFAULT_AREAS.slice(),tipos:DEFAULT_TIPOS.slice(),projects:[]}, loaded);
+    if(!state.areas || state.areas.length===0) state.areas = DEFAULT_AREAS.slice();
+    if(!state.tipos || state.tipos.length===0) state.tipos = DEFAULT_TIPOS.slice();
+    if(!state.projects) state.projects = [];
+    if(!state.meetings) state.meetings = [];
+    if(!state.contacts) state.contacts = [];
+    state.tasks.forEach(t=>{ if(!t.subtasks) t.subtasks=[]; t.subtasks.forEach(s=>{ if(!s.children) s.children=[]; }); });
+    state.projects.forEach(p=>{ if(!p.areas) p.areas=[]; if(!p.log) p.log=[]; if(p.active===undefined) p.active=true; });
+  }
+  render();
+}
+async function persist(){
+  try{
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/board`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates,return=minimal'
+      },
+      body: JSON.stringify([{ id: STORAGE_KEY, data: state, updated_at: new Date().toISOString() }])
+    });
+    if(!res.ok) setStatus('No se pudo guardar (HTTP '+res.status+'). Reintenta.');
+  }catch(e){ setStatus('Error de red al guardar.'); }
+}
+
+// ---- Áreas ----
+function addArea(){
+  const input=document.getElementById('newAreaInput'); const val=input.value.trim();
+  if(!val) return;
+  if(state.areas.includes(val)){ setStatus('Esa área ya existe.'); return; }
+  state.areas.push(val); input.value=''; persist(); render();
+}
+function removeArea(name){ state.areas=state.areas.filter(a=>a!==name); persist(); render(); }
+function addTipo(){
+  const input=document.getElementById('newTipoInput'); const val=input.value.trim();
+  if(!val) return;
+  if(state.tipos.includes(val)){ setStatus('Ese tipo ya existe.'); return; }
+  state.tipos.push(val); input.value=''; persist(); render();
+}
+function removeTipo(name){
+  state.tipos=state.tipos.filter(t=>t!==name);
+  state.tasks.forEach(t=>{ if(t.tipo===name) t.tipo=''; });
+  persist(); render();
+}
+
+
+// ---- Notas ----
+function saveNote(){
+  const input=document.getElementById('noteInput'); const text=input.value.trim();
+  if(!text) return;
+  state.notes.unshift({id:uid(), text, created:todayStr()});
+  input.value=''; persist(); render();
+  setStatus('Nota guardada sin procesar.');
+}
+function deleteNote(id){ state.notes=state.notes.filter(n=>n.id!==id); persist(); render(); }
+
+// ---- IA ----
+async function classifyWithAI(text){
+  const areasDesc = state.areas.map(a=>'- '+a).join('\n');
+  const projDesc = state.projects.length ? state.projects.map(p=>'- '+p.id+': '+p.name+(p.areas.length?' ['+p.areas.join(', ')+']':'')).join('\n') : '(ninguno)';
+  const openTasks = state.tasks.filter(t=>t.status!=='hecha').slice(0,40)
+    .map(t=>'- '+t.id+': '+t.title+(t.areas&&t.areas.length?' ['+t.areas.join(', ')+']':'')+(t.projectId&&projName(t.projectId)?' (proyecto: '+projName(t.projectId)+')':''))
+    .join('\n') || '(ninguna)';
+
+  const systemPrompt = `Eres un asistente que interpreta notas de trabajo de José Carlos Alonso Marcos, Director de FGULEM (Fundación General de la Universidad de León y de la Empresa). Debes decidir si la nota es (a) una TAREA NUEVA, (b) información/avance sobre una TAREA YA ABIERTA, o (c) un APUNTE DE DIARIO de un proyecto (avance informativo, sin acción pendiente nueva). Devuelve SOLO un objeto JSON, sin texto adicional, sin backticks.
+
+Tarea nueva:
+{"action":"new","title":"...","areas":["Área tal cual"],"tipo":"uno de la lista de tipos, o cadena vacía si no encaja ninguno","urgency":"alta|media|baja","context":"...","projectId":"id o null"}
+
+Amplía una tarea abierta:
+{"action":"append","taskId":"id de la lista","addition":"texto a añadir","urgency":"alta|media|baja o null"}
+
+Apunte de diario de un proyecto (solo si menciona claramente un proyecto existente y NO implica una acción pendiente nueva):
+{"action":"log","projectId":"id del proyecto","entry":"texto del apunte"}
+
+Tareas abiertas:
+${openTasks}
+
+Proyectos existentes:
+${projDesc}
+
+Áreas disponibles (texto EXACTO):
+${areasDesc}
+
+Tipos disponibles (texto EXACTO; usa cadena vacía si ninguno encaja):
+${state.tipos.map(t=>'- '+t).join('\n')}
+
+Reglas:
+- "append" solo con coincidencia clara de tema; "log" solo con proyecto claro y sin acción nueva; ante la duda, "new".
+- "Dirección / Transversal" es para temas que gestiona el propio director y cruzan áreas (licitaciones, normativa interna).
+- Si menciona un encargo concreto (Colegio Mayor La Tebaida, Hospital Veterinario, Clínica de Podología, Centro de Idiomas, AlumniLeón, Instituto Confucio, Vivero de Empresas), marca "Encargos de gestión" además de otras áreas relevantes.
+- "title" corto y accionable (máx 90 caracteres). No inventes información.
+- Si no hay pistas de urgencia, "media".`;
+
+  const response = await fetch("https://api.anthropic.com/v1/messages",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      model:"claude-sonnet-4-6",
+      max_tokens:1000,
+      system:systemPrompt,
+      messages:[{role:"user",content:text}]
+    })
+  });
+  const data = await response.json();
+  const textBlock=(data.content||[]).find(b=>b.type==='text');
+  if(!textBlock) throw new Error('Sin respuesta');
+  return JSON.parse(textBlock.text.replace(/```json|```/g,'').trim());
+}
+
+async function captureAndClassify(){
+  const input=document.getElementById('noteInput'); const text=input.value.trim();
+  if(!text) return;
+  setStatus('Interpretando...');
+  try{
+    const s = await classifyWithAI(text);
+    input.value='';
+    handleAISuggestion(s, null, text);
+  }catch(e){
+    setStatus('No se pudo interpretar. Guardada como nota para procesar a mano.');
+    state.notes.unshift({id:uid(), text, created:todayStr()});
+    persist(); render();
+  }
+}
+async function convertNoteAI(id){
+  const note=state.notes.find(n=>n.id===id); if(!note) return;
+  const btn=document.getElementById('note-ai-'+id);
+  if(btn){ btn.disabled=true; btn.textContent='Analizando...'; }
+  try{
+    const s = await classifyWithAI(note.text);
+    handleAISuggestion(s, id, note.text);
+  }catch(e){
+    setStatus('No se pudo clasificar. Abriendo formulario manual.');
+    openTaskModal(null,{title:note.text},id,false);
+  }
+}
+function convertNoteManual(id){
+  const note=state.notes.find(n=>n.id===id); if(!note) return;
+  openTaskModal(null,{title:note.text},id,false);
+}
+
+function handleAISuggestion(s, fromNoteId, originalText){
+  if(s.action==='append' && state.tasks.find(t=>t.id===s.taskId)){
+    openAppendModal(s, fromNoteId);
+  } else if(s.action==='log' && getProj(s.projectId)){
+    openLogModal(s, fromNoteId, originalText);
+  } else {
+    openTaskModal(null, s, fromNoteId, true);
+  }
+}
+
+function openLogModal(s, fromNoteId, originalText){
+  const p=getProj(s.projectId);
+  const root=document.getElementById('modalRoot');
+  root.innerHTML=`
+    <div class="modal-bg" onclick="if(event.target===this) closeModal()">
+      <div class="modal">
+        <h3>Apuntar al diario del proyecto</h3>
+        <div class="ai-note">La IA interpreta que esto es un avance informativo, no una acción pendiente nueva.</div>
+        <div class="field">
+          <label>Proyecto</label>
+          <p style="font-size:14.5px; margin:0; font-weight:600;">${escapeHtml(p.name)}</p>
+        </div>
+        <div class="field">
+          <label>Apunte (con fecha de hoy)</label>
+          <textarea id="logText">${escapeHtml(s.entry||originalText||'')}</textarea>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+          <button class="btn-ghost" onclick="rejectAppend('${escapeAttr(s.entry||originalText||'')}','${fromNoteId||''}')">Es una tarea, no un apunte</button>
+          <button class="btn-primary" onclick="confirmLog('${p.id}','${fromNoteId||''}')">Apuntar al diario</button>
+        </div>
+      </div>
+    </div>`;
+}
+function confirmLog(projectId, fromNoteId){
+  const p=getProj(projectId);
+  const text=document.getElementById('logText').value.trim();
+  if(!text){ setStatus('El apunte no puede estar vacío.'); return; }
+  p.log.unshift({id:uid(), date:todayStr(), text});
+  if(fromNoteId) state.notes=state.notes.filter(n=>n.id!==fromNoteId);
+  closeModal(); persist(); render();
+  setStatus('Apunte añadido al diario de '+p.name+'.');
+}
+
+function openAppendModal(s, fromNoteId){
+  const t = state.tasks.find(x=>x.id===s.taskId);
+  const root=document.getElementById('modalRoot');
+  root.innerHTML=`
+    <div class="modal-bg" onclick="if(event.target===this) closeModal()">
+      <div class="modal">
+        <h3>Ampliar tarea existente</h3>
+        <div class="ai-note">La IA interpreta que esto es un avance de una tarea ya abierta.</div>
+        <div class="field">
+          <label>Tarea abierta</label>
+          <p style="font-size:14.5px; margin:0; font-weight:600;">${escapeHtml(t.title)}</p>
+        </div>
+        <div class="field">
+          <label>Texto que se añadirá a su contexto</label>
+          <textarea id="appendText">${escapeHtml(s.addition||'')}</textarea>
+        </div>
+        ${s.urgency && s.urgency!==t.urgency ? `<div class="field"><label>Cambio de urgencia sugerido</label><p style="font-size:13px;margin:0;">${t.urgency} → <strong>${s.urgency}</strong></p></div>`:''}
+        <div class="modal-actions">
+          <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+          <button class="btn-ghost" onclick="rejectAppend('${escapeAttr(s.addition||'')}','${fromNoteId||''}')">Crear tarea nueva</button>
+          <button class="btn-primary" onclick="confirmAppend('${t.id}','${fromNoteId||''}','${s.urgency||''}')">Añadir a la tarea</button>
+        </div>
+      </div>
+    </div>`;
+}
+function confirmAppend(taskId, fromNoteId, newUrgency){
+  const t=state.tasks.find(x=>x.id===taskId);
+  const addition=document.getElementById('appendText').value.trim();
+  if(addition){
+    t.context = (t.context ? t.context+'\n' : '') + '['+fmtDateShort(todayStr())+'] '+addition;
+  }
+  if(newUrgency && ['alta','media','baja'].includes(newUrgency)) t.urgency=newUrgency;
+  if(fromNoteId) state.notes=state.notes.filter(n=>n.id!==fromNoteId);
+  closeModal(); persist(); render();
+  setStatus('Tarea ampliada.');
+}
+function rejectAppend(text, fromNoteId){
+  closeModal();
+  openTaskModal(null,{title:text},fromNoteId,false);
+}
+
+function renderMeetingLinkBlock(task){
+  if(task.meetingId){
+    const m = state.meetings.find(x=>x.id===task.meetingId);
+    if(!m){ task.meetingId=null; }
+    else{
+      return `<div class="field">
+        <label>Ficha de reunión vinculada</label>
+        <p style="font-size:13.5px; margin:0 0 6px;">${escapeHtml(m.title)} — ${fmtDateShort(m.date)}</p>
+        <div style="display:flex; gap:6px;">
+          <button type="button" class="btn-ghost btn-small" onclick="openLinkedMeeting('${m.id}')">Abrir ficha</button>
+          <button type="button" class="btn-ghost btn-small" onclick="unlinkMeeting('${task.id}')">Desvincular</button>
+        </div>
+      </div>`;
+    }
+  }
+  return `<div class="field">
+    <label>Participantes previstos</label>
+    <ul class="sub-list" id="mExpPartList"></ul>
+    <div class="sub-add">
+      <input type="text" id="mExpPartInput" list="contactNamesTask" placeholder="Nombre y apellido..." onkeydown="if(event.key==='Enter'){event.preventDefault();addExpectedParticipant();}">
+      <button type="button" class="btn-ghost btn-small" onclick="addExpectedParticipant()">Añadir</button>
+    </div>
+    <datalist id="contactNamesTask">
+      ${state.contacts.map(c=>`<option value="${escapeAttr(contactFullName(c))}">`).join('')}
+    </datalist>
+  </div>
+  <div class="field">
+    <label>Ficha de reunión vinculada</label>
+    <button type="button" class="btn-primary btn-small" onclick="createLinkedMeeting('${task.id}')">Crear ficha de reunión vinculada</button>
+    <p class="help" style="margin-top:6px;">Los participantes previstos se trasladan automáticamente a la ficha al crearla.</p>
+  </div>`;
+}
+function renderExpectedParticipants(){
+  const el=document.getElementById('mExpPartList'); if(!el) return;
+  el.innerHTML = tempExpectedParticipants.map((p,i)=>`
+    <li>
+      <span>${escapeHtml(p)}</span>
+      <button type="button" class="btn-ghost btn-small" onclick="tempExpectedParticipants.splice(${i},1); renderExpectedParticipants();">×</button>
+    </li>`).join('') || '<li style="border:none;"><span class="empty">Sin participantes previstos todavía.</span></li>';
+}
+function addExpectedParticipant(){
+  const input=document.getElementById('mExpPartInput'); const val=input.value.trim();
+  if(!val) return;
+  if(!tempExpectedParticipants.includes(val)) tempExpectedParticipants.push(val);
+  input.value=''; renderExpectedParticipants();
+}
+function createLinkedMeeting(taskId){
+  const t = state.tasks.find(x=>x.id===taskId);
+  if(!t) return;
+  const m = {id:uid(), title:t.title, date:todayStr(), importance:t.urgency||'media', participants:(t.expectedParticipants||[]).slice(), summary:'', acuerdos:'', projectId:t.projectId||null};
+  state.meetings.unshift(m);
+  t.meetingId = m.id;
+  persist();
+  closeModal();
+  openMeetingModal(m.id);
+}
+function openLinkedMeeting(meetingId){
+  closeModal();
+  openMeetingModal(meetingId);
+}
+function unlinkMeeting(taskId){
+  const t = state.tasks.find(x=>x.id===taskId);
+  if(!t) return;
+  t.meetingId = null;
+  persist();
+  openTaskModal(taskId);
+}
+
+// ---- Tareas ----
+function openTaskModal(taskId, prefill, fromNoteId, aiSuggested){
+  const editing = taskId ? state.tasks.find(t=>t.id===taskId) : null;
+  const data = editing || prefill || {};
+  if(!editing && !data.projectId && (currentView==='proyectos' || currentView==='desarrollo') && currentProjectId) data.projectId = currentProjectId;
+  const selectedAreas = data.areas || [];
+  tempSubtasks = (editing && editing.subtasks) ? JSON.parse(JSON.stringify(editing.subtasks)) : [];
+  tempExpectedParticipants = (editing && editing.expectedParticipants) ? editing.expectedParticipants.slice() : [];
+  const root=document.getElementById('modalRoot');
+  root.innerHTML=`
+    <div class="modal-bg" onclick="if(event.target===this) closeModal()">
+      <div class="modal">
+        <h3>${editing?'Editar tarea':'Nueva tarea'}</h3>
+        ${aiSuggested?'<div class="ai-note">Clasificación sugerida por IA — revisa y ajusta antes de guardar.</div>':''}
+        <div class="field">
+          <label>Título</label>
+          <input type="text" id="mTitle" value="${escapeAttr(data.title||'')}">
+        </div>
+        <div class="field">
+          <label>Áreas afectadas</label>
+          <div class="checks" id="mAreas">
+            ${state.areas.map(a=>`<label class="chk ${selectedAreas.includes(a)?'checked':''}" onclick="this.classList.toggle('checked')">
+              <input type="checkbox" value="${escapeAttr(a)}" ${selectedAreas.includes(a)?'checked':''}> ${escapeHtml(a)}
+            </label>`).join('')}
+          </div>
+        </div>
+        <div class="field">
+          <label>Proyecto (opcional)</label>
+          <select id="mProject">
+            <option value="">— Sin proyecto —</option>
+            ${state.projects.filter(p=>p.active||p.id===data.projectId).map(p=>`<option value="${p.id}" ${data.projectId===p.id?'selected':''}>${escapeHtml(p.name)}${!p.active?' (archivado)':''}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field">
+          <label>Tipo</label>
+          <select id="mTipo" onchange="document.getElementById('meetingLinkWrap').style.display = (this.value==='Reunión por montar') ? 'block':'none'; document.getElementById('callWrap').style.display = (this.value==='Llamada') ? 'block':'none';">
+            <option value="" ${!data.tipo?'selected':''}>— Sin tipo —</option>
+            ${state.tipos.map(t=>`<option value="${escapeAttr(t)}" ${data.tipo===t?'selected':''}>${escapeHtml(t)}</option>`).join('')}
+          </select>
+        </div>
+        <div id="meetingLinkWrap" style="display:${(data.tipo==='Reunión por montar')?'block':'none'};">
+          ${editing ? renderMeetingLinkBlock(editing) : '<p class="help">Guarda la tarea primero; la ficha de reunión se puede vincular al editarla.</p>'}
+        </div>
+        <div id="callWrap" class="field" style="display:${(data.tipo==='Llamada')?'block':'none'};">
+          <label>A quién llamas</label>
+          <input type="text" id="mCallWith" list="contactNamesCall" value="${escapeAttr(data.callWith||'')}" placeholder="Nombre y apellido...">
+          <datalist id="contactNamesCall">
+            ${state.contacts.map(c=>`<option value="${escapeAttr(contactFullName(c))}">`).join('')}
+          </datalist>
+          <p class="help" style="margin-top:5px;">Si no está en tu CRM, se guarda igual como texto suelto — date de alta al contacto desde la pestaña CRM si quieres que quede fichado.</p>
+        </div>
+        <div class="field">
+          <label>Urgencia</label>
+          <select id="mUrgency">
+            <option value="alta" ${data.urgency==='alta'?'selected':''}>Alta</option>
+            <option value="media" ${(!data.urgency||data.urgency==='media')?'selected':''}>Media</option>
+            <option value="baja" ${data.urgency==='baja'?'selected':''}>Baja</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Fecha límite (opcional)</label>
+          <input type="date" id="mDue" value="${data.due||''}">
+        </div>
+        <div class="field">
+          <label>Subtareas</label>
+          <ul class="sub-list" id="mSubList"></ul>
+          <div class="sub-add">
+            <input type="text" id="mSubInput" placeholder="Nueva subtarea..." onkeydown="if(event.key==='Enter'){event.preventDefault();addSubtask();}">
+            <button class="btn-ghost btn-small" onclick="addSubtask()">Añadir</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>Notas de contexto</label>
+          <div class="row-flex">
+            <textarea id="mContext" placeholder="Detalle, enlaces, con quién depende...">${escapeHtml(data.context||'')}</textarea>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+          <button class="btn-primary" onclick="saveTask('${editing?editing.id:''}','${fromNoteId||''}')">Guardar tarea</button>
+        </div>
+      </div>
+    </div>`;
+  renderSubList();
+  renderExpectedParticipants();
+}
+function renderSubList(){
+  const el=document.getElementById('mSubList'); if(!el) return;
+  el.innerHTML = tempSubtasks.map((s,i)=>{
+    if(!s.children) s.children=[];
+    const childrenHtml = s.children.map((c,j)=>`
+      <li style="margin-left:22px; border-bottom:none;">
+        <input type="checkbox" ${c.done?'checked':''} onchange="tempSubtasks[${i}].children[${j}].done=this.checked; renderSubList();">
+        <span class="${c.done?'done':''}">${escapeHtml(c.text)}</span>
+        <button class="btn-ghost btn-small" onclick="tempSubtasks[${i}].children.splice(${j},1); renderSubList();">×</button>
+      </li>`).join('');
+    return `
+    <li>
+      <input type="checkbox" ${s.done?'checked':''} onchange="tempSubtasks[${i}].done=this.checked; renderSubList();">
+      <span class="${s.done?'done':''}">${escapeHtml(s.text)}</span>
+      <button class="btn-ghost btn-small" onclick="tempSubtasks.splice(${i},1); renderSubList();">×</button>
+    </li>
+    ${childrenHtml}
+    <li style="margin-left:22px; border-bottom:none;">
+      <input type="text" placeholder="+ sub-subtarea..." style="flex:1; border:1px solid var(--line); border-radius:5px; padding:3px 6px; font-size:12px;"
+        onkeydown="if(event.key==='Enter'){event.preventDefault(); if(this.value.trim()){ tempSubtasks[${i}].children.push({id:uid(),text:this.value.trim(),done:false}); this.value=''; renderSubList(); } }">
+    </li>`;
+  }).join('') || '<li style="border:none;"><span class="empty">Sin subtareas.</span></li>';
+}
+function addSubtask(){
+  const input=document.getElementById('mSubInput'); const val=input.value.trim();
+  if(!val) return;
+  tempSubtasks.push({id:uid(), text:val, done:false, children:[]});
+  input.value=''; renderSubList();
+}
+function closeModal(){ document.getElementById('modalRoot').innerHTML=''; tempSubtasks=[]; }
+
+function saveTask(taskId, fromNoteId){
+  const title=document.getElementById('mTitle').value.trim();
+  if(!title){ setStatus('El título no puede estar vacío.'); return; }
+  const areas=Array.from(document.querySelectorAll('#mAreas input:checked')).map(el=>el.value);
+  const projectId=document.getElementById('mProject').value || null;
+  const tipo=document.getElementById('mTipo').value;
+  const urgency=document.getElementById('mUrgency').value;
+  const due=document.getElementById('mDue').value;
+  const context=document.getElementById('mContext').value.trim();
+  const subtasks=JSON.parse(JSON.stringify(tempSubtasks));
+  const expectedParticipants=tempExpectedParticipants.slice();
+  const callWith=document.getElementById('mCallWith').value.trim();
+
+  if(taskId){
+    const t=state.tasks.find(x=>x.id===taskId);
+    Object.assign(t,{title,areas,projectId,tipo,urgency,due,context,subtasks,expectedParticipants,callWith});
+  } else {
+    state.tasks.unshift({id:uid(),title,areas,projectId,tipo,urgency,due,context,subtasks,expectedParticipants,callWith,status:'pendiente',created:todayStr()});
+  }
+  if(fromNoteId) state.notes=state.notes.filter(n=>n.id!==fromNoteId);
+  closeModal(); persist(); render();
+  setStatus('Tarea guardada.');
+}
+function toggleSubtasksExpand(id,ev){
+  if(ev) ev.stopPropagation();
+  if(expandedSubtasks.has(id)) expandedSubtasks.delete(id); else expandedSubtasks.add(id);
+  render();
+}
+function toggleSubtaskInline(taskId, subId){
+  const t=state.tasks.find(x=>x.id===taskId); if(!t) return;
+  const s=t.subtasks.find(x=>x.id===subId); if(!s) return;
+  s.done = !s.done;
+  persist(); render();
+}
+function toggleChildSubtaskInline(taskId, subId, childId){
+  const t=state.tasks.find(x=>x.id===taskId); if(!t) return;
+  const s=t.subtasks.find(x=>x.id===subId); if(!s || !s.children) return;
+  const c=s.children.find(x=>x.id===childId); if(!c) return;
+  c.done = !c.done;
+  persist(); render();
+}
+function cycleUrgency(id,ev){
+  if(ev) ev.stopPropagation();
+  const t=state.tasks.find(x=>x.id===id);
+  const order=['alta','media','baja'];
+  t.urgency = order[(order.indexOf(t.urgency)+1)%3];
+  persist(); render();
+}
+function toggleDone(id,ev){
+  if(ev) ev.stopPropagation();
+  const t=state.tasks.find(x=>x.id===id);
+  t.status = t.status==='hecha'?'pendiente':'hecha';
+  persist(); render();
+}
+function deleteTask(id,ev){
+  if(ev) ev.stopPropagation();
+  state.tasks=state.tasks.filter(t=>t.id!==id);
+  persist(); render();
+}
+
+// ---- Proyectos ----
+function addProject(initialArea){
+  const input=document.getElementById('newProjInput'); const val=input.value.trim();
+  if(!val) return;
+  state.projects.push({id:uid(), name:val, areas:initialArea?[initialArea]:[], log:[], active:true});
+  input.value=''; persist(); render();
+}
+function toggleProjectActive(id,ev){
+  if(ev) ev.stopPropagation();
+  const p=getProj(id); if(!p) return;
+  p.active = !p.active;
+  persist(); render();
+}
+function showConfirm(message, onYes){
+  const root=document.getElementById('modalRoot');
+  root.innerHTML=`
+    <div class="modal-bg">
+      <div class="modal">
+        <h3>Confirmar</h3>
+        <p style="font-size:14px; line-height:1.4;">${escapeHtml(message)}</p>
+        <div class="modal-actions">
+          <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+          <button class="btn-primary" id="confirmYesBtn">Confirmar</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('confirmYesBtn').onclick = function(){ onYes(); };
+}
+function deleteProject(id,ev){
+  if(ev) ev.stopPropagation();
+  showConfirm('¿Eliminar el proyecto y su diario? Las tareas asociadas se conservan, pero quedan sin proyecto.', ()=>{
+    state.tasks.forEach(t=>{ if(t.projectId===id) t.projectId=null; });
+    state.projects=state.projects.filter(p=>p.id!==id);
+    if(currentProjectId===id) currentProjectId=null;
+    closeModal(); persist(); render();
+  });
+}
+function openProject(id){ currentProjectId=id; render(); }
+function closeProject(){ currentProjectId=null; render(); }
+function toggleProjArea(projectId, area){
+  const p=getProj(projectId); if(!p) return;
+  if(p.areas.includes(area)) p.areas=p.areas.filter(a=>a!==area);
+  else p.areas.push(area);
+  persist(); render();
+}
+function addLogEntry(projectId){
+  const p=getProj(projectId); if(!p) return;
+  const input=document.getElementById('projLogInput');
+  const text=input.value.trim();
+  if(!text) return;
+  p.log.unshift({id:uid(), date:todayStr(), text});
+  input.value='';
+  persist(); render();
+  setStatus('Apunte añadido al diario.');
+}
+function deleteLogEntry(projectId, entryId){
+  const p=getProj(projectId); if(!p) return;
+  p.log=p.log.filter(e=>e.id!==entryId);
+  persist(); render();
+}
+
+// ---- Contactos (CRM reducido) ----
+function contactFullName(c){ return (c.nombre+' '+c.apellidos).trim(); }
+function openContactModal(contactId, prefill){
+  const editing = contactId ? state.contacts.find(c=>c.id===contactId) : null;
+  const data = editing || prefill || {};
+  const root=document.getElementById('modalRoot');
+  root.innerHTML=`
+    <div class="modal-bg" onclick="if(event.target===this) closeModal()">
+      <div class="modal">
+        <h3>${editing?'Editar contacto':'Nuevo contacto'}</h3>
+        <div class="field"><label>Nombre</label><input type="text" id="cNombre" value="${escapeAttr(data.nombre||'')}"></div>
+        <div class="field"><label>Apellidos</label><input type="text" id="cApellidos" value="${escapeAttr(data.apellidos||'')}"></div>
+        <div class="field"><label>Cargo</label><input type="text" id="cCargo" value="${escapeAttr(data.cargo||'')}"></div>
+        <div class="field"><label>Empresa / Institución</label><input type="text" id="cEmpresa" value="${escapeAttr(data.empresa||'')}"></div>
+        <div class="modal-actions">
+          ${editing?`<button class="btn-ghost" onclick="deleteContact('${editing.id}')">Eliminar</button>`:''}
+          <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+          <button class="btn-primary" onclick="saveContact('${editing?editing.id:''}')">Guardar</button>
+        </div>
+      </div>
+    </div>`;
+}
+function saveContact(contactId){
+  const nombre=document.getElementById('cNombre').value.trim();
+  const apellidos=document.getElementById('cApellidos').value.trim();
+  if(!nombre){ setStatus('El nombre no puede estar vacío.'); return; }
+  const cargo=document.getElementById('cCargo').value.trim();
+  const empresa=document.getElementById('cEmpresa').value.trim();
+  if(contactId){
+    const c=state.contacts.find(x=>x.id===contactId);
+    Object.assign(c,{nombre,apellidos,cargo,empresa});
+  } else {
+    state.contacts.push({id:uid(),nombre,apellidos,cargo,empresa});
+  }
+  closeModal(); persist();
+  if(meetingDraftStash){
+    restoreMeetingDraft();
+  } else {
+    render();
+  }
+  setStatus('Contacto guardado.');
+}
+function restoreMeetingDraft(){
+  const stash = meetingDraftStash;
+  meetingDraftStash = null;
+  tempParticipants = stash.participants.slice();
+  tempSuggestedTasks = stash.suggestedTasks.slice();
+  const draftData = {
+    title: stash.title, date: stash.date, importance: stash.importance,
+    projectId: stash.projectId, summary: stash.summary, acuerdos: stash.acuerdos,
+    participants: stash.participants
+  };
+  const editing = stash.meetingId ? state.meetings.find(m=>m.id===stash.meetingId) : null;
+  openMeetingModal(stash.meetingId||null, draftData, tempSuggestedTasks.length>0);
+  if(editing){ document.getElementById('modalRoot').dataset.meetingId = stash.meetingId; }
+}
+function deleteContact(contactId){
+  showConfirm('¿Eliminar este contacto? No borra sus menciones en reuniones pasadas.', ()=>{
+    state.contacts=state.contacts.filter(c=>c.id!==contactId);
+    closeModal(); persist(); render();
+  });
+}
+
+// ---- Reuniones ----
+async function summarizeMeetingAI(transcript){
+  const projDesc = state.projects.length ? state.projects.map(p=>'- '+p.id+': '+p.name).join('\n') : '(ninguno)';
+  const systemPrompt = `Eres un asistente que procesa transcripciones de reuniones de José Carlos Alonso Marcos, Director de FGULEM (Fundación General de la Universidad de León y de la Empresa). A partir de la transcripción, genera una ficha de reunión. Devuelve SOLO un objeto JSON, sin texto adicional, sin backticks:
+
+{"title":"título corto de la reunión","participants":["Nombre Apellido","..."],"importance":"alta|media|baja","summary":"resumen ejecutivo de 5-10 líneas en castellano neutro","acuerdos":"acuerdos y decisiones tomadas, una por línea","projectId":"id de proyecto si encaja claramente, o null","tasks":[{"title":"...","tipo":"uno de la lista o cadena vacía","urgency":"alta|media|baja","areas":["Área tal cual"],"context":"..."}]}
+
+Proyectos existentes:
+${projDesc}
+
+Áreas disponibles (texto EXACTO):
+${state.areas.map(a=>'- '+a).join('\n')}
+
+Tipos disponibles (texto EXACTO):
+${state.tipos.map(t=>'- '+t).join('\n')}
+
+Reglas:
+- "participants": solo personas que intervienen o se citan como asistentes; no inventes nombres.
+- "tasks": solo compromisos accionables que salgan de la reunión, con responsable JC o su equipo. Si no hay, lista vacía.
+- "importance": alta si se toman decisiones estratégicas o con implicación económica/legal; baja si es informativa.
+- No inventes información que no esté en la transcripción.`;
+
+  const response = await fetch("https://api.anthropic.com/v1/messages",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      model:"claude-sonnet-4-6",
+      max_tokens:2000,
+      system:systemPrompt,
+      messages:[{role:"user",content:transcript}]
+    })
+  });
+  const data = await response.json();
+  const textBlock=(data.content||[]).find(b=>b.type==='text');
+  if(!textBlock) throw new Error('Sin respuesta');
+  return JSON.parse(textBlock.text.replace(/```json|```/g,'').trim());
+}
+
+async function processTranscript(){
+  const input=document.getElementById('transcriptInput');
+  const text=input.value.trim();
+  if(!text) return;
+  const btn=document.getElementById('processBtn');
+  btn.disabled=true; btn.textContent='Procesando...';
+  try{
+    const s = await summarizeMeetingAI(text);
+    input.value='';
+    tempSuggestedTasks = (s.tasks||[]).map(t=>Object.assign({include:true},t));
+    openMeetingModal(null, {
+      title:s.title||'', date:todayStr(), importance:s.importance||'media',
+      participants:s.participants||[], summary:s.summary||'', acuerdos:s.acuerdos||'',
+      projectId:s.projectId||null
+    }, true);
+  }catch(e){
+    setStatus('No se pudo procesar la transcripción. Crea la ficha a mano.');
+  }
+  btn.disabled=false; btn.textContent='Procesar transcripción con IA';
+}
+
+function openMeetingModal(meetingId, prefill, aiSuggested){
+  const editing = meetingId ? state.meetings.find(m=>m.id===meetingId) : null;
+  const data = prefill || editing || {};
+  tempParticipants = (data.participants||[]).slice();
+  if(!aiSuggested && !editing) tempSuggestedTasks = [];
+  if(editing) tempSuggestedTasks = [];
+  const root=document.getElementById('modalRoot');
+  root.dataset.meetingId = meetingId || '';
+  root.innerHTML=`
+    <div class="modal-bg" onclick="if(event.target===this) closeModal()">
+      <div class="modal">
+        <h3>${editing?'Editar reunión':'Nueva ficha de reunión'}</h3>
+        ${aiSuggested?'<div class="ai-note">Ficha generada por IA a partir de la transcripción. La transcripción NO se guarda; revisa y ajusta.</div>':''}
+        <div class="field">
+          <label>Título</label>
+          <input type="text" id="rTitle" value="${escapeAttr(data.title||'')}">
+        </div>
+        <div class="field">
+          <label>Fecha</label>
+          <input type="date" id="rDate" value="${data.date||todayStr()}">
+        </div>
+        <div class="field">
+          <label>Importancia</label>
+          <select id="rImportance">
+            <option value="alta" ${data.importance==='alta'?'selected':''}>Alta</option>
+            <option value="media" ${(!data.importance||data.importance==='media')?'selected':''}>Media</option>
+            <option value="baja" ${data.importance==='baja'?'selected':''}>Baja</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Participantes</label>
+          <div class="area-manage" id="rPartList"></div>
+          <div class="area-add">
+            <input type="text" id="rPartInput" list="contactNames" placeholder="Nombre y apellido..." onkeydown="if(event.key==='Enter'){event.preventDefault();addParticipant();}">
+            <button class="btn-ghost btn-small" onclick="addParticipant()">Añadir</button>
+          </div>
+          <datalist id="contactNames">
+            ${state.contacts.map(c=>`<option value="${escapeAttr(contactFullName(c))}">`).join('')}
+          </datalist>
+        </div>
+        <div class="field">
+          <label>Proyecto relacionado (opcional)</label>
+          <select id="rProject">
+            <option value="">— Sin proyecto —</option>
+            ${state.projects.filter(p=>p.active||p.id===data.projectId).map(p=>`<option value="${p.id}" ${data.projectId===p.id?'selected':''}>${escapeHtml(p.name)}${!p.active?' (archivado)':''}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field">
+          <label>Resumen</label>
+          <div class="row-flex">
+            <textarea id="rSummary" style="min-height:110px;">${escapeHtml(data.summary||'')}</textarea>
+          </div>
+        </div>
+        <div class="field">
+          <label>Acuerdos y decisiones</label>
+          <textarea id="rAcuerdos">${escapeHtml(data.acuerdos||'')}</textarea>
+        </div>
+        ${tempSuggestedTasks.length?`
+        <div class="field">
+          <label>Tareas detectadas en la reunión (se crean al guardar las marcadas)</label>
+          <ul class="sub-list" id="rTaskList"></ul>
+        </div>`:''}
+        <div class="modal-actions">
+          <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+          <button class="btn-primary" onclick="saveMeeting('${editing?editing.id:''}')">Guardar ficha</button>
+        </div>
+      </div>
+    </div>`;
+  renderParticipants();
+  renderSuggestedTasks();
+}
+function renderParticipants(){
+  const el=document.getElementById('rPartList'); if(!el) return;
+  el.innerHTML = tempParticipants.map((p,i)=>{
+    const isContact = state.contacts.some(c=>contactFullName(c)===p);
+    return `<span class="area-chip">${escapeHtml(p)}
+      ${isContact?'':`<button onclick="quickAddContactFromParticipant('${escapeAttr(p)}')" title="Añadir a Contactos" style="color:var(--accent);">+CRM</button>`}
+      <button onclick="tempParticipants.splice(${i},1); renderParticipants();">×</button>
+    </span>`;
+  }).join('') || '<span class="empty">Sin participantes.</span>';
+}
+function quickAddContactFromParticipant(fullName){
+  const titleEl=document.getElementById('rTitle');
+  if(titleEl){
+    meetingDraftStash = {
+      meetingId: document.getElementById('modalRoot').dataset.meetingId || '',
+      title: titleEl.value,
+      date: document.getElementById('rDate').value,
+      importance: document.getElementById('rImportance').value,
+      projectId: document.getElementById('rProject').value,
+      summary: document.getElementById('rSummary').value,
+      acuerdos: document.getElementById('rAcuerdos').value,
+      participants: tempParticipants.slice(),
+      suggestedTasks: tempSuggestedTasks.slice()
+    };
+  }
+  const parts = fullName.trim().split(/\s+/);
+  const nombre = parts.length>1 ? parts.slice(0,-1).join(' ') : parts[0];
+  const apellidos = parts.length>1 ? parts.slice(-1).join(' ') : '';
+  openContactModal(null, {nombre, apellidos});
+}
+function addParticipant(){
+  const input=document.getElementById('rPartInput'); const val=input.value.trim();
+  if(!val) return;
+  if(!tempParticipants.includes(val)) tempParticipants.push(val);
+  input.value=''; renderParticipants();
+}
+function renderSuggestedTasks(){
+  const el=document.getElementById('rTaskList'); if(!el) return;
+  el.innerHTML = tempSuggestedTasks.map((t,i)=>`
+    <li>
+      <input type="checkbox" ${t.include?'checked':''} onchange="tempSuggestedTasks[${i}].include=this.checked;">
+      <span>[${t.urgency||'media'}] ${escapeHtml(t.title)}</span>
+    </li>`).join('');
+}
+function saveMeeting(meetingId){
+  const title=document.getElementById('rTitle').value.trim();
+  if(!title){ setStatus('El título no puede estar vacío.'); return; }
+  const date=document.getElementById('rDate').value || todayStr();
+  const importance=document.getElementById('rImportance').value;
+  const projectId=document.getElementById('rProject').value || null;
+  const summary=document.getElementById('rSummary').value.trim();
+  const acuerdos=document.getElementById('rAcuerdos').value.trim();
+  const participants=tempParticipants.slice();
+
+  let m;
+  if(meetingId){
+    m=state.meetings.find(x=>x.id===meetingId);
+    Object.assign(m,{title,date,importance,projectId,summary,acuerdos,participants});
+  } else {
+    m={id:uid(),title,date,importance,projectId,summary,acuerdos,participants};
+    state.meetings.unshift(m);
+  }
+  let created=0;
+  tempSuggestedTasks.filter(t=>t.include).forEach(t=>{
+    state.tasks.unshift({
+      id:uid(), title:t.title,
+      areas:(t.areas||[]).filter(a=>state.areas.includes(a)),
+      projectId: projectId,
+      tipo:(t.tipo && state.tipos.includes(t.tipo))?t.tipo:'',
+      urgency:['alta','media','baja'].includes(t.urgency)?t.urgency:'media',
+      due:'', context:(t.context||'')+'\n[Origen: reunión "'+title+'" de '+fmtDateShort(date)+']',
+      subtasks:[], status:'pendiente', created:todayStr()
+    });
+    created++;
+  });
+  tempSuggestedTasks=[]; tempParticipants=[];
+  closeModal(); persist(); render();
+  setStatus('Ficha guardada'+(created?' y '+created+' tarea'+(created>1?'s':'')+' creada'+(created>1?'s':'')+'.':'.'));
+}
+function deleteMeeting(id,ev){
+  if(ev) ev.stopPropagation();
+  showConfirm('¿Eliminar esta ficha de reunión?', ()=>{
+    state.meetings=state.meetings.filter(m=>m.id!==id);
+    closeModal(); persist(); render();
+  });
+}
+
+function renderReuniones(){
+  const pending = state.tasks.filter(t=>t.tipo==='Reunión por montar' && t.status!=='hecha');
+  const pendingBox = `
+    <div class="panel-box" style="margin-bottom:14px;">
+      <h2>Reuniones por montar (${pending.length})</h2>
+      ${pending.length ? pending.map(t=>{
+        const m = t.meetingId ? state.meetings.find(x=>x.id===t.meetingId) : null;
+        return `
+        <div class="note-item">
+          <p style="font-weight:600;">${escapeHtml(t.title)}</p>
+          <div class="note-meta">${t.due?'Vence '+fmtDateShort(t.due):'Sin fecha'} ${m?'· Ficha ya creada ('+fmtDateShort(m.date)+')':'· Sin ficha todavía'}</div>
+          <div class="note-actions">
+            ${m
+              ? `<button class="btn-ghost btn-small" onclick="openLinkedMeeting('${m.id}')">Abrir ficha y añadir resumen</button>`
+              : `<button class="btn-primary btn-small" onclick="createLinkedMeeting('${t.id}')">Crear ficha para esta reunión</button>`}
+            <button class="btn-ghost btn-small" onclick="openTaskModal('${t.id}')">Ver tarea</button>
+          </div>
+        </div>`;
+      }).join('') : '<p class="empty">No hay reuniones pendientes de montar.</p>'}
+    </div>`;
+
+  const procBox=`
+    <div class="panel-box" style="margin-bottom:14px;">
+      <h2>Nueva reunión</h2>
+      <p class="help">Clasificación por IA no disponible en esta versión web. Da de alta la ficha a mano con el resumen que ya tengas preparado.</p>
+      <div style="display:flex; justify-content:flex-end;">
+        <button class="btn-primary btn-small" onclick="openMeetingModal(null)">Nueva ficha</button>
+      </div>
+    </div>`;
+
+  const contactShortcut = `
+    <p class="help" style="margin-bottom:12px;">La ficha completa de personas (nombre, cargo, empresa) está en la pestaña <strong>CRM</strong>. Aquí solo ves quién ha aparecido en reuniones.</p>`;
+  const people={};
+  state.meetings.forEach(m=>{
+    (m.participants||[]).forEach(p=>{
+      if(!people[p]) people[p]={count:0,last:''};
+      people[p].count++;
+      if(m.date>people[p].last) people[p].last=m.date;
+    });
+  });
+  const names=Object.keys(people).sort((a,b)=>people[b].count-people[a].count);
+  const peopleBox = names.length ? `
+    <div class="panel-box" style="margin-bottom:14px;">
+      <h2>Personas en reuniones (${names.length})</h2>
+      <div class="area-manage">
+        ${names.map(n=>{
+          const contact = state.contacts.find(c=>contactFullName(c)===n);
+          const extra = contact && contact.empresa ? ' · '+contact.empresa : '';
+          return `<span class="area-chip" style="cursor:pointer; ${currentPersonFilter===n?'background:var(--proj-bg); color:var(--proj);':''}" onclick="setPersonFilter('${escapeAttr(n)}')">${escapeHtml(n)}${escapeHtml(extra)} · ${people[n].count}</span>`;
+        }).join('')}
+      </div>
+      ${currentPersonFilter?'<p class="help" style="margin-top:6px;">Mostrando reuniones con '+escapeHtml(currentPersonFilter)+'. Clic de nuevo para quitar el filtro.</p>':''}
+    </div>`:'';
+
+  let meetings=state.meetings.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  if(currentPersonFilter) meetings=meetings.filter(m=>(m.participants||[]).includes(currentPersonFilter));
+
+  const list = meetings.length ? meetings.map(m=>{
+    const pn=projName(m.projectId);
+    const parts=(m.participants||[]).map(p=>`<span class="badge area">${escapeHtml(p)}</span>`).join('');
+    const preview=m.summary?(m.summary.length>180?m.summary.slice(0,180)+'…':m.summary):'';
+    return `
+    <div class="task ${m.importance}" onclick="openMeetingModal('${m.id}')">
+      <p class="task-title">${escapeHtml(m.title)}</p>
+      <div class="badges-row">
+        <span class="badge ${m.importance}">${m.importance}</span>
+        ${pn?`<span class="badge proj">${escapeHtml(pn)}</span>`:''}
+        ${parts}
+      </div>
+      ${preview?`<p class="task-context">${escapeHtml(preview)}</p>`:''}
+      <div class="task-meta">${fmtDate(m.date)}</div>
+      <div style="margin-top:7px;">
+        <button class="btn-ghost btn-small" onclick="deleteMeeting('${m.id}',event)">Eliminar</button>
+      </div>
+    </div>`;
+  }).join('') : '<p class="empty">No hay fichas de reunión'+(currentPersonFilter?' con esa persona':'')+'.</p>';
+
+  return pendingBox + procBox + contactShortcut + peopleBox + '<p class="sect-h">Fichas de reunión</p>' + list;
+}
+
+let currentContactId = null;
+function openContactDetail(id){ currentContactId=id; render(); }
+function closeContactDetail(){ currentContactId=null; render(); }
+
+function renderCRM(){
+  if(currentContactId){
+    const c = state.contacts.find(x=>x.id===currentContactId);
+    if(c) return renderContactDetail(c);
+    currentContactId=null;
+  }
+  const rows = state.contacts.slice().sort((a,b)=>contactFullName(a).localeCompare(contactFullName(b)));
+  const meetingCount = {};
+  state.meetings.forEach(m=>(m.participants||[]).forEach(p=>{ meetingCount[p]=(meetingCount[p]||0)+1; }));
+  const callCount = {};
+  state.tasks.forEach(t=>{ if(t.tipo==='Llamada' && t.callWith) callCount[t.callWith]=(callCount[t.callWith]||0)+1; });
+
+  const addBox = `
+    <div class="panel-box" style="margin-bottom:14px;">
+      <h2>Contactos (${state.contacts.length})</h2>
+      <p class="help">Nombre, apellidos, cargo y empresa/institución. Úsalo para dar de alta a alguien antes incluso de tener una reunión con él.</p>
+      <div style="display:flex; justify-content:flex-end;">
+        <button class="btn-primary btn-small" onclick="openContactModal(null)">+ Añadir contacto</button>
+      </div>
+    </div>`;
+
+  if(rows.length===0) return addBox + '<p class="empty">No hay contactos todavía.</p>';
+
+  const list = rows.map(c=>{
+    const fn = contactFullName(c);
+    const rc = meetingCount[fn] || 0;
+    const cc = callCount[fn] || 0;
+    return `
+    <div class="task baja" onclick="openContactDetail('${c.id}')" style="cursor:pointer;">
+      <p class="task-title">${escapeHtml(fn)}</p>
+      <div class="badges-row">
+        ${c.cargo?`<span class="badge area">${escapeHtml(c.cargo)}</span>`:''}
+        ${c.empresa?`<span class="badge proj">${escapeHtml(c.empresa)}</span>`:''}
+      </div>
+      <div class="task-meta">${rc} reunión${rc!==1?'es':''} · ${cc} llamada${cc!==1?'s':''}</div>
+    </div>`;
+  }).join('');
+
+  return addBox + list;
+}
+
+function renderContactDetail(c){
+  const fn = contactFullName(c);
+  const meetings = state.meetings.filter(m=>(m.participants||[]).includes(fn)).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const calls = state.tasks.filter(t=>t.tipo==='Llamada' && t.callWith===fn).sort((a,b)=>(b.created||'').localeCompare(a.created||''));
+
+  const meetingsHtml = meetings.length ? meetings.map(m=>`
+    <div class="task ${m.importance}" onclick="openMeetingModal('${m.id}')">
+      <p class="task-title">${escapeHtml(m.title)}</p>
+      <div class="task-meta">${fmtDate(m.date)}</div>
+    </div>`).join('') : '<p class="empty">Sin reuniones registradas.</p>';
+
+  const callsHtml = calls.length ? calls.map(t=>`
+    <div class="task ${t.urgency} ${t.status==='hecha'?'done':''}" onclick="openTaskModal('${t.id}')">
+      <p class="task-title ${t.status==='hecha'?'done':''}">${escapeHtml(t.title)}</p>
+      <div class="badges-row"><span class="badge ${t.urgency}">${t.urgency}</span><span class="badge ${t.status==='hecha'?'baja':'media'}">${t.status==='hecha'?'Hecha':'Pendiente'}</span></div>
+      <div class="task-meta">${t.due?'Vence '+fmtDateShort(t.due):'Sin fecha'}</div>
+    </div>`).join('') : '<p class="empty">Sin llamadas registradas.</p>';
+
+  return `
+    <div class="proj-head">
+      <h3>${escapeHtml(fn)}
+        <span style="display:flex; gap:6px;">
+          <button class="btn-ghost btn-small" onclick="closeContactDetail()">← Volver a contactos</button>
+          <button class="btn-ghost btn-small" onclick="openContactModal('${c.id}')">Editar</button>
+        </span>
+      </h3>
+      <div class="badges-row">
+        ${c.cargo?`<span class="badge area">${escapeHtml(c.cargo)}</span>`:''}
+        ${c.empresa?`<span class="badge proj">${escapeHtml(c.empresa)}</span>`:''}
+      </div>
+    </div>
+    <p class="sect-h">Reuniones (${meetings.length})</p>
+    ${meetingsHtml}
+    <p class="sect-h" style="margin-top:14px;">Llamadas (${calls.length})</p>
+    ${callsHtml}`;
+}
+
+// ---- Copia de seguridad ----
+function copyBackupToClipboard(){
+  const payload = JSON.stringify({exportedAt:new Date().toISOString(), version:STORAGE_KEY, data:state}, null, 2);
+  const root=document.getElementById('modalRoot');
+  root.innerHTML=`
+    <div class="modal-bg" onclick="if(event.target===this) closeModal()">
+      <div class="modal">
+        <h3>Copia de seguridad (selecciona y copia)</h3>
+        <p class="help">El texto ya está seleccionado. Pulsa Ctrl+C (o el gesto de copiar de tu dispositivo) y pégalo donde quieras guardarlo.</p>
+        <textarea id="backupOutput" readonly style="min-height:220px; font-family:monospace; font-size:11px;">${escapeHtml(payload)}</textarea>
+        <div class="modal-actions">
+          <button class="btn-ghost" onclick="closeModal()">Cerrar</button>
+        </div>
+      </div>
+    </div>`;
+  const ta=document.getElementById('backupOutput');
+  ta.focus(); ta.select();
+}
+function importBackup(input){
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    restoreFromJSONText(reader.result);
+    input.value='';
+  };
+  reader.readAsText(file);
+}
+function restoreFromJSONText(text){
+  let data;
+  try{
+    const parsed = JSON.parse(text);
+    data = parsed.data || parsed;
+    if(!data.tasks || !Array.isArray(data.tasks)) throw new Error('Formato no reconocido');
+  }catch(e){
+    setStatus('El texto pegado no es una copia válida del gestor de tareas.');
+    return;
+  }
+  showConfirm('Esto SUSTITUYE todo lo que hay ahora en el gestor de tareas por el contenido de la copia. ¿Continuar?', ()=>{
+    state = Object.assign({notes:[],tasks:[],areas:DEFAULT_AREAS.slice(),tipos:DEFAULT_TIPOS.slice(),projects:[],meetings:[],contacts:[]}, data);
+    state.tasks.forEach(t=>{ if(!t.subtasks) t.subtasks=[]; t.subtasks.forEach(s=>{ if(!s.children) s.children=[]; }); });
+    state.projects.forEach(p=>{ if(!p.areas) p.areas=[]; if(!p.log) p.log=[]; if(p.active===undefined) p.active=true; });
+    persist(); render();
+    setStatus('Copia restaurada.');
+  });
+}
+function openPasteImportModal(){
+  const root=document.getElementById('modalRoot');
+  root.innerHTML=`
+    <div class="modal-bg" onclick="if(event.target===this) closeModal()">
+      <div class="modal">
+        <h3>Importar copia pegando texto</h3>
+        <p class="help">Pega aquí el contenido completo que copiaste con "Copiar copia (portapapeles)".</p>
+        <textarea id="pasteImportInput" style="min-height:160px;"></textarea>
+        <div class="modal-actions">
+          <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+          <button class="btn-primary" onclick="restoreFromJSONText(document.getElementById('pasteImportInput').value); closeModal();">Restaurar</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ---- Resumen ----
+function copySummary(){
+  const pending=state.tasks.filter(t=>t.status!=='hecha');
+  const order={alta:0,media:1,baja:2};
+  pending.sort((a,b)=>order[a.urgency]-order[b.urgency]||(a.due||'9999').localeCompare(b.due||'9999'));
+  let text='Pendientes ('+new Date().toLocaleDateString('es-ES')+'):\n';
+  pending.forEach(t=>{
+    const areas=(t.areas||[]).join(', ');
+    const pn=projName(t.projectId);
+    text+='- ['+t.urgency.toUpperCase()+'] '+t.title+(t.tipo?' ('+t.tipo+')':'')+(pn?' — Proyecto: '+pn:'')+(areas?' — '+areas:'')+(t.due?' — vence '+fmtDateShort(t.due):'');
+    if(t.subtasks && t.subtasks.length){
+      const done=t.subtasks.filter(s=>s.done).length;
+      text+=' — subtareas '+done+'/'+t.subtasks.length;
+      t.subtasks.forEach(s=>{ text+='\n    '+(s.done?'[x] ':'[ ] ')+s.text; });
+    }
+    if(t.context) text+='\n    '+t.context.replace(/\n/g,'\n    ');
+    text+='\n';
+  });
+  if(pending.length===0) text+='(nada pendiente)';
+  const root=document.getElementById('modalRoot');
+  root.innerHTML=`
+    <div class="modal-bg" onclick="if(event.target===this) closeModal()">
+      <div class="modal">
+        <h3>Resumen de pendientes (selecciona y copia)</h3>
+        <p class="help">El texto ya está seleccionado. Pulsa Ctrl+C (o el gesto de copiar de tu dispositivo).</p>
+        <textarea id="summaryOutput" readonly style="min-height:220px; font-family:monospace; font-size:12px;">${escapeHtml(text)}</textarea>
+        <div class="modal-actions">
+          <button class="btn-ghost" onclick="closeModal()">Cerrar</button>
+        </div>
+      </div>
+    </div>`;
+  const ta=document.getElementById('summaryOutput');
+  ta.focus(); ta.select();
+}
+
+// ---- Render ----
+function setView(v){ currentView=v; if(v!=='proyectos' && v!=='desarrollo') currentProjectId=null; if(v!=='reuniones' && v!=='crm') currentPersonFilter=null; if(v!=='crm') currentContactId=null; render(); }
+function setUrgFilter(f){ currentUrgFilter=f; render(); }
+function setAreaFilter(f){ currentAreaFilter=f; render(); }
+function setTipoFilter(f){ currentTipoFilter=f; render(); }
+function setPersonFilter(name){ currentPersonFilter = (currentPersonFilter===name) ? null : name; render(); }
+
+function render(){
+  renderNotes(); renderAreaManage();
+  ['panel','lista','proyectos','reuniones','crm','desarrollo'].forEach(v=>{
+    document.getElementById('tab-'+v).classList.toggle('active', currentView===v);
+  });
+  const root=document.getElementById('viewRoot');
+  if(currentView==='panel') root.innerHTML=renderKanban(state.tasks);
+  else if(currentView==='lista') root.innerHTML=renderLista();
+  else if(currentView==='reuniones') root.innerHTML=renderReuniones();
+  else if(currentView==='crm') root.innerHTML=renderCRM();
+  else if(currentView==='desarrollo') root.innerHTML = currentProjectId ? renderProjectDetail() : renderProyectosList(DEV_AREA);
+  else if(currentProjectId) root.innerHTML=renderProjectDetail();
+  else root.innerHTML=renderProyectosList();
+}
+
+function renderNotes(){
+  const el=document.getElementById('notesList');
+  if(state.notes.length===0){ el.innerHTML='<p class="empty">No hay notas sin procesar.</p>'; return; }
+  el.innerHTML=state.notes.map(n=>`
+    <div class="note-item">
+      <p>${escapeHtml(n.text)}</p>
+      <div class="note-meta">${fmtDateShort(n.created)}</div>
+      <div class="note-actions">
+        <button class="btn-primary btn-small" onclick="convertNoteManual('${n.id}')">Convertir en tarea</button>
+        <button class="btn-ghost btn-small" onclick="deleteNote('${n.id}')">Descartar</button>
+      </div>
+    </div>`).join('');
+}
+function renderAreaManage(){
+  document.getElementById('areaManageList').innerHTML = state.areas.map(a=>`
+    <span class="area-chip">${escapeHtml(a)}<button onclick="removeArea('${escapeAttr(a)}')" title="Quitar">×</button></span>`).join('');
+  document.getElementById('tipoManageList').innerHTML = state.tipos.map(t=>`
+    <span class="area-chip">${escapeHtml(t)}<button onclick="removeTipo('${escapeAttr(t)}')" title="Quitar (las tareas con este tipo pasan a Sin tipo)">×</button></span>`).join('');
+}
+
+function taskCard(t, showTipo){
+  const today=todayStr();
+  const overdue=t.due && t.due<today && t.status!=='hecha';
+  const areaBadges=(t.areas||[]).map(a=>`<span class="badge area">${escapeHtml(a)}</span>`).join('');
+  const pn=projName(t.projectId);
+  const expanded = expandedSubtasks.has(t.id);
+  const sub = (t.subtasks&&t.subtasks.length) ? `
+    <div class="subprogress" onclick="toggleSubtasksExpand('${t.id}',event)" style="cursor:pointer;">
+      Subtareas: ${t.subtasks.filter(s=>s.done).length}/${t.subtasks.length} ${expanded?'▾':'▸'}
+    </div>
+    ${expanded ? `<ul class="sub-list" style="margin-top:4px;">
+      ${t.subtasks.map(s=>`
+        <li onclick="event.stopPropagation();">
+          <input type="checkbox" ${s.done?'checked':''} onchange="toggleSubtaskInline('${t.id}','${s.id}')">
+          <span class="${s.done?'done':''}">${escapeHtml(s.text)}</span>
+        </li>
+        ${(s.children||[]).map(c=>`
+        <li style="margin-left:20px;" onclick="event.stopPropagation();">
+          <input type="checkbox" ${c.done?'checked':''} onchange="toggleChildSubtaskInline('${t.id}','${s.id}','${c.id}')">
+          <span class="${c.done?'done':''}">${escapeHtml(c.text)}</span>
+        </li>`).join('')}`).join('')}
+    </ul>` : ''}` : '';
+  return `
+  <div class="task ${t.urgency} ${t.status==='hecha'?'done':''}" onclick="openTaskModal('${t.id}')">
+    <p class="task-title ${t.status==='hecha'?'done':''}">${escapeHtml(t.title)}</p>
+    <div class="badges-row">
+      <span class="badge ${t.urgency}" onclick="cycleUrgency('${t.id}',event)" title="Clic para cambiar urgencia" style="cursor:pointer;">${t.urgency}</span>
+      ${showTipo && t.tipo?`<span class="badge tipo">${t.tipo}</span>`:''}
+      ${t.meetingId?`<span class="badge proj">📋 Ficha</span>`:''}
+      ${t.callWith?`<span class="badge area">📞 ${escapeHtml(t.callWith)}</span>`:''}
+      ${pn?`<span class="badge proj">${escapeHtml(pn)}</span>`:''}
+      ${areaBadges}
+    </div>
+    ${sub}
+    <div class="task-meta">${t.due?`<span class="${overdue?'overdue':''}">${overdue?'Vencida — ':'Vence '}${fmtDateShort(t.due)}</span>`:'Sin fecha'}</div>
+    <div style="margin-top:7px; display:flex; gap:5px;">
+      <button class="btn-ghost btn-small" onclick="toggleDone('${t.id}',event)">${t.status==='hecha'?'Reabrir':'Hecha'}</button>
+      <button class="btn-ghost btn-small" onclick="deleteTask('${t.id}',event)">Eliminar</button>
+    </div>
+  </div>`;
+}
+
+function renderKanban(taskSet){
+  const open=taskSet.filter(t=>t.status!=='hecha');
+  const order={alta:0,media:1,baja:2};
+  const sortFn=(a,b)=>order[a.urgency]-order[b.urgency]||(a.due||'9999').localeCompare(b.due||'9999');
+  const cols=[
+    {title:'Urgente', cls:'urgente', items:open.filter(t=>t.urgency==='alta').sort(sortFn), showTipo:true}
+  ];
+  state.tipos.forEach(tp=>{
+    cols.push({title:tp, cls:'', items:open.filter(t=>t.tipo===tp&&t.urgency!=='alta').sort(sortFn), showTipo:false});
+  });
+  const sinTipo=open.filter(t=>(!t.tipo || !state.tipos.includes(t.tipo))&&t.urgency!=='alta').sort(sortFn);
+  if(sinTipo.length) cols.push({title:'Sin tipo', cls:'', items:sinTipo, showTipo:false});
+  return '<div class="kanban">'+cols.map(c=>`
+    <div class="kcol ${c.cls}">
+      <h3>${escapeHtml(c.title)} <span class="count">${c.items.length}</span></h3>
+      ${c.items.length ? c.items.map(t=>taskCard(t,c.showTipo)).join('') : '<p class="empty">Nada aquí.</p>'}
+    </div>`).join('')+'</div>';
+}
+
+function renderLista(){
+  const order={alta:0,media:1,baja:2};
+  let list=state.tasks.slice();
+  if(currentUrgFilter==='hecha') list=list.filter(t=>t.status==='hecha');
+  else if(currentUrgFilter!=='todas') list=list.filter(t=>t.urgency===currentUrgFilter&&t.status!=='hecha');
+  else list=list.filter(t=>t.status!=='hecha');
+  if(currentAreaFilter!=='todas') list=list.filter(t=>(t.areas||[]).includes(currentAreaFilter));
+  if(currentTipoFilter==='sintipo') list=list.filter(t=>!t.tipo || !state.tipos.includes(t.tipo));
+  else if(currentTipoFilter!=='todas') list=list.filter(t=>t.tipo===currentTipoFilter);
+  list.sort((a,b)=>order[a.urgency]-order[b.urgency]||(a.due||'9999').localeCompare(b.due||'9999'));
+
+  const urgOpts=[['todas','Todas'],['alta','Alta'],['media','Media'],['baja','Baja'],['hecha','Hechas']];
+  const areaOpts=['todas'].concat(state.areas);
+  const tipoOpts=['todas'].concat(state.tipos).concat(['sintipo']);
+  return `
+    <div class="filters"><span class="filter-label">Urgencia</span>${urgOpts.map(([k,l])=>`<button class="btn-small ${currentUrgFilter===k?'active':''}" onclick="setUrgFilter('${k}')">${l}</button>`).join('')}</div>
+    <div class="filters"><span class="filter-label">Área</span>${areaOpts.map(a=>`<button class="btn-small ${currentAreaFilter===a?'active':''}" onclick="setAreaFilter('${escapeAttr(a)}')">${a==='todas'?'Todas':escapeHtml(a)}</button>`).join('')}</div>
+    <div class="filters"><span class="filter-label">Tipo</span>${tipoOpts.map(t=>`<button class="btn-small ${currentTipoFilter===t?'active':''}" onclick="setTipoFilter('${escapeAttr(t)}')">${t==='todas'?'Todos':(t==='sintipo'?'Sin tipo':escapeHtml(t))}</button>`).join('')}</div>
+    ${list.length ? list.map(t=>taskCard(t,true)).join('') : '<p class="empty">Nada aquí con estos filtros.</p>'}`;
+}
+
+let showArchivedProjects = false;
+function toggleShowArchived(){ showArchivedProjects = !showArchivedProjects; render(); }
+
+const DEV_AREA = 'Desarrollo digital';
+function renderProyectosList(filterArea){
+  const scope = filterArea ? state.projects.filter(p=>(p.areas||[]).includes(filterArea)) : state.projects;
+  const addBox=`<div class="proj-add"><input type="text" id="newProjInput" placeholder="${filterArea?'Nuevo desarrollo (p. ej. Dashboard de presupuesto)...':'Nuevo proyecto (p. ej. Licitación cocina La Tebaida)...'}" onkeydown="if(event.key==='Enter'){event.preventDefault();addProject(${filterArea?`'${escapeAttr(filterArea)}'`:''});}"><button class="btn-primary btn-small" onclick="addProject(${filterArea?`'${escapeAttr(filterArea)}'`:''})">${filterArea?'Crear desarrollo':'Crear proyecto'}</button></div>`;
+  const archivedCount = scope.filter(p=>!p.active).length;
+  const toggleBox = `<div class="filters"><button class="btn-small ${!showArchivedProjects?'active':''}" onclick="showArchivedProjects=false; render();">Activos</button><button class="btn-small ${showArchivedProjects?'active':''}" onclick="showArchivedProjects=true; render();">Archivados (${archivedCount})</button></div>`;
+  const visible = scope.filter(p=>showArchivedProjects ? !p.active : p.active);
+  if(scope.length===0) return addBox+`<p class="empty">${filterArea?'No hay desarrollos todavía.':'No hay proyectos. Crea uno y entra en él para gestionar su panel y su diario.'}</p>`;
+  if(visible.length===0) return addBox+toggleBox+'<p class="empty">'+(showArchivedProjects?'No hay archivados.':'No hay activos.')+'</p>';
+  return addBox + toggleBox + visible.map(p=>{
+    const tasks=state.tasks.filter(t=>t.projectId===p.id);
+    const open=tasks.filter(t=>t.status!=='hecha');
+    const urgent=open.filter(t=>t.urgency==='alta').length;
+    const areaBadges=p.areas.map(a=>`<span class="badge area">${escapeHtml(a)}</span>`).join(' ');
+    const lastLog=p.log.length?('Último apunte: '+fmtDateShort(p.log[0].date)):'Sin apuntes en el diario';
+    return `
+    <div class="proj-list-card" onclick="openProject('${p.id}')">
+      <h3>${escapeHtml(p.name)}
+        <button class="btn-ghost btn-small" style="float:right;" onclick="toggleProjectActive('${p.id}',event)">${p.active?'Archivar':'Reactivar'}</button>
+      </h3>
+      <div class="badges-row" style="margin:4px 0 7px;">${areaBadges||'<span class="empty">Sin áreas asignadas</span>'}</div>
+      <div class="proj-meta">${open.length} abiertas${urgent?' · <strong style="color:var(--alta);">'+urgent+' urgente'+(urgent>1?'s':'')+'</strong>':''} · ${tasks.length-open.length} hechas · ${lastLog}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderProjectDetail(){
+  const p=getProj(currentProjectId);
+  if(!p) { currentProjectId=null; return renderProyectosList(); }
+  const tasks=state.tasks.filter(t=>t.projectId===p.id);
+  const areaChecks=state.areas.map(a=>`
+    <label class="chk ${p.areas.includes(a)?'checked':''}" onclick="event.preventDefault(); toggleProjArea('${p.id}','${escapeAttr(a)}')">
+      ${escapeHtml(a)}
+    </label>`).join('');
+  const logHtml = p.log.length ? p.log.map(e=>`
+    <div class="log-entry">
+      <div class="log-date">${fmtDate(e.date)} <button class="btn-ghost btn-small" onclick="deleteLogEntry('${p.id}','${e.id}')">×</button></div>
+      <div class="log-text">${escapeHtml(e.text)}</div>
+    </div>`).join('') : '<p class="empty">El diario está vacío. Los apuntes que hagas (a mano o vía IA) quedan aquí con fecha.</p>';
+
+  return `
+    <div class="proj-head">
+      <h3>${escapeHtml(p.name)}
+        <span style="display:flex; gap:6px;">
+          <button class="btn-ghost btn-small" onclick="closeProject()">← Volver</button>
+          <button class="btn-ghost btn-small" onclick="deleteProject('${p.id}',event)">Eliminar</button>
+        </span>
+      </h3>
+      <div class="field" style="margin-bottom:0;">
+        <label>Áreas del proyecto (clic para activar/desactivar)</label>
+        <div class="checks">${areaChecks}</div>
+      </div>
+    </div>
+
+    <p class="sect-h">Panel del proyecto</p>
+    ${tasks.length ? renderKanban(tasks) : '<p class="empty">Sin tareas asignadas. Usa "+ Añadir tarea" (se asignará a este proyecto automáticamente).</p>'}
+
+    <div class="panel-box" style="margin-top:16px;">
+      <h2>Diario del proyecto</h2>
+      <div class="row-flex">
+        <textarea id="projLogInput" placeholder="Apunte de hoy sobre este proyecto..."></textarea>
+      </div>
+      <div style="margin-top:8px; display:flex; justify-content:flex-end;">
+        <button class="btn-primary btn-small" onclick="addLogEntry('${p.id}')">Apuntar con fecha de hoy</button>
+      </div>
+      <div style="margin-top:12px;">${logHtml}</div>
+    </div>`;
+}
+
+loadState();
+</script>
+</body>
+</html>
