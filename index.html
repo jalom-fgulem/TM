@@ -141,13 +141,21 @@
   .cfg-sect:first-child{margin-top:0;}
   .cfg-actions{display:flex; flex-direction:column; gap:8px;}
   .header-btns{display:flex; gap:8px; align-items:flex-start; margin-top:4px;}
+  .cfg-fields{display:flex; flex-direction:column; gap:7px;}
+  .cfg-fields label{font-size:11.5px; font-weight:600; color:var(--ink-soft); font-family:-apple-system,Helvetica,Arial,sans-serif; margin-top:4px;}
+  .cfg-fields input{font-size:13px; padding:5px 9px; border:1px solid var(--line); border-radius:5px; font-family:-apple-system,Helvetica,Arial,sans-serif; background:#fff; width:100%;}
+  .cfg-fields input:focus{outline:none; border-color:#1E4C7A;}
+  .area-edit-row{display:flex; align-items:center; gap:6px; margin-bottom:5px;}
+  .area-edit-input{flex:1; font-size:13px; padding:4px 8px; border:1px solid var(--line); border-radius:5px; font-family:-apple-system,Helvetica,Arial,sans-serif; background:#fff;}
+  .area-edit-input:focus{outline:none; border-color:#1E4C7A;}
+  .area-del-btn{flex-shrink:0; background:none; border:none; cursor:pointer; color:var(--ink-soft); font-size:15px; line-height:1; padding:2px 4px;}
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="app-header">
     <div>
-      <h1>Gestor de tareas</h1>
+      <h1 id="appTitle">Gestor de tareas</h1>
       <div class="datebar" id="datebar"></div>
     </div>
     <div class="header-btns">
@@ -206,6 +214,23 @@
     <button class="btn-ghost btn-small" onclick="closeConfigDrawer()">Cerrar ×</button>
   </div>
   <div class="drawer-body">
+    <p class="cfg-sect">Perfil</p>
+    <div class="cfg-fields">
+      <label>Nombre</label>
+      <input type="text" id="cfgNombre" placeholder="José Carlos">
+      <label>Apellidos</label>
+      <input type="text" id="cfgApellidos" placeholder="Alonso Marcos">
+      <label>Alias / nombre corto</label>
+      <input type="text" id="cfgAlias" placeholder="JC">
+      <label>Cargo</label>
+      <input type="text" id="cfgCargo" placeholder="Director de Fundación">
+      <label>Correo electrónico</label>
+      <input type="email" id="cfgEmail" placeholder="jalom@unileon.es">
+    </div>
+    <div style="margin-top:10px; display:flex; justify-content:flex-end;">
+      <button class="btn-primary btn-small" onclick="saveProfile()">Guardar perfil</button>
+    </div>
+
     <p class="cfg-sect">Datos</p>
     <div class="cfg-actions">
       <button class="btn-ghost btn-small" onclick="copySummary()">Copiar resumen de pendientes</button>
@@ -239,7 +264,8 @@ const SUPABASE_URL = 'https://awnitqzydpqvbjxqgjfk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_3cqXbZ0mntG4tGgqzVA3JQ_xNWHlmbJ';
 const DEFAULT_AREAS = ['Desarrollo profesional','Formación y congresos','Transferencia e innovación','Encargos de gestión','Desarrollo digital','Servicios generales','Dirección / Transversal'];
 const DEFAULT_TIPOS = ['Correo pendiente','Llamada','Reunión por montar','Tema general'];
-let state = { notes:[], tasks:[], areas:DEFAULT_AREAS.slice(), tipos:DEFAULT_TIPOS.slice(), projects:[], meetings:[], contacts:[] };
+const DEFAULT_PROFILE = { nombre:'', apellidos:'', alias:'', email:'', cargo:'' };
+let state = { notes:[], tasks:[], areas:DEFAULT_AREAS.slice(), tipos:DEFAULT_TIPOS.slice(), projects:[], meetings:[], contacts:[], profile:{...DEFAULT_PROFILE} };
 let currentPersonFilter = null;
 let tempParticipants = [];
 let meetingDraftStash = null;
@@ -307,7 +333,7 @@ function saveContactRow(c){ return upsertRow('contacts', c.id, c); }
 function deleteContactRow(id){ return deleteRow('contacts', id); }
 function saveNoteRow(n){ return upsertRow('notes', n.id, n); }
 function deleteNoteRow(id){ return deleteRow('notes', id); }
-function saveSettings(){ return upsertRow('board', STORAGE_KEY, { areas: state.areas, tipos: state.tipos }); }
+function saveSettings(){ return upsertRow('board', STORAGE_KEY, { areas: state.areas, tipos: state.tipos, profile: state.profile }); }
 
 async function loadState(){
   setStatus('Cargando...');
@@ -326,7 +352,8 @@ async function loadState(){
     state = {
       tasks, projects, meetings, contacts, notes,
       areas: (settings.areas && settings.areas.length) ? settings.areas : DEFAULT_AREAS.slice(),
-      tipos: (settings.tipos && settings.tipos.length) ? settings.tipos : DEFAULT_TIPOS.slice()
+      tipos: (settings.tipos && settings.tipos.length) ? settings.tipos : DEFAULT_TIPOS.slice(),
+      profile: settings.profile || {...DEFAULT_PROFILE}
     };
     state.tasks.forEach(t=>{ if(!t.subtasks) t.subtasks=[]; t.subtasks.forEach(s=>{ if(!s.children) s.children=[]; }); if(!t.linkedTaskIds) t.linkedTaskIds=[]; });
     state.projects.forEach(p=>{ if(!p.areas) p.areas=[]; if(!p.log) p.log=[]; if(p.active===undefined) p.active=true; });
@@ -334,6 +361,7 @@ async function loadState(){
   }catch(e){
     setStatus('Error al cargar los datos.');
   }
+  updateAppTitle();
   render();
 }
 
@@ -1229,6 +1257,12 @@ function openConfigDrawer(){
   document.getElementById('configDrawer').classList.add('open');
   document.getElementById('drawerOverlay').classList.add('open');
   renderAreaManage();
+  const p = state.profile || {};
+  document.getElementById('cfgNombre').value    = p.nombre    || '';
+  document.getElementById('cfgApellidos').value = p.apellidos || '';
+  document.getElementById('cfgAlias').value     = p.alias     || '';
+  document.getElementById('cfgCargo').value     = p.cargo     || '';
+  document.getElementById('cfgEmail').value     = p.email     || '';
 }
 function closeConfigDrawer(){
   document.getElementById('configDrawer').classList.remove('open');
@@ -1276,10 +1310,53 @@ function renderNotes(){
     </div>`).join('');
 }
 function renderAreaManage(){
-  document.getElementById('areaManageList').innerHTML = state.areas.map(a=>`
-    <span class="area-chip">${escapeHtml(a)}<button onclick="removeArea('${escapeAttr(a)}')" title="Quitar">×</button></span>`).join('');
-  document.getElementById('tipoManageList').innerHTML = state.tipos.map(t=>`
-    <span class="area-chip">${escapeHtml(t)}<button onclick="removeTipo('${escapeAttr(t)}')" title="Quitar (las tareas con este tipo pasan a Sin tipo)">×</button></span>`).join('');
+  document.getElementById('areaManageList').innerHTML = state.areas.map((a,i)=>`
+    <div class="area-edit-row">
+      <input class="area-edit-input" value="${escapeAttr(a)}"
+        onblur="renameArea(${i},this.value)"
+        onkeydown="if(event.key==='Enter'){this.blur();}">
+      <button class="area-del-btn" onclick="removeArea('${escapeAttr(a)}')" title="Eliminar área">×</button>
+    </div>`).join('');
+  document.getElementById('tipoManageList').innerHTML = state.tipos.map((t,i)=>`
+    <div class="area-edit-row">
+      <input class="area-edit-input" value="${escapeAttr(t)}"
+        onblur="renameTipo(${i},this.value)"
+        onkeydown="if(event.key==='Enter'){this.blur();}">
+      <button class="area-del-btn" onclick="removeTipo('${escapeAttr(t)}')" title="Eliminar tipo">×</button>
+    </div>`).join('');
+}
+function renameArea(idx, newVal){
+  newVal = newVal.trim();
+  const old = state.areas[idx];
+  if(!newVal || newVal === old) return;
+  if(state.areas.some((a,i)=>i!==idx && a===newVal)){ setStatus('Esa área ya existe.'); renderAreaManage(); return; }
+  state.areas[idx] = newVal;
+  state.tasks.filter(t=>(t.areas||[]).includes(old)).forEach(t=>{ t.areas=t.areas.map(a=>a===old?newVal:a); saveTaskRow(t); });
+  state.projects.filter(p=>(p.areas||[]).includes(old)).forEach(p=>{ p.areas=p.areas.map(a=>a===old?newVal:a); saveProjectRow(p); });
+  saveSettings(); setStatus('Área renombrada.');
+}
+function renameTipo(idx, newVal){
+  newVal = newVal.trim();
+  const old = state.tipos[idx];
+  if(!newVal || newVal === old) return;
+  if(state.tipos.some((t,i)=>i!==idx && t===newVal)){ setStatus('Ese tipo ya existe.'); renderAreaManage(); return; }
+  state.tipos[idx] = newVal;
+  state.tasks.filter(t=>t.tipo===old).forEach(t=>{ t.tipo=newVal; saveTaskRow(t); });
+  saveSettings(); setStatus('Tipo renombrado.');
+}
+function updateAppTitle(){
+  const alias = (state.profile && state.profile.alias) ? state.profile.alias : '';
+  document.getElementById('appTitle').textContent = alias ? `Gestor de tareas de ${alias}` : 'Gestor de tareas';
+}
+function saveProfile(){
+  state.profile = {
+    nombre:    document.getElementById('cfgNombre').value.trim(),
+    apellidos: document.getElementById('cfgApellidos').value.trim(),
+    alias:     document.getElementById('cfgAlias').value.trim(),
+    email:     document.getElementById('cfgEmail').value.trim(),
+    cargo:     document.getElementById('cfgCargo').value.trim()
+  };
+  saveSettings(); updateAppTitle(); setStatus('Perfil guardado.');
 }
 
 function taskCard(t, showTipo){
