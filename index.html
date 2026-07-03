@@ -149,7 +149,25 @@
   .area-edit-input{flex:1; font-size:13px; padding:4px 8px; border:1px solid var(--line); border-radius:5px; font-family:-apple-system,Helvetica,Arial,sans-serif; background:#fff;}
   .area-edit-input:focus{outline:none; border-color:#1E4C7A;}
   .area-del-btn{flex-shrink:0; background:none; border:none; cursor:pointer; color:var(--ink-soft); font-size:15px; line-height:1; padding:2px 4px;}
+  /* Google / Agenda */
+  .google-connected{font-size:12px; color:#166534; background:#f0fdf4; padding:6px 10px; border-radius:6px; border:1px solid #bbf7d0; margin-bottom:6px;}
+  .agenda-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+  @media(max-width:700px){.agenda-grid{grid-template-columns:1fr;}}
+  .agenda-sect-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;}
+  .agenda-sect-head h2{margin:0; font-size:13px; font-weight:700; font-family:-apple-system,Helvetica,Arial,sans-serif; text-transform:uppercase; letter-spacing:0.07em; color:var(--ink-soft);}
+  .agenda-day{margin-bottom:14px;}
+  .agenda-day-label{font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; color:var(--ink-soft); margin-bottom:6px; padding-bottom:3px; border-bottom:1px solid var(--line); font-family:-apple-system,Helvetica,Arial,sans-serif;}
+  .agenda-event{display:flex; gap:9px; align-items:flex-start; padding:6px 9px; background:#fff; border:1px solid var(--line); border-radius:6px; margin-bottom:4px;}
+  .agenda-event-time{font-size:11.5px; color:var(--ink-soft); white-space:nowrap; min-width:50px; font-family:-apple-system,Helvetica,Arial,sans-serif;}
+  .agenda-event-title{font-size:13px; font-weight:500;}
+  .gmail-item{display:flex; gap:9px; align-items:center; padding:7px 9px; background:#fff; border:1px solid var(--line); border-radius:6px; margin-bottom:4px;}
+  .gmail-item-info{flex:1; min-width:0;}
+  .gmail-item-subject{font-size:13px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .gmail-item-from{font-size:11px; color:var(--ink-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .agenda-connect{text-align:center; padding:40px 20px;}
+  .agenda-connect p{margin-bottom:14px; font-size:14px; color:var(--ink-soft); font-family:-apple-system,Helvetica,Arial,sans-serif;}
 </style>
+<script src="https://accounts.google.com/gsi/client" async onload="initGoogleTokenClient()"></script>
 </head>
 <body>
 <div class="wrap">
@@ -173,6 +191,7 @@
     <button id="tab-reuniones" class="btn-small" onclick="setView('reuniones')">Reuniones</button>
     <button id="tab-crm" class="btn-small" onclick="setView('crm')">CRM</button>
     <button id="tab-desarrollo" class="btn-small" onclick="setView('desarrollo')">Desarrollo</button>
+    <button id="tab-agenda" class="btn-small" onclick="setView('agenda')">📅 Agenda</button>
   </div>
 
   <div id="viewRoot"></div>
@@ -229,6 +248,11 @@
     </div>
     <div style="margin-top:10px; display:flex; justify-content:flex-end;">
       <button class="btn-primary btn-small" onclick="saveProfile()">Guardar perfil</button>
+    </div>
+
+    <p class="cfg-sect">Google</p>
+    <div id="googleAuthStatus">
+      <button class="btn-ghost btn-small" onclick="connectGoogle()">🔗 Conectar con Google</button>
     </div>
 
     <p class="cfg-sect">Datos</p>
@@ -1273,7 +1297,7 @@ function closeAllDrawers(){
   document.getElementById('drawerOverlay').classList.remove('open');
 }
 
-function setView(v){ currentView=v; if(v!=='proyectos' && v!=='desarrollo') currentProjectId=null; if(v!=='reuniones' && v!=='crm') currentPersonFilter=null; if(v!=='crm') currentContactId=null; render(); }
+function setView(v){ currentView=v; if(v!=='proyectos' && v!=='desarrollo') currentProjectId=null; if(v!=='reuniones' && v!=='crm') currentPersonFilter=null; if(v!=='crm') currentContactId=null; render(); if(v==='agenda') loadAgendaData(); }
 function setUrgFilter(f){ currentUrgFilter=f; render(); }
 function setAreaFilter(f){ currentAreaFilter=f; render(); }
 function setTipoFilter(f){ currentTipoFilter=f; render(); }
@@ -1281,8 +1305,8 @@ function setPersonFilter(name){ currentPersonFilter = (currentPersonFilter===nam
 
 function render(){
   renderNotes(); renderAreaManage();
-  ['panel','lista','proyectos','reuniones','crm','desarrollo'].forEach(v=>{
-    document.getElementById('tab-'+v).classList.toggle('active', currentView===v);
+  ['panel','lista','proyectos','reuniones','crm','desarrollo','agenda'].forEach(v=>{
+    const el=document.getElementById('tab-'+v); if(el) el.classList.toggle('active', currentView===v);
   });
   const root=document.getElementById('viewRoot');
   if(currentView==='panel') root.innerHTML=renderKanban(state.tasks);
@@ -1290,8 +1314,166 @@ function render(){
   else if(currentView==='reuniones') root.innerHTML=renderReuniones();
   else if(currentView==='crm') root.innerHTML=renderCRM();
   else if(currentView==='desarrollo') root.innerHTML = currentProjectId ? renderProjectDetail() : renderProyectosList(DEV_AREA);
+  else if(currentView==='agenda') root.innerHTML=renderAgendaView();
   else if(currentProjectId) root.innerHTML=renderProjectDetail();
   else root.innerHTML=renderProyectosList();
+}
+
+// ---- Google Integration ----
+const GOOGLE_CLIENT_ID = '1043299015570-mi3k1ecnrvle83qfjl186kuucmn4bnd7.apps.googleusercontent.com';
+const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/gmail.readonly';
+let googleToken = null;
+let googleTokenExpiry = 0;
+let gTokenClient = null;
+
+function initGoogleTokenClient(){
+  if(typeof google === 'undefined' || !google.accounts) return;
+  gTokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope: GOOGLE_SCOPES,
+    callback: (resp) => {
+      if(resp.error){ setStatus('Error Google: '+resp.error); return; }
+      googleToken = resp.access_token;
+      googleTokenExpiry = Date.now() + (resp.expires_in - 60)*1000;
+      sessionStorage.setItem('g_tok', JSON.stringify({t:googleToken, e:googleTokenExpiry}));
+      updateGoogleUI();
+      if(currentView==='agenda') loadAgendaData();
+      setStatus('Conectado con Google ✓');
+    }
+  });
+  try{
+    const s=JSON.parse(sessionStorage.getItem('g_tok')||'null');
+    if(s && s.e > Date.now()){ googleToken=s.t; googleTokenExpiry=s.e; updateGoogleUI(); }
+  }catch(e){}
+}
+function connectGoogle(){
+  if(!gTokenClient) initGoogleTokenClient();
+  if(!gTokenClient){ setStatus('Librería de Google no cargada aún. Reintenta en un momento.'); return; }
+  gTokenClient.requestAccessToken({prompt: googleToken?'':'consent'});
+}
+function disconnectGoogle(){
+  if(googleToken) try{ google.accounts.oauth2.revoke(googleToken,()=>{}); }catch(e){}
+  googleToken=null; googleTokenExpiry=0;
+  sessionStorage.removeItem('g_tok');
+  updateGoogleUI();
+  if(currentView==='agenda') render();
+}
+function updateGoogleUI(){
+  const el=document.getElementById('googleAuthStatus'); if(!el) return;
+  if(googleToken){
+    el.innerHTML=`<p class="google-connected">✓ Conectado con Google</p>
+      <button class="btn-ghost btn-small" style="margin-top:6px;" onclick="disconnectGoogle()">Desconectar</button>`;
+  } else {
+    el.innerHTML=`<button class="btn-ghost btn-small" onclick="connectGoogle()">🔗 Conectar con Google</button>`;
+  }
+}
+function handleGoogleExpired(){
+  googleToken=null; sessionStorage.removeItem('g_tok'); updateGoogleUI();
+  setStatus('Sesión de Google expirada — vuelve a conectar.');
+}
+
+function renderAgendaView(){
+  if(!googleToken) return `<div class="agenda-connect">
+    <p>Conecta tu cuenta de Google para ver tu calendario y emails sin leer.</p>
+    <button class="btn-primary btn-small" onclick="connectGoogle()">🔗 Conectar con Google</button>
+  </div>`;
+  return `<div class="agenda-grid">
+    <div>
+      <div class="agenda-sect-head">
+        <h2>📅 Próximos 7 días</h2>
+        <button class="btn-ghost btn-small" onclick="loadCalendarWidget()">↺</button>
+      </div>
+      <div id="calendarWidget"><p class="empty">Cargando...</p></div>
+    </div>
+    <div>
+      <div class="agenda-sect-head">
+        <h2>📧 Emails sin leer</h2>
+        <button class="btn-ghost btn-small" onclick="loadGmailWidget()">↺</button>
+      </div>
+      <div id="gmailWidget"><p class="empty">Cargando...</p></div>
+    </div>
+  </div>`;
+}
+async function loadAgendaData(){
+  if(currentView!=='agenda') return;
+  loadCalendarWidget(); loadGmailWidget();
+}
+
+async function loadCalendarWidget(){
+  const el=document.getElementById('calendarWidget'); if(!el) return;
+  el.innerHTML='<p class="empty">Cargando...</p>';
+  const events=await fetchCalendarEvents();
+  if(!events.length){ el.innerHTML='<p class="empty">Sin eventos en los próximos 7 días.</p>'; return; }
+  const byDay={};
+  events.forEach(ev=>{
+    const key=ev.start.dateTime?ev.start.dateTime.slice(0,10):ev.start.date;
+    if(!byDay[key]) byDay[key]=[];
+    byDay[key].push(ev);
+  });
+  const dias=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  el.innerHTML=Object.entries(byDay).map(([date,evs])=>{
+    const d=new Date(date+'T12:00:00');
+    const label=date===todayStr()?'Hoy':(dias[d.getDay()]+' '+d.getDate()+' '+monthsEs[d.getMonth()]);
+    return `<div class="agenda-day">
+      <div class="agenda-day-label">${label}</div>
+      ${evs.map(ev=>{
+        const t=ev.start.dateTime?new Date(ev.start.dateTime).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'Todo el día';
+        return `<div class="agenda-event">
+          <span class="agenda-event-time">${t}</span>
+          <span class="agenda-event-title">${escapeHtml(ev.summary||'(sin título)')}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }).join('');
+}
+async function fetchCalendarEvents(){
+  if(!googleToken) return [];
+  const now=new Date().toISOString();
+  const end=new Date(Date.now()+7*24*60*60*1000).toISOString();
+  try{
+    const res=await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(now)}&timeMax=${encodeURIComponent(end)}&singleEvents=true&orderBy=startTime&maxResults=30`,
+      {headers:{Authorization:`Bearer ${googleToken}`}});
+    if(res.status===401){handleGoogleExpired();return[];}
+    if(!res.ok) return[];
+    return (await res.json()).items||[];
+  }catch(e){return[];}
+}
+
+async function loadGmailWidget(){
+  const el=document.getElementById('gmailWidget'); if(!el) return;
+  el.innerHTML='<p class="empty">Cargando...</p>';
+  const msgs=await fetchGmailUnread();
+  if(!msgs.length){ el.innerHTML='<p class="empty">No hay emails sin leer.</p>'; return; }
+  el.innerHTML=msgs.map(msg=>{
+    const hdrs=msg.payload?.headers||[];
+    const subject=hdrs.find(h=>h.name==='Subject')?.value||'(sin asunto)';
+    const from=(hdrs.find(h=>h.name==='From')?.value||'').replace(/<[^>]+>/,'').trim();
+    return `<div class="gmail-item">
+      <div class="gmail-item-info">
+        <div class="gmail-item-subject">${escapeHtml(subject)}</div>
+        <div class="gmail-item-from">${escapeHtml(from)}</div>
+      </div>
+      <button class="btn-ghost btn-small" style="white-space:nowrap;flex-shrink:0;" onclick="importEmailAsTask('${escapeAttr(subject)}','${escapeAttr(from)}')">+ Tarea</button>
+    </div>`;
+  }).join('');
+}
+async function fetchGmailUnread(){
+  if(!googleToken) return[];
+  try{
+    const lr=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?q=is:unread&maxResults=10',
+      {headers:{Authorization:`Bearer ${googleToken}`}});
+    if(lr.status===401){handleGoogleExpired();return[];}
+    if(!lr.ok) return[];
+    const ids=((await lr.json()).messages||[]).map(m=>m.id);
+    if(!ids.length) return[];
+    return await Promise.all(ids.map(id=>
+      fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From`,
+        {headers:{Authorization:`Bearer ${googleToken}`}}).then(r=>r.json())
+    ));
+  }catch(e){return[];}
+}
+function importEmailAsTask(subject, from){
+  openTaskModal(null,{title:subject+(from?` (${from})`:''), tipo:'Correo pendiente'});
 }
 
 function renderNotes(){
