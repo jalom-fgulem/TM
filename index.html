@@ -224,29 +224,38 @@
   .agenda-event:hover{border-color:var(--border-strong);}
   .agenda-event-time{font-size:11.5px;color:var(--text-soft);white-space:nowrap;min-width:52px;}
   .agenda-event-title{font-size:13px;font-weight:500;}
-  .gmail-item{display:flex;gap:9px;align-items:center;padding:9px 11px;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:5px;transition:border-color .1s;cursor:pointer;}
-  .gmail-item:hover{border-color:var(--accent);box-shadow:0 1px 6px rgba(37,99,235,.07);}
-  .gmail-item-info{flex:1;min-width:0;}
-  .gmail-item-subject{font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .gmail-item-from{font-size:11px;color:var(--text-soft);}
-  /* Label dropdown */
-  .email-label-dd{position:relative;display:inline-block;}
-  .email-label-menu{position:fixed;z-index:60;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.13);min-width:230px;padding:7px;}
-  .email-label-search{width:100%;box-sizing:border-box;padding:6px 9px;border:1px solid var(--border);border-radius:6px;font-size:12.5px;margin-bottom:5px;background:var(--bg);}
-  .email-label-search:focus{outline:none;border-color:var(--accent);}
-  .email-label-list{max-height:210px;overflow-y:auto;}
-  .email-label-opt{padding:6px 9px;border-radius:6px;font-size:12.5px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .email-label-opt:hover{background:var(--bg);}
-  .email-label-opt.active{background:var(--accent-bg);color:var(--accent);font-weight:600;}
-  /* Email modal */
-  .email-modal-bd{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;}
-  .email-modal-box{background:var(--surface);border-radius:14px;box-shadow:0 8px 40px rgba(0,0,0,.22);width:100%;max-width:700px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;}
-  .email-modal-head{padding:16px 18px 12px;border-bottom:1px solid var(--border);flex-shrink:0;}
-  .email-modal-subject{font-size:15px;font-weight:700;line-height:1.35;margin-bottom:7px;}
-  .email-modal-meta{font-size:11.5px;color:var(--text-soft);line-height:1.7;}
-  .email-modal-body{flex:1;overflow:auto;padding:14px 18px;}
-  .email-modal-iframe{width:100%;border:none;display:block;}
-  .email-modal-foot{padding:10px 18px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:7px;flex-shrink:0;}
+  /* Gmail 3-column layout */
+  .gmail-layout{display:grid;grid-template-columns:170px 280px 1fr;border:1px solid var(--border);border-radius:10px;overflow:hidden;height:calc(100dvh - 158px);min-height:360px;background:var(--surface);}
+  .gmail-sidebar{overflow-y:auto;border-right:1px solid var(--border);background:var(--bg);padding:6px 4px;}
+  .gmail-sb-item{display:flex;align-items:center;gap:7px;padding:6px 10px;border-radius:7px;cursor:pointer;font-size:12.5px;color:var(--text-soft);user-select:none;transition:background .1s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .gmail-sb-item:hover{background:var(--surface);}
+  .gmail-sb-item.active{background:var(--accent-bg);color:var(--accent);font-weight:600;}
+  .gmail-sb-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+  .gmail-sb-sep{height:1px;background:var(--border);margin:5px 6px;}
+  .gmail-sb-section{font-size:10px;font-weight:600;color:var(--text-soft);text-transform:uppercase;letter-spacing:.05em;padding:8px 10px 3px;}
+  .gmail-list-col{overflow-y:auto;border-right:1px solid var(--border);display:flex;flex-direction:column;}
+  .gmail-list-head{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);z-index:1;flex-shrink:0;}
+  .gmail-list-head-title{font-size:12px;font-weight:600;}
+  .gmail-list-item{padding:9px 12px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s;}
+  .gmail-list-item:hover{background:var(--bg);}
+  .gmail-list-item.selected{background:var(--accent-bg);}
+  .gli-row1{display:flex;align-items:baseline;justify-content:space-between;gap:4px;margin-bottom:2px;}
+  .gli-from{font-size:12.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;}
+  .gli-from.bold{font-weight:700;}
+  .gli-date{font-size:10.5px;color:var(--text-soft);white-space:nowrap;flex-shrink:0;}
+  .gli-subject{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);}
+  .gli-subject.bold{font-weight:600;}
+  .gli-snippet{font-size:11px;color:var(--text-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px;}
+  .gmail-preview-col{display:flex;flex-direction:column;overflow:hidden;}
+  .gmail-preview-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text-soft);font-size:13px;gap:8px;}
+  .gmail-preview-head{padding:14px 16px 10px;border-bottom:1px solid var(--border);flex-shrink:0;}
+  .gmail-preview-subject{font-size:15px;font-weight:700;line-height:1.35;margin-bottom:7px;}
+  .gmail-preview-meta{font-size:11.5px;color:var(--text-soft);line-height:1.8;}
+  .gmail-preview-actions{display:flex;gap:6px;margin-top:9px;}
+  .gmail-preview-body{flex:1;overflow-y:auto;padding:14px 16px;}
+  .gmail-preview-iframe{width:100%;border:none;display:block;}
+  @media(max-width:860px){.gmail-layout{grid-template-columns:150px 1fr;height:calc(100dvh - 148px);}  .gmail-preview-col{display:none;}}
+  @media(max-width:600px){.gmail-layout{grid-template-columns:1fr;height:auto;min-height:0;} .gmail-sidebar{display:none;} .gmail-list-col{border-right:none;max-height:60vh;}}
   .agenda-connect{text-align:center;padding:48px 20px;}
   .agenda-connect p{margin-bottom:14px;font-size:14px;color:var(--text-soft);}
   .cal-selector{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
@@ -1894,37 +1903,45 @@ function updateGoogleCalendarConfigUI(){
   const p=document.getElementById('cfgPrimCal'); if(p){ p.innerHTML=opts; p.value=cfg.primary||''; }
   const s=document.getElementById('cfgSecCal'); if(s){ s.innerHTML=opts; s.value=cfg.secondary||''; }
 }
+let selectedEmailId=null;
 function renderCorreo(){
   if(!googleToken) return `<div class="agenda-connect">
     <p>Conecta tu cuenta de Google en ⚙️ Configuración para ver tus emails.</p>
     <button class="btn-primary btn-small" onclick="openConfigDrawer()">Conectar con Google</button>
   </div>`;
-  return `<div>
-    <div class="view-header" style="margin-bottom:8px;">
-      <h2>Correo</h2>
-      <button class="btn-ghost btn-small" onclick="loadGmailWidget()"><i class="ti ti-refresh" aria-hidden="true"></i></button>
-    </div>
-    <div class="email-filters" id="emailFilterBar">
-      <button class="email-filter-btn ${currentEmailQuery==='is:starred'?'active':''}" onclick="setEmailQuery('is:starred')">⭐ Estrella</button>
-      <button class="email-filter-btn ${currentEmailQuery==='in:inbox'?'active':''}" onclick="setEmailQuery('in:inbox')">📥 Entrada</button>
-      <button class="email-filter-btn ${currentEmailQuery==='is:unread'?'active':''}" onclick="setEmailQuery('is:unread')">🔵 No leídos</button>
-      <div class="email-label-dd" id="emailLabelDd">
-        <button class="email-filter-btn ${currentEmailQuery.startsWith('label:')?'active':''}" onclick="toggleLabelDropdown(event)">
-          <i class="ti ti-tag" aria-hidden="true"></i> ${currentEmailQuery.startsWith('label:')?currentEmailQuery.replace('label:',''):'Etiqueta'} <i class="ti ti-chevron-down" style="font-size:10px;" aria-hidden="true"></i>
-        </button>
-        <div class="email-label-menu" id="emailLabelMenu" style="display:none;">
-          <input class="email-label-search" type="text" id="emailLabelSearch" placeholder="Buscar etiqueta..." oninput="filterEmailLabels(this.value)">
-          <div class="email-label-list" id="emailLabelList"><p class="empty" style="font-size:12px;padding:2px 4px;">Cargando...</p></div>
-        </div>
+  const labelTitle=currentEmailQuery==='is:starred'?'Destacados':currentEmailQuery==='in:inbox'?'Recibidos':currentEmailQuery==='in:sent'?'Enviados':currentEmailQuery==='is:unread'?'No leídos':currentEmailQuery.startsWith('label:')?currentEmailQuery.replace('label:',''):'Correo';
+  return `<div class="gmail-layout">
+    <div class="gmail-sidebar" id="gmailSidebar">${renderGmailSidebarHTML()}</div>
+    <div class="gmail-list-col">
+      <div class="gmail-list-head">
+        <span class="gmail-list-head-title">${escapeHtml(labelTitle)}</span>
+        <button class="btn-icon" onclick="loadGmailWidget()" title="Actualizar" style="width:26px;height:26px;font-size:13px;"><i class="ti ti-refresh" aria-hidden="true"></i></button>
       </div>
+      <div id="gmailWidget"><p class="empty" style="padding:16px 12px;">Cargando...</p></div>
     </div>
-    <div id="gmailWidget"><p class="empty">Cargando...</p></div>
+    <div class="gmail-preview-col" id="gmailPreviewCol">
+      <div class="gmail-preview-empty"><i class="ti ti-mail" style="font-size:32px;opacity:.3;" aria-hidden="true"></i><span>Selecciona un correo</span></div>
+    </div>
   </div>`;
 }
+function renderGmailSidebarHTML(){
+  const sys=[
+    {q:'in:inbox',icon:'ti-inbox',name:'Recibidos'},
+    {q:'is:starred',icon:'ti-star',name:'Destacados'},
+    {q:'is:unread',icon:'ti-mail',name:'No leídos'},
+    {q:'in:sent',icon:'ti-send',name:'Enviados'},
+  ];
+  const sysHtml=sys.map(s=>`<div class="gmail-sb-item ${currentEmailQuery===s.q?'active':''}" onclick="setEmailQuery('${s.q}')"><i class="ti ${s.icon}" aria-hidden="true"></i>${escapeHtml(s.name)}</div>`).join('');
+  const userHtml=gmailUserLabels.map(l=>{
+    const bg=l.color?.backgroundColor;
+    const dot=bg?`<span class="gmail-sb-dot" style="background:${bg};"></span>`:`<i class="ti ti-tag" aria-hidden="true"></i>`;
+    return `<div class="gmail-sb-item ${currentEmailQuery==='label:'+l.name?'active':''}" onclick="setEmailQuery('label:${escapeAttr(l.name)}')">${dot}${escapeHtml(l.name)}</div>`;
+  }).join('');
+  return sysHtml+(userHtml?`<div class="gmail-sb-sep"></div><div class="gmail-sb-section">Etiquetas</div>${userHtml}`:'');
+}
 function setEmailQuery(q){
-  currentEmailQuery=q;
-  render();
-  loadGmailWidget();
+  currentEmailQuery=q; selectedEmailId=null;
+  render(); loadGmailWidget();
 }
 function renderAgendaView(){
   if(!googleToken) return `<div class="agenda-connect">
@@ -2008,25 +2025,23 @@ async function fetchCalendarEvents(timeMin, timeMax){
 
 async function loadGmailWidget(){
   const el=document.getElementById('gmailWidget'); if(!el) return;
-  el.innerHTML='<p class="empty">Cargando...</p>';
+  el.innerHTML='<p class="empty" style="padding:16px 12px;">Cargando...</p>';
   const msgs=await fetchGmailUnread();
-  if(!msgs.length){ el.innerHTML='<p class="empty">No hay emails con este filtro.</p>'; return; }
+  if(!msgs.length){ el.innerHTML='<p class="empty" style="padding:16px 12px;">No hay emails con este filtro.</p>'; return; }
   el.innerHTML=msgs.map(msg=>{
     const hdrs=msg.payload?.headers||[];
     const subject=hdrs.find(h=>h.name==='Subject')?.value||'(sin asunto)';
-    const from=(hdrs.find(h=>h.name==='From')?.value||'').replace(/<[^>]+>/,'').trim();
+    const from=(hdrs.find(h=>h.name==='From')?.value||'').replace(/<[^>]+>/,'').trim()||'(desconocido)';
     const date=hdrs.find(h=>h.name==='Date')?.value||'';
-    const msgId=msg.id;
     const unread=(msg.labelIds||[]).includes('UNREAD');
-    return `<div class="gmail-item" id="email-${msgId}" onclick="openEmailModal('${msgId}')">
-      <div class="gmail-item-info">
-        <div class="gmail-item-subject" style="${unread?'font-weight:700;':''}">${escapeHtml(subject)}</div>
-        <div class="gmail-item-from">${escapeHtml(from)}${date?' · <span style="font-size:10.5px;">'+escapeHtml(formatEmailDate(date))+'</span>':''}</div>
+    const sel=selectedEmailId===msg.id;
+    return `<div class="gmail-list-item${sel?' selected':''}" data-id="${msg.id}" onclick="selectEmail('${msg.id}')">
+      <div class="gli-row1">
+        <div class="gli-from${unread?' bold':''}">${escapeHtml(from)}</div>
+        <div class="gli-date">${escapeHtml(formatEmailDate(date))}</div>
       </div>
-      <div style="display:flex;gap:5px;flex-shrink:0;" onclick="event.stopPropagation()">
-        <button class="btn-ghost btn-small" style="white-space:nowrap;" onclick="importEmailAsTask('${escapeAttr(subject)}','${escapeAttr(from)}')">+ Tarea</button>
-        <button class="btn-danger btn-small" onclick="deleteEmail('${msgId}')" title="Mover a papelera"><i class="ti ti-trash" aria-hidden="true"></i></button>
-      </div>
+      <div class="gli-subject${unread?' bold':''}">${escapeHtml(subject)}</div>
+      <div class="gli-snippet">${escapeHtml(msg.snippet||'')}</div>
     </div>`;
   }).join('');
 }
@@ -2057,30 +2072,8 @@ async function fetchGmailLabels(){
   }catch(e){}
 }
 function renderGmailLabelBtns(){
-  renderEmailLabelList(gmailUserLabels);
-}
-function renderEmailLabelList(labels){
-  const el=document.getElementById('emailLabelList'); if(!el) return;
-  if(!labels.length){ el.innerHTML='<p class="empty" style="font-size:12px;padding:2px 4px;">Sin etiquetas</p>'; return; }
-  el.innerHTML=labels.map(l=>`<div class="email-label-opt ${currentEmailQuery==='label:'+l.name?'active':''}" onclick="setEmailQuery('label:${escapeAttr(l.name)}');closeLabelDropdown()">${escapeHtml(l.name)}</div>`).join('');
-}
-function toggleLabelDropdown(e){
-  e.stopPropagation();
-  const menu=document.getElementById('emailLabelMenu'); if(!menu) return;
-  if(menu.style.display==='none'){
-    const rect=e.currentTarget.getBoundingClientRect();
-    menu.style.top=(rect.bottom+5)+'px';
-    menu.style.left=rect.left+'px';
-    menu.style.display='block';
-    const s=document.getElementById('emailLabelSearch');
-    if(s){ s.value=''; renderEmailLabelList(gmailUserLabels); s.focus(); }
-    setTimeout(()=>document.addEventListener('click',_closeLabelDdHandler,{once:true}),0);
-  } else { closeLabelDropdown(); }
-}
-function closeLabelDropdown(){ const m=document.getElementById('emailLabelMenu'); if(m) m.style.display='none'; }
-function _closeLabelDdHandler(){ closeLabelDropdown(); }
-function filterEmailLabels(q){
-  renderEmailLabelList(q ? gmailUserLabels.filter(l=>l.name.toLowerCase().includes(q.toLowerCase())) : gmailUserLabels);
+  const el=document.getElementById('gmailSidebar');
+  if(el) el.innerHTML=renderGmailSidebarHTML();
 }
 function formatEmailDate(dateStr){
   try{
@@ -2090,51 +2083,48 @@ function formatEmailDate(dateStr){
     return d.toLocaleDateString('es-ES',{day:'numeric',month:'short'});
   }catch(e){return'';}
 }
-async function openEmailModal(msgId){
-  const old=document.getElementById('emailModalBd'); if(old) old.remove();
-  const bd=document.createElement('div'); bd.id='emailModalBd'; bd.className='email-modal-bd';
-  bd.onclick=e=>{ if(e.target===bd) bd.remove(); };
-  bd.innerHTML=`<div class="email-modal-box">
-    <div class="email-modal-head"><div class="email-modal-subject">Cargando...</div></div>
-    <div class="email-modal-body"><p class="empty">Cargando mensaje...</p></div>
-    <div class="email-modal-foot"><button class="btn-ghost btn-small" onclick="document.getElementById('emailModalBd').remove()">Cerrar</button></div>
-  </div>`;
-  document.body.appendChild(bd);
+async function selectEmail(msgId){
+  selectedEmailId=msgId;
+  document.querySelectorAll('.gmail-list-item').forEach(el=>el.classList.toggle('selected',el.dataset.id===msgId));
+  const col=document.getElementById('gmailPreviewCol'); if(!col) return;
+  col.innerHTML='<div class="gmail-preview-empty"><i class="ti ti-loader" style="font-size:24px;opacity:.4;" aria-hidden="true"></i></div>';
   try{
     const r=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}?format=full`,{headers:{Authorization:`Bearer ${googleToken}`}});
-    if(r.status===401){handleGoogleExpired();bd.remove();return;}
+    if(r.status===401){handleGoogleExpired();return;}
     if(!r.ok) throw new Error();
     const msg=await r.json();
-    const hdrs=msg.payload?.headers||[];
-    const subject=hdrs.find(h=>h.name==='Subject')?.value||'(sin asunto)';
-    const from=hdrs.find(h=>h.name==='From')?.value||'';
-    const date=hdrs.find(h=>h.name==='Date')?.value||'';
-    const fromClean=from.replace(/<[^>]+>/,'').trim();
-    const body=extractEmailBody(msg.payload);
-    const box=bd.querySelector('.email-modal-box');
-    box.innerHTML=`<div class="email-modal-head">
-        <div class="email-modal-subject">${escapeHtml(subject)}</div>
-        <div class="email-modal-meta"><strong>De:</strong> ${escapeHtml(from)}<br><strong>Fecha:</strong> ${escapeHtml(date)}</div>
-      </div>
-      <div class="email-modal-body" id="emailModalBody"></div>
-      <div class="email-modal-foot">
-        <button class="btn-ghost btn-small" onclick="importEmailAsTask('${escapeAttr(subject)}','${escapeAttr(fromClean)}')">+ Tarea</button>
-        <button class="btn-danger btn-small" onclick="deleteEmail('${msgId}');document.getElementById('emailModalBd').remove()"><i class="ti ti-trash"></i></button>
-        <button class="btn-ghost btn-small" onclick="document.getElementById('emailModalBd').remove()">Cerrar</button>
-      </div>`;
-    const bodyEl=document.getElementById('emailModalBody');
-    if(body.html){
-      const iframe=document.createElement('iframe');
-      iframe.className='email-modal-iframe';
-      iframe.setAttribute('sandbox','allow-popups allow-same-origin');
-      bodyEl.appendChild(iframe);
-      iframe.srcdoc=`<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:system-ui,sans-serif;font-size:13px;line-height:1.6;margin:0;padding:0;color:#1A1A18;}a{color:#2563EB;}</style></head><body>${body.html}</body></html>`;
-      iframe.onload=()=>{ try{ iframe.style.height=iframe.contentDocument.body.scrollHeight+30+'px'; }catch(e){} };
-    } else {
-      bodyEl.innerHTML=`<pre style="white-space:pre-wrap;font-size:13px;font-family:system-ui,sans-serif;margin:0;">${escapeHtml(body.text||'(sin contenido)')}</pre>`;
-    }
+    renderEmailPreviewPanel(msg);
   }catch(e){
-    const b=bd.querySelector('.email-modal-body'); if(b) b.innerHTML='<p class="empty">Error al cargar el mensaje.</p>';
+    if(col) col.innerHTML='<div class="gmail-preview-empty">Error al cargar el mensaje.</div>';
+  }
+}
+function renderEmailPreviewPanel(msg){
+  const col=document.getElementById('gmailPreviewCol'); if(!col) return;
+  const hdrs=msg.payload?.headers||[];
+  const subject=hdrs.find(h=>h.name==='Subject')?.value||'(sin asunto)';
+  const from=hdrs.find(h=>h.name==='From')?.value||'';
+  const date=hdrs.find(h=>h.name==='Date')?.value||'';
+  const fromClean=from.replace(/<[^>]+>/,'').trim();
+  col.innerHTML=`<div class="gmail-preview-head">
+    <div class="gmail-preview-subject">${escapeHtml(subject)}</div>
+    <div class="gmail-preview-meta"><strong>De:</strong> ${escapeHtml(from)}<br><strong>Fecha:</strong> ${escapeHtml(date)}</div>
+    <div class="gmail-preview-actions">
+      <button class="btn-ghost btn-small" onclick="importEmailAsTask('${escapeAttr(subject)}','${escapeAttr(fromClean)}')">+ Tarea</button>
+      <button class="btn-danger btn-small" onclick="deleteEmail('${escapeAttr(msg.id)}')" title="Mover a papelera"><i class="ti ti-trash" aria-hidden="true"></i></button>
+    </div>
+  </div>
+  <div class="gmail-preview-body" id="gmailPreviewBody"></div>`;
+  const bodyEl=document.getElementById('gmailPreviewBody');
+  const body=extractEmailBody(msg.payload);
+  if(body.html){
+    const iframe=document.createElement('iframe');
+    iframe.className='gmail-preview-iframe';
+    iframe.setAttribute('sandbox','allow-popups allow-same-origin');
+    bodyEl.appendChild(iframe);
+    iframe.srcdoc=`<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:system-ui,sans-serif;font-size:13px;line-height:1.6;margin:0;padding:8px;color:#1A1A18;word-break:break-word;}a{color:#2563EB;}img{max-width:100%;}</style></head><body>${body.html}</body></html>`;
+    iframe.onload=()=>{ try{ iframe.style.height=iframe.contentDocument.body.scrollHeight+20+'px'; }catch(e){} };
+  } else {
+    bodyEl.innerHTML=`<pre style="white-space:pre-wrap;font-size:13px;font-family:system-ui,sans-serif;margin:0;">${escapeHtml(body.text||'(sin contenido)')}</pre>`;
   }
 }
 function extractEmailBody(payload){
@@ -2156,7 +2146,7 @@ function importEmailAsTask(subject, from){
 }
 async function deleteEmail(msgId){
   if(!googleToken) return;
-  const el=document.getElementById('email-'+msgId);
+  const el=document.querySelector(`.gmail-list-item[data-id="${msgId}"]`);
   if(el){ el.style.opacity='0.4'; el.style.pointerEvents='none'; }
   try{
     const res=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}/trash`,{
@@ -2164,7 +2154,15 @@ async function deleteEmail(msgId){
       headers:{Authorization:`Bearer ${googleToken}`}
     });
     if(res.status===401){handleGoogleExpired();return;}
-    if(res.ok){ if(el) el.remove(); setStatus('Email movido a papelera.'); }
+    if(res.ok){
+      if(el) el.remove();
+      if(selectedEmailId===msgId){
+        selectedEmailId=null;
+        const col=document.getElementById('gmailPreviewCol');
+        if(col) col.innerHTML='<div class="gmail-preview-empty"><i class="ti ti-mail" style="font-size:32px;opacity:.3;" aria-hidden="true"></i><span>Selecciona un correo</span></div>';
+      }
+      setStatus('Email movido a papelera.');
+    }
     else{ if(el){el.style.opacity='';el.style.pointerEvents='';} setStatus('Error al borrar el email.'); }
   }catch(e){
     if(el){el.style.opacity='';el.style.pointerEvents='';}
