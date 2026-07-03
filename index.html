@@ -166,6 +166,11 @@
   .gmail-item-from{font-size:11px; color:var(--ink-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .agenda-connect{text-align:center; padding:40px 20px;}
   .agenda-connect p{margin-bottom:14px; font-size:14px; color:var(--ink-soft); font-family:-apple-system,Helvetica,Arial,sans-serif;}
+  .cal-selector{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;}
+  .cal-chip{display:inline-flex; align-items:center; gap:5px; padding:3px 10px 3px 6px; border-radius:99px; border:1.5px solid var(--line); background:#fff; font-size:12px; font-family:-apple-system,Helvetica,Arial,sans-serif; cursor:pointer; color:var(--ink-soft); transition:all .15s; user-select:none;}
+  .cal-chip.on{background:var(--panel); border-color:#aaa; color:var(--ink);}
+  .cal-chip:hover{border-color:#aaa;}
+  .cal-chip-dot{width:9px; height:9px; border-radius:50%; flex-shrink:0;}
 </style>
 <script src="https://accounts.google.com/gsi/client" async onload="initGoogleTokenClient()"></script>
 </head>
@@ -357,7 +362,7 @@ function saveContactRow(c){ return upsertRow('contacts', c.id, c); }
 function deleteContactRow(id){ return deleteRow('contacts', id); }
 function saveNoteRow(n){ return upsertRow('notes', n.id, n); }
 function deleteNoteRow(id){ return deleteRow('notes', id); }
-function saveSettings(){ return upsertRow('board', STORAGE_KEY, { areas: state.areas, tipos: state.tipos, profile: state.profile }); }
+function saveSettings(){ return upsertRow('board', STORAGE_KEY, { areas: state.areas, tipos: state.tipos, profile: state.profile, calendarSelection: state.calendarSelection||{} }); }
 
 async function loadState(){
   setStatus('Cargando...');
@@ -377,7 +382,8 @@ async function loadState(){
       tasks, projects, meetings, contacts, notes,
       areas: (settings.areas && settings.areas.length) ? settings.areas : DEFAULT_AREAS.slice(),
       tipos: (settings.tipos && settings.tipos.length) ? settings.tipos : DEFAULT_TIPOS.slice(),
-      profile: settings.profile || {...DEFAULT_PROFILE}
+      profile: settings.profile || {...DEFAULT_PROFILE},
+      calendarSelection: settings.calendarSelection || {}
     };
     state.tasks.forEach(t=>{ if(!t.subtasks) t.subtasks=[]; t.subtasks.forEach(s=>{ if(!s.children) s.children=[]; }); if(!t.linkedTaskIds) t.linkedTaskIds=[]; });
     state.projects.forEach(p=>{ if(!p.areas) p.areas=[]; if(!p.log) p.log=[]; if(p.active===undefined) p.active=true; });
@@ -1325,25 +1331,30 @@ const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/calendar.readonly https:/
 let googleToken = null;
 let googleTokenExpiry = 0;
 let gTokenClient = null;
+let googleCalendars = []; // [{id, summary, backgroundColor, selected}]
 
 function initGoogleTokenClient(){
   if(typeof google === 'undefined' || !google.accounts) return;
   gTokenClient = google.accounts.oauth2.initTokenClient({
     client_id: GOOGLE_CLIENT_ID,
     scope: GOOGLE_SCOPES,
-    callback: (resp) => {
+    callback: async (resp) => {
       if(resp.error){ setStatus('Error Google: '+resp.error); return; }
       googleToken = resp.access_token;
       googleTokenExpiry = Date.now() + (resp.expires_in - 60)*1000;
       sessionStorage.setItem('g_tok', JSON.stringify({t:googleToken, e:googleTokenExpiry}));
+      await fetchCalendarList();
       updateGoogleUI();
-      if(currentView==='agenda') loadAgendaData();
+      if(currentView==='agenda'){ render(); loadAgendaData(); }
       setStatus('Conectado con Google ✓');
     }
   });
   try{
     const s=JSON.parse(sessionStorage.getItem('g_tok')||'null');
-    if(s && s.e > Date.now()){ googleToken=s.t; googleTokenExpiry=s.e; updateGoogleUI(); }
+    if(s && s.e > Date.now()){
+      googleToken=s.t; googleTokenExpiry=s.e;
+      fetchCalendarList().then(()=>{ updateGoogleUI(); if(currentView==='agenda'){ render(); loadAgendaData(); } });
+    }
   }catch(e){}
 }
 function connectGoogle(){
@@ -1368,13 +1379,41 @@ function updateGoogleUI(){
   }
 }
 function handleGoogleExpired(){
-  googleToken=null; sessionStorage.removeItem('g_tok'); updateGoogleUI();
+  googleToken=null; sessionStorage.removeItem('g_tok'); googleCalendars=[]; updateGoogleUI();
   setStatus('Sesión de Google expirada — vuelve a conectar.');
+}
+async function fetchCalendarList(){
+  if(!googleToken) return;
+  try{
+    const r=await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=50',
+      {headers:{Authorization:`Bearer ${googleToken}`}});
+    if(r.status===401){ handleGoogleExpired(); return; }
+    if(!r.ok) return;
+    googleCalendars=((await r.json()).items||[]).filter(c=>c.selected!==false);
+  }catch(e){}
+}
+function isCalEnabled(id){ return (state.calendarSelection||{})[id] !== false; }
+function toggleCalendar(id){
+  if(!state.calendarSelection) state.calendarSelection={};
+  state.calendarSelection[id] = !isCalEnabled(id);
+  saveSettings();
+  renderCalendarSelector();
+  loadCalendarWidget();
+}
+function renderCalendarSelector(){
+  const el=document.getElementById('calSelector'); if(!el) return;
+  el.innerHTML=googleCalendars.map(c=>{
+    const on=isCalEnabled(c.id);
+    return `<span class="cal-chip ${on?'on':''}" onclick="toggleCalendar('${escapeAttr(c.id)}')" title="${escapeAttr(c.summary)}">
+      <span class="cal-chip-dot" style="background:${c.backgroundColor||'#4285F4'}"></span>
+      ${escapeHtml(c.summary)}
+    </span>`;
+  }).join('');
 }
 
 function renderAgendaView(){
   if(!googleToken) return `<div class="agenda-connect">
-    <p>Conecta tu cuenta de Google para ver tu calendario y emails sin leer.</p>
+    <p>Conecta tu cuenta de Google para ver tu calendario y emails con estrella.</p>
     <button class="btn-primary btn-small" onclick="connectGoogle()">🔗 Conectar con Google</button>
   </div>`;
   return `<div class="agenda-grid">
@@ -1383,6 +1422,7 @@ function renderAgendaView(){
         <h2>📅 Próximos 7 días</h2>
         <button class="btn-ghost btn-small" onclick="loadCalendarWidget()">↺</button>
       </div>
+      <div id="calSelector" class="cal-selector"></div>
       <div id="calendarWidget"><p class="empty">Cargando...</p></div>
     </div>
     <div>
@@ -1396,6 +1436,7 @@ function renderAgendaView(){
 }
 async function loadAgendaData(){
   if(currentView!=='agenda') return;
+  renderCalendarSelector();
   loadCalendarWidget(); loadGmailWidget();
 }
 
@@ -1430,24 +1471,19 @@ async function loadCalendarWidget(){
 }
 async function fetchCalendarEvents(){
   if(!googleToken) return [];
+  if(!googleCalendars.length) await fetchCalendarList();
+  const activeCals = googleCalendars.filter(c=>isCalEnabled(c.id));
+  if(!activeCals.length) return [];
   const now=new Date().toISOString();
   const end=new Date(Date.now()+7*24*60*60*1000).toISOString();
   try{
-    // 1. Obtener todos los calendarios
-    const calRes=await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=50',
-      {headers:{Authorization:`Bearer ${googleToken}`}});
-    if(calRes.status===401){handleGoogleExpired();return[];}
-    if(!calRes.ok) return[];
-    const cals=((await calRes.json()).items||[]).filter(c=>c.selected!==false);
-    // 2. Obtener eventos de todos los calendarios en paralelo
-    const results=await Promise.all(cals.map(cal=>
+    const results=await Promise.all(activeCals.map(cal=>
       fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?timeMin=${encodeURIComponent(now)}&timeMax=${encodeURIComponent(end)}&singleEvents=true&orderBy=startTime&maxResults=20`,
         {headers:{Authorization:`Bearer ${googleToken}`}})
-      .then(r=>r.ok?r.json():{items:[]})
-      .then(d=>(d.items||[]).map(ev=>({...ev, _calName:cal.summary, _calColor:cal.backgroundColor})))
+      .then(r=>{ if(r.status===401){handleGoogleExpired();} return r.ok?r.json():{items:[]}; })
+      .then(d=>(d.items||[]).map(ev=>({...ev,_calName:cal.summary,_calColor:cal.backgroundColor})))
       .catch(()=>[])
     ));
-    // 3. Unir y ordenar por hora de inicio
     return results.flat().sort((a,b)=>{
       const ta=a.start.dateTime||a.start.date;
       const tb=b.start.dateTime||b.start.date;
