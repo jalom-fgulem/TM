@@ -1,0 +1,15 @@
+{
+  "name": "Gestor de Tareas",
+  "short_name": "TM",
+  "description": "Gestor personal de tareas, proyectos y contactos",
+  "start_url": "/TM/",
+  "scope": "/TM/",
+  "display": "standalone",
+  "background_color": "#F5F5F3",
+  "theme_color": "#2563EB",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "/TM/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/TM/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

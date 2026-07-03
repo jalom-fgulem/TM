@@ -3,6 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TM">
+<meta name="theme-color" content="#2563EB">
+<link rel="manifest" href="/TM/manifest.json">
+<link rel="apple-touch-icon" href="/TM/apple-touch-icon.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3/dist/tabler-icons.min.css">
 <title>Gestor de tareas</title>
 <style>
@@ -2201,6 +2207,10 @@ function renderProjectDetail(){
 }
 
 loadState();
+
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/TM/sw.js').catch(()=>{});
+}
 </script>
 </body>
 </html>
