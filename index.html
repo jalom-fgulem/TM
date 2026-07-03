@@ -234,6 +234,44 @@
   .area-toggle.checked{background:var(--accent-bg);border-color:var(--accent-border);color:var(--accent);}
   .area-toggle.checked .area-toggle-icon{background:var(--accent);border-color:var(--accent);color:#fff;}
 
+  /* Config accordion */
+  .cfg-accordion{border:1px solid var(--border);border-radius:10px;margin-bottom:8px;overflow:hidden;}
+  .cfg-acc-summary{display:flex;justify-content:space-between;align-items:center;padding:11px 14px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text);background:var(--surface);list-style:none;user-select:none;}
+  .cfg-acc-summary::-webkit-details-marker{display:none;}
+  .cfg-acc-summary:hover{background:var(--surface2);}
+  .cfg-acc-summary .cfg-acc-icon{font-size:16px;transition:transform .2s;}
+  details.cfg-accordion[open] .cfg-acc-icon{transform:rotate(180deg);}
+  .cfg-acc-body{padding:12px 14px;border-top:1px solid var(--border);background:var(--surface);}
+
+  /* Header events strip */
+  .header-events{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px;}
+  .header-event-pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:99px;color:var(--accent);font-size:11px;font-weight:500;white-space:nowrap;}
+  .header-event-pill i{font-size:12px;}
+
+  /* Monthly calendar */
+  .cal-month{width:100%;}
+  .cal-nav{display:flex;align-items:center;gap:8px;margin-bottom:14px;}
+  .cal-nav-label{flex:1;text-align:center;font-size:15px;font-weight:600;text-transform:capitalize;}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
+  .cal-dow{text-align:center;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);padding:4px 0 6px;}
+  .cal-day{border:1px solid var(--border);border-radius:7px;padding:5px 6px;min-height:72px;cursor:pointer;background:var(--surface);transition:border-color .1s;}
+  .cal-day:hover{border-color:var(--border-strong);}
+  .cal-day.today{border-color:var(--accent);background:var(--accent-bg);}
+  .cal-day.today .cal-day-num{color:var(--accent);font-weight:700;}
+  .cal-day.selected{box-shadow:0 0 0 2px var(--accent);}
+  .cal-day.other-month{opacity:0.3;cursor:default;}
+  .cal-day-num{font-size:12px;font-weight:500;margin-bottom:3px;color:var(--text);}
+  .cal-event-pill{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:1px 5px;border-radius:3px;margin-bottom:2px;color:#fff;line-height:1.4;}
+  .cal-event-more{font-size:10px;color:var(--text-muted);}
+  .cal-day-detail{margin-top:14px;border-top:1px solid var(--border);padding-top:14px;}
+  .cal-day-detail-head{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-soft);margin-bottom:10px;text-transform:capitalize;}
+
+  /* Email labels / query switcher */
+  .email-filters{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none;}
+  .email-filters::-webkit-scrollbar{display:none;}
+  .email-filter-btn{white-space:nowrap;font-size:12px;padding:4px 10px;border:1px solid var(--border);border-radius:99px;background:var(--surface);color:var(--text-soft);cursor:pointer;transition:all .1s;}
+  .email-filter-btn.active{background:var(--text);color:#fff;border-color:var(--text);}
+
   /* ── RESPONSIVE ─────────────────────────── */
   @media(max-width:600px){
     /* Contenedor */
@@ -292,6 +330,10 @@
 
     /* Proyecto head */
     .proj-head h3{font-size:15px;}
+    .cal-day{min-height:48px;padding:3px 4px;}
+    .cal-event-pill{display:none;}
+    .cal-day-num{font-size:11px;}
+    .cal-nav-label{font-size:13px;}
   }
 </style>
 <script src="https://accounts.google.com/gsi/client" async onload="initGoogleTokenClient()"></script>
@@ -302,6 +344,7 @@
     <div>
       <h1 id="appTitle">Gestor de tareas</h1>
       <div class="datebar" id="datebar"></div>
+      <div class="header-events" id="headerEvents"></div>
     </div>
     <div class="header-btns">
       <button class="btn-icon" onclick="openNotesDrawer()" title="Notas" style="position:relative;">
@@ -361,50 +404,103 @@
     <button class="btn-ghost btn-small" onclick="closeConfigDrawer()">Cerrar ×</button>
   </div>
   <div class="drawer-body">
-    <p class="cfg-sect">Perfil</p>
-    <div class="cfg-fields">
-      <label>Nombre</label>
-      <input type="text" id="cfgNombre" placeholder="José Carlos">
-      <label>Apellidos</label>
-      <input type="text" id="cfgApellidos" placeholder="Alonso Marcos">
-      <label>Alias / nombre corto</label>
-      <input type="text" id="cfgAlias" placeholder="JC">
-      <label>Cargo</label>
-      <input type="text" id="cfgCargo" placeholder="Director de Fundación">
-      <label>Correo electrónico</label>
-      <input type="email" id="cfgEmail" placeholder="jalom@unileon.es">
-    </div>
-    <div style="margin-top:10px; display:flex; justify-content:flex-end;">
-      <button class="btn-primary btn-small" onclick="saveProfile()">Guardar perfil</button>
-    </div>
+    <!-- Perfil -->
+    <details class="cfg-accordion" id="cfgSec-perfil">
+      <summary class="cfg-acc-summary">
+        <span><i class="ti ti-user" style="margin-right:6px;"></i>Perfil</span>
+        <i class="ti ti-chevron-down cfg-acc-icon"></i>
+      </summary>
+      <div class="cfg-acc-body">
+        <div class="cfg-fields">
+          <label>Nombre</label>
+          <input type="text" id="cfgNombre" placeholder="José Carlos">
+          <label>Apellidos</label>
+          <input type="text" id="cfgApellidos" placeholder="Alonso Marcos">
+          <label>Alias / nombre corto</label>
+          <input type="text" id="cfgAlias" placeholder="JC">
+          <label>Cargo</label>
+          <input type="text" id="cfgCargo" placeholder="Director de Fundación">
+          <label>Correo electrónico</label>
+          <input type="email" id="cfgEmail" placeholder="jalom@unileon.es">
+        </div>
+        <div style="margin-top:10px;display:flex;justify-content:flex-end;">
+          <button class="btn-primary btn-small" onclick="saveProfile()">Guardar perfil</button>
+        </div>
+      </div>
+    </details>
 
-    <p class="cfg-sect">Google</p>
-    <div id="googleAuthStatus">
-      <button class="btn-ghost btn-small" onclick="connectGoogle()">🔗 Conectar con Google</button>
-    </div>
+    <!-- Google -->
+    <details class="cfg-accordion" id="cfgSec-google">
+      <summary class="cfg-acc-summary">
+        <span><i class="ti ti-brand-google" style="margin-right:6px;"></i>Google</span>
+        <i class="ti ti-chevron-down cfg-acc-icon"></i>
+      </summary>
+      <div class="cfg-acc-body">
+        <div id="googleAuthStatus">
+          <button class="btn-ghost btn-small" onclick="connectGoogle()">🔗 Conectar con Google</button>
+        </div>
+        <div id="googleCalCfg" style="display:none;margin-top:12px;">
+          <div class="cfg-fields">
+            <label>Calendario principal</label>
+            <select id="cfgPrimCal" onchange="saveCfgCalendars()">
+              <option value="">— Ninguno —</option>
+            </select>
+            <label>Calendario secundario (opcional)</label>
+            <select id="cfgSecCal" onchange="saveCfgCalendars()">
+              <option value="">— Ninguno —</option>
+            </select>
+          </div>
+          <p class="help" style="margin-top:8px;">Los eventos de estos calendarios aparecerán en la cabecera de la app y en la vista Calendario.</p>
+        </div>
+      </div>
+    </details>
 
-    <p class="cfg-sect">Datos</p>
-    <div class="cfg-actions">
-      <button class="btn-ghost btn-small" onclick="copySummary()">Copiar resumen de pendientes</button>
-      <button class="btn-ghost btn-small" onclick="copyBackupToClipboard()">Ver copia de seguridad</button>
-      <button class="btn-ghost btn-small" onclick="document.getElementById('importFile').click()">Importar copia (archivo)</button>
-      <button class="btn-ghost btn-small" onclick="openPasteImportModal()">Importar copia (pegar texto)</button>
-    </div>
+    <!-- Áreas -->
+    <details class="cfg-accordion" id="cfgSec-areas">
+      <summary class="cfg-acc-summary">
+        <span><i class="ti ti-tags" style="margin-right:6px;"></i>Áreas</span>
+        <i class="ti ti-chevron-down cfg-acc-icon"></i>
+      </summary>
+      <div class="cfg-acc-body">
+        <div class="area-manage" id="areaManageList"></div>
+        <div class="area-add" style="margin-top:8px;">
+          <input type="text" id="newAreaInput" placeholder="Nueva área...">
+          <button class="btn-ghost btn-small" onclick="addArea()">Añadir</button>
+        </div>
+      </div>
+    </details>
 
-    <p class="cfg-sect">Áreas</p>
-    <div class="area-manage" id="areaManageList"></div>
-    <div class="area-add" style="margin-top:8px;">
-      <input type="text" id="newAreaInput" placeholder="Nueva área...">
-      <button class="btn-ghost btn-small" onclick="addArea()">Añadir</button>
-    </div>
+    <!-- Tipos -->
+    <details class="cfg-accordion" id="cfgSec-tipos">
+      <summary class="cfg-acc-summary">
+        <span><i class="ti ti-label" style="margin-right:6px;"></i>Tipos de tarea</span>
+        <i class="ti ti-chevron-down cfg-acc-icon"></i>
+      </summary>
+      <div class="cfg-acc-body">
+        <p class="help" style="margin-bottom:8px;">Cada tipo es una columna del Panel; mantenlos pocos.</p>
+        <div class="area-manage" id="tipoManageList"></div>
+        <div class="area-add" style="margin-top:8px;">
+          <input type="text" id="newTipoInput" placeholder="Nuevo tipo...">
+          <button class="btn-ghost btn-small" onclick="addTipo()">Añadir</button>
+        </div>
+      </div>
+    </details>
 
-    <p class="cfg-sect">Tipos de tarea</p>
-    <p class="help" style="margin-bottom:8px;">Cada tipo es una columna del Panel; mantenlos pocos</p>
-    <div class="area-manage" id="tipoManageList"></div>
-    <div class="area-add" style="margin-top:8px;">
-      <input type="text" id="newTipoInput" placeholder="Nuevo tipo...">
-      <button class="btn-ghost btn-small" onclick="addTipo()">Añadir</button>
-    </div>
+    <!-- Datos -->
+    <details class="cfg-accordion" id="cfgSec-datos">
+      <summary class="cfg-acc-summary">
+        <span><i class="ti ti-database" style="margin-right:6px;"></i>Datos</span>
+        <i class="ti ti-chevron-down cfg-acc-icon"></i>
+      </summary>
+      <div class="cfg-acc-body">
+        <div class="cfg-actions">
+          <button class="btn-ghost btn-small" onclick="copySummary()">Copiar resumen de pendientes</button>
+          <button class="btn-ghost btn-small" onclick="copyBackupToClipboard()">Ver copia de seguridad</button>
+          <button class="btn-ghost btn-small" onclick="document.getElementById('importFile').click()">Importar copia (archivo)</button>
+          <button class="btn-ghost btn-small" onclick="openPasteImportModal()">Importar copia (pegar texto)</button>
+        </div>
+      </div>
+    </details>
   </div>
 </div>
 
@@ -485,7 +581,7 @@ function saveContactRow(c){ return upsertRow('contacts', c.id, c); }
 function deleteContactRow(id){ return deleteRow('contacts', id); }
 function saveNoteRow(n){ return upsertRow('notes', n.id, n); }
 function deleteNoteRow(id){ return deleteRow('notes', id); }
-function saveSettings(){ return upsertRow('board', STORAGE_KEY, { areas: state.areas, tipos: state.tipos, profile: state.profile, calendarSelection: state.calendarSelection||{} }); }
+function saveSettings(){ return upsertRow('board', STORAGE_KEY, { areas: state.areas, tipos: state.tipos, profile: state.profile, calendarSelection: state.calendarSelection||{}, calendarConfig: state.calendarConfig||{} }); }
 
 async function loadState(){
   setStatus('Cargando...');
@@ -506,7 +602,8 @@ async function loadState(){
       areas: (settings.areas && settings.areas.length) ? settings.areas : DEFAULT_AREAS.slice(),
       tipos: (settings.tipos && settings.tipos.length) ? settings.tipos : DEFAULT_TIPOS.slice(),
       profile: settings.profile || {...DEFAULT_PROFILE},
-      calendarSelection: settings.calendarSelection || {}
+      calendarSelection: settings.calendarSelection || {},
+      calendarConfig: settings.calendarConfig || {}
     };
     state.tasks.forEach(t=>{ if(!t.subtasks) t.subtasks=[]; t.subtasks.forEach(s=>{ if(!s.children) s.children=[]; }); if(!t.linkedTaskIds) t.linkedTaskIds=[]; });
     state.projects.forEach(p=>{ if(!p.areas) p.areas=[]; if(!p.log) p.log=[]; if(p.active===undefined) p.active=true; });
@@ -1448,7 +1545,7 @@ function closeAllDrawers(){
   document.getElementById('drawerOverlay').classList.remove('open');
 }
 
-function setView(v){ currentView=v; if(v!=='proyectos' && v!=='desarrollo') currentProjectId=null; if(v!=='reuniones' && v!=='crm') currentPersonFilter=null; if(v!=='crm') currentContactId=null; render(); if(v==='calendario'){ renderCalendarSelector(); loadCalendarWidget(); } else if(v==='correo') loadGmailWidget(); }
+function setView(v){ currentView=v; if(v!=='proyectos' && v!=='desarrollo') currentProjectId=null; if(v!=='reuniones' && v!=='crm') currentPersonFilter=null; if(v!=='crm') currentContactId=null; render(); if(v==='calendario'){ loadCalendarMonth(); } else if(v==='correo') loadGmailWidget(); }
 function setUrgFilter(f){ currentUrgFilter=f; render(); }
 function setAreaFilter(f){ currentAreaFilter=f; render(); }
 function setTipoFilter(f){ currentTipoFilter=f; render(); }
@@ -1479,6 +1576,11 @@ let googleTokenExpiry = 0;
 let gTokenClient = null;
 let googleCalendars = []; // [{id, summary, backgroundColor, selected}]
 let _tokenRefreshTimer = null;
+let calViewMonth = new Date();
+let calSelectedDay = null;
+let calMonthEvents = [];
+let currentEmailQuery = 'is:starred';
+let gmailUserLabels = [];
 
 function scheduleTokenRefresh(expiresIn){
   if(_tokenRefreshTimer) clearTimeout(_tokenRefreshTimer);
@@ -1501,6 +1603,7 @@ function initGoogleTokenClient(){
       scheduleTokenRefresh(resp.expires_in);
       await fetchCalendarList();
       updateGoogleUI();
+      fetchGmailLabels();
       if(currentView==='calendario'||currentView==='correo'){ render(); loadAgendaData(); }
     }
   });
@@ -1509,7 +1612,7 @@ function initGoogleTokenClient(){
     if(s && s.e > Date.now()){
       googleToken=s.t; googleTokenExpiry=s.e;
       scheduleTokenRefresh(Math.round((s.e - Date.now())/1000));
-      fetchCalendarList().then(()=>{ updateGoogleUI(); if(currentView==='calendario'||currentView==='correo'){ render(); loadAgendaData(); } });
+      fetchCalendarList().then(()=>{ updateGoogleUI(); fetchGmailLabels(); if(currentView==='calendario'||currentView==='correo'){ render(); loadAgendaData(); } });
     }
   }catch(e){}
 }
@@ -1534,6 +1637,7 @@ function updateGoogleUI(){
   } else {
     el.innerHTML=`<button class="btn-ghost btn-small" onclick="connectGoogle()">🔗 Conectar con Google</button>`;
   }
+  updateGoogleCalendarConfigUI();
 }
 function handleGoogleExpired(){
   googleToken=null; sessionStorage.removeItem('g_tok'); googleCalendars=[]; updateGoogleUI();
@@ -1573,13 +1677,120 @@ function renderCalendario(){
     <p>Conecta tu cuenta de Google en ⚙️ Configuración para ver tu calendario.</p>
     <button class="btn-primary btn-small" onclick="openConfigDrawer()">Conectar con Google</button>
   </div>`;
-  return `<div>
-    <div class="agenda-sect-head" style="margin-bottom:14px;">
-      <div id="calSelector" class="cal-selector" style="flex:1;"></div>
-      <button class="btn-ghost btn-small" onclick="loadCalendarWidget()" style="flex-shrink:0;"><i class="ti ti-refresh" aria-hidden="true"></i> Actualizar</button>
+  const monthLabel = calViewMonth.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
+  return `<div class="cal-month">
+    <div class="cal-nav">
+      <button class="btn-ghost btn-small" onclick="changeCalMonth(-1)"><i class="ti ti-chevron-left"></i></button>
+      <span class="cal-nav-label" id="calMonthLabel">${monthLabel}</span>
+      <button class="btn-ghost btn-small" onclick="changeCalMonth(0)">Hoy</button>
+      <button class="btn-ghost btn-small" onclick="changeCalMonth(1)"><i class="ti ti-chevron-right"></i></button>
+      <button class="btn-ghost btn-small" onclick="loadCalendarMonth()" title="Actualizar"><i class="ti ti-refresh"></i></button>
     </div>
-    <div id="calendarWidget"><p class="empty">Cargando...</p></div>
+    <div class="cal-grid" id="calMonthGrid"><div class="empty" style="grid-column:span 7;">Cargando...</div></div>
+    <div class="cal-day-detail" id="calDayDetail" style="display:none;"></div>
   </div>`;
+}
+function changeCalMonth(delta){
+  if(delta===0){ calViewMonth=new Date(); }
+  else{ calViewMonth=new Date(calViewMonth.getFullYear(), calViewMonth.getMonth()+delta, 1); }
+  calSelectedDay=null;
+  render();
+  loadCalendarMonth();
+}
+function selectCalDay(dateStr){
+  calSelectedDay = calSelectedDay===dateStr ? null : dateStr;
+  const dayEls = document.querySelectorAll('.cal-day');
+  dayEls.forEach(el=>el.classList.remove('selected'));
+  if(calSelectedDay){
+    const el=document.querySelector(`.cal-day[data-date="${dateStr}"]`);
+    if(el) el.classList.add('selected');
+  }
+  renderCalDayDetail();
+}
+function renderCalDayDetail(){
+  const det=document.getElementById('calDayDetail'); if(!det) return;
+  if(!calSelectedDay){ det.style.display='none'; return; }
+  const evs=calMonthEvents.filter(ev=>{
+    const d=ev.start.dateTime?ev.start.dateTime.slice(0,10):ev.start.date;
+    return d===calSelectedDay;
+  });
+  const d=new Date(calSelectedDay+'T12:00:00');
+  const label=d.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
+  det.style.display='block';
+  det.innerHTML=`<div class="cal-day-detail-head">${label}</div>`+(
+    evs.length ? evs.map(ev=>{
+      const t=ev.start.dateTime?new Date(ev.start.dateTime).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'Todo el día';
+      const dot=ev._calColor?`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${ev._calColor};flex-shrink:0;margin-top:3px;"></span>`:'';
+      return `<div class="agenda-event">${dot}<span class="agenda-event-time">${t}</span><span class="agenda-event-title">${escapeHtml(ev.summary||'(sin título)')}</span></div>`;
+    }).join('') : '<p class="empty">Sin eventos este día.</p>'
+  );
+}
+async function loadCalendarMonth(){
+  const grid=document.getElementById('calMonthGrid'); if(!grid) return;
+  const yr=calViewMonth.getFullYear(), mo=calViewMonth.getMonth();
+  const tMin=new Date(yr,mo,1).toISOString();
+  const tMax=new Date(yr,mo+1,0,23,59,59).toISOString();
+  calMonthEvents = await fetchCalendarEvents(tMin, tMax);
+  renderCalMonthGrid();
+  updateHeaderEvents();
+}
+function renderCalMonthGrid(){
+  const grid=document.getElementById('calMonthGrid'); if(!grid) return;
+  const yr=calViewMonth.getFullYear(), mo=calViewMonth.getMonth();
+  const label=calViewMonth.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
+  const lbl=document.getElementById('calMonthLabel'); if(lbl) lbl.textContent=label;
+  const today=todayStr();
+  const firstDay=new Date(yr,mo,1);
+  const lastDay=new Date(yr,mo+1,0);
+  let startDow=firstDay.getDay(); if(startDow===0) startDow=7; startDow--;
+  const byDay={};
+  calMonthEvents.forEach(ev=>{const d=ev.start.dateTime?ev.start.dateTime.slice(0,10):ev.start.date; if(!byDay[d])byDay[d]=[]; byDay[d].push(ev);});
+  const dowLabels=['Lu','Ma','Mi','Ju','Vi','Sá','Do'];
+  let html=dowLabels.map(d=>`<div class="cal-dow">${d}</div>`).join('');
+  for(let i=0;i<startDow;i++) html+=`<div class="cal-day other-month"></div>`;
+  for(let d=1;d<=lastDay.getDate();d++){
+    const dateStr=`${yr}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isToday=dateStr===today;
+    const isSel=dateStr===calSelectedDay;
+    const evs=byDay[dateStr]||[];
+    const maxShow=3;
+    const dots=evs.slice(0,maxShow).map(ev=>`<div class="cal-event-pill" style="background:${ev._calColor||'var(--accent)'};">${escapeHtml(ev.summary||'')}</div>`).join('');
+    const more=evs.length>maxShow?`<div class="cal-event-more">+${evs.length-maxShow} más</div>`:'';
+    html+=`<div class="cal-day ${isToday?'today':''} ${isSel?'selected':''}" data-date="${dateStr}" onclick="selectCalDay('${dateStr}')">
+      <div class="cal-day-num">${d}</div>${dots}${more}
+    </div>`;
+  }
+  grid.innerHTML=html;
+}
+function updateHeaderEvents(){
+  const el=document.getElementById('headerEvents'); if(!el) return;
+  if(!googleToken || !calMonthEvents.length){ el.innerHTML=''; return; }
+  const now=new Date();
+  const upcoming=calMonthEvents.filter(ev=>{
+    const t=ev.start.dateTime?new Date(ev.start.dateTime):new Date(ev.start.date+'T00:00:00');
+    return t>=now;
+  }).slice(0,3);
+  if(!upcoming.length){ el.innerHTML=''; return; }
+  el.innerHTML=upcoming.map(ev=>{
+    const t=ev.start.dateTime?new Date(ev.start.dateTime).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'';
+    const dot=ev._calColor?`<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${ev._calColor};"></span>`:'';
+    return `<span class="header-event-pill">${dot}${t?t+' · ':''}${escapeHtml(ev.summary||'')}</span>`;
+  }).join('');
+}
+function saveCfgCalendars(){
+  if(!state.calendarConfig) state.calendarConfig={};
+  const p=document.getElementById('cfgPrimCal'); if(p) state.calendarConfig.primary=p.value;
+  const s=document.getElementById('cfgSecCal'); if(s) state.calendarConfig.secondary=s.value;
+  saveSettings();
+}
+function updateGoogleCalendarConfigUI(){
+  const box=document.getElementById('googleCalCfg'); if(!box) return;
+  if(!googleToken||!googleCalendars.length){ box.style.display='none'; return; }
+  box.style.display='block';
+  const cfg=state.calendarConfig||{};
+  const opts='<option value="">— Ninguno —</option>'+googleCalendars.map(c=>`<option value="${escapeAttr(c.id)}">${escapeHtml(c.summary)}</option>`).join('');
+  const p=document.getElementById('cfgPrimCal'); if(p){ p.innerHTML=opts; p.value=cfg.primary||''; }
+  const s=document.getElementById('cfgSecCal'); if(s){ s.innerHTML=opts; s.value=cfg.secondary||''; }
 }
 function renderCorreo(){
   if(!googleToken) return `<div class="agenda-connect">
@@ -1587,12 +1798,23 @@ function renderCorreo(){
     <button class="btn-primary btn-small" onclick="openConfigDrawer()">Conectar con Google</button>
   </div>`;
   return `<div>
-    <div class="view-header">
-      <h2>Emails con estrella</h2>
-      <button class="btn-ghost btn-small" onclick="loadGmailWidget()"><i class="ti ti-refresh" aria-hidden="true"></i> Actualizar</button>
+    <div class="view-header" style="margin-bottom:8px;">
+      <h2>Correo</h2>
+      <button class="btn-ghost btn-small" onclick="loadGmailWidget()"><i class="ti ti-refresh" aria-hidden="true"></i></button>
+    </div>
+    <div class="email-filters" id="emailFilterBar">
+      <button class="email-filter-btn ${currentEmailQuery==='is:starred'?'active':''}" onclick="setEmailQuery('is:starred')">⭐ Estrella</button>
+      <button class="email-filter-btn ${currentEmailQuery==='in:inbox'?'active':''}" onclick="setEmailQuery('in:inbox')">📥 Entrada</button>
+      <button class="email-filter-btn ${currentEmailQuery==='is:unread'?'active':''}" onclick="setEmailQuery('is:unread')">🔵 No leídos</button>
+      <span id="gmailLabelBtns"></span>
     </div>
     <div id="gmailWidget"><p class="empty">Cargando...</p></div>
   </div>`;
+}
+function setEmailQuery(q){
+  currentEmailQuery=q;
+  render();
+  loadGmailWidget();
 }
 function renderAgendaView(){
   if(!googleToken) return `<div class="agenda-connect">
@@ -1618,7 +1840,7 @@ function renderAgendaView(){
   </div>`;
 }
 async function loadAgendaData(){
-  if(currentView==='calendario'){ renderCalendarSelector(); loadCalendarWidget(); }
+  if(currentView==='calendario'){ loadCalendarMonth(); }
   else if(currentView==='correo') loadGmailWidget();
 }
 
@@ -1651,16 +1873,16 @@ async function loadCalendarWidget(){
     </div>`;
   }).join('');
 }
-async function fetchCalendarEvents(){
+async function fetchCalendarEvents(timeMin, timeMax){
   if(!googleToken) return [];
   if(!googleCalendars.length) await fetchCalendarList();
   const activeCals = googleCalendars.filter(c=>isCalEnabled(c.id));
   if(!activeCals.length) return [];
-  const now=new Date().toISOString();
-  const end=new Date(Date.now()+7*24*60*60*1000).toISOString();
+  const now=timeMin||new Date().toISOString();
+  const end=timeMax||new Date(Date.now()+7*24*60*60*1000).toISOString();
   try{
     const results=await Promise.all(activeCals.map(cal=>
-      fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?timeMin=${encodeURIComponent(now)}&timeMax=${encodeURIComponent(end)}&singleEvents=true&orderBy=startTime&maxResults=20`,
+      fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?timeMin=${encodeURIComponent(now)}&timeMax=${encodeURIComponent(end)}&singleEvents=true&orderBy=startTime&maxResults=50`,
         {headers:{Authorization:`Bearer ${googleToken}`}})
       .then(r=>{ if(r.status===401){handleGoogleExpired();} return r.ok?r.json():{items:[]}; })
       .then(d=>(d.items||[]).map(ev=>({...ev,_calName:cal.summary,_calColor:cal.backgroundColor})))
@@ -1678,7 +1900,7 @@ async function loadGmailWidget(){
   const el=document.getElementById('gmailWidget'); if(!el) return;
   el.innerHTML='<p class="empty">Cargando...</p>';
   const msgs=await fetchGmailUnread();
-  if(!msgs.length){ el.innerHTML='<p class="empty">No hay emails sin leer.</p>'; return; }
+  if(!msgs.length){ el.innerHTML='<p class="empty">No hay emails con este filtro.</p>'; return; }
   el.innerHTML=msgs.map(msg=>{
     const hdrs=msg.payload?.headers||[];
     const subject=hdrs.find(h=>h.name==='Subject')?.value||'(sin asunto)';
@@ -1699,7 +1921,7 @@ async function loadGmailWidget(){
 async function fetchGmailUnread(){
   if(!googleToken) return[];
   try{
-    const lr=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?q=is:starred&maxResults=20',
+    const lr=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(currentEmailQuery)}&maxResults=25`,
       {headers:{Authorization:`Bearer ${googleToken}`}});
     if(lr.status===401){handleGoogleExpired();return[];}
     if(!lr.ok) return[];
@@ -1710,6 +1932,21 @@ async function fetchGmailUnread(){
         {headers:{Authorization:`Bearer ${googleToken}`}}).then(r=>r.json())
     ));
   }catch(e){return[];}
+}
+async function fetchGmailLabels(){
+  if(!googleToken) return;
+  try{
+    const r=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/labels',{headers:{Authorization:`Bearer ${googleToken}`}});
+    if(!r.ok) return;
+    const data=await r.json();
+    const systemExclude=['CHAT','SENT','TRASH','SPAM','STARRED','UNREAD','IMPORTANT','CATEGORY_PERSONAL','CATEGORY_SOCIAL','CATEGORY_UPDATES','CATEGORY_FORUMS','CATEGORY_PROMOTIONS'];
+    gmailUserLabels=(data.labels||[]).filter(l=>l.type==='user'||(!systemExclude.includes(l.id)&&l.type==='system'&&l.name==='INBOX')).filter(l=>!systemExclude.includes(l.id));
+    renderGmailLabelBtns();
+  }catch(e){}
+}
+function renderGmailLabelBtns(){
+  const el=document.getElementById('gmailLabelBtns'); if(!el) return;
+  el.innerHTML=gmailUserLabels.map(l=>`<button class="email-filter-btn ${currentEmailQuery==='label:'+l.name?'active':''}" onclick="setEmailQuery('label:${escapeAttr(l.name)}')">${escapeHtml(l.name)}</button>`).join('');
 }
 function importEmailAsTask(subject, from){
   openTaskModal(null,{title:subject+(from?` (${from})`:''), tipo:'Correo pendiente'});
