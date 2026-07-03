@@ -1387,7 +1387,7 @@ function renderAgendaView(){
     </div>
     <div>
       <div class="agenda-sect-head">
-        <h2>📧 Emails sin leer</h2>
+        <h2>⭐ Emails con estrella</h2>
         <button class="btn-ghost btn-small" onclick="loadGmailWidget()">↺</button>
       </div>
       <div id="gmailWidget"><p class="empty">Cargando...</p></div>
@@ -1418,9 +1418,11 @@ async function loadCalendarWidget(){
       <div class="agenda-day-label">${label}</div>
       ${evs.map(ev=>{
         const t=ev.start.dateTime?new Date(ev.start.dateTime).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'Todo el día';
+        const dot=ev._calColor?`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${ev._calColor};flex-shrink:0;margin-top:3px;"></span>`:'';
         return `<div class="agenda-event">
           <span class="agenda-event-time">${t}</span>
-          <span class="agenda-event-title">${escapeHtml(ev.summary||'(sin título)')}</span>
+          ${dot}
+          <span class="agenda-event-title">${escapeHtml(ev.summary||'(sin título)')}<br><span style="font-size:11px;color:var(--ink-soft);font-family:-apple-system,Helvetica,Arial,sans-serif;">${escapeHtml(ev._calName||'')}</span></span>
         </div>`;
       }).join('')}
     </div>`;
@@ -1431,11 +1433,26 @@ async function fetchCalendarEvents(){
   const now=new Date().toISOString();
   const end=new Date(Date.now()+7*24*60*60*1000).toISOString();
   try{
-    const res=await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(now)}&timeMax=${encodeURIComponent(end)}&singleEvents=true&orderBy=startTime&maxResults=30`,
+    // 1. Obtener todos los calendarios
+    const calRes=await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=50',
       {headers:{Authorization:`Bearer ${googleToken}`}});
-    if(res.status===401){handleGoogleExpired();return[];}
-    if(!res.ok) return[];
-    return (await res.json()).items||[];
+    if(calRes.status===401){handleGoogleExpired();return[];}
+    if(!calRes.ok) return[];
+    const cals=((await calRes.json()).items||[]).filter(c=>c.selected!==false);
+    // 2. Obtener eventos de todos los calendarios en paralelo
+    const results=await Promise.all(cals.map(cal=>
+      fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?timeMin=${encodeURIComponent(now)}&timeMax=${encodeURIComponent(end)}&singleEvents=true&orderBy=startTime&maxResults=20`,
+        {headers:{Authorization:`Bearer ${googleToken}`}})
+      .then(r=>r.ok?r.json():{items:[]})
+      .then(d=>(d.items||[]).map(ev=>({...ev, _calName:cal.summary, _calColor:cal.backgroundColor})))
+      .catch(()=>[])
+    ));
+    // 3. Unir y ordenar por hora de inicio
+    return results.flat().sort((a,b)=>{
+      const ta=a.start.dateTime||a.start.date;
+      const tb=b.start.dateTime||b.start.date;
+      return ta<tb?-1:ta>tb?1:0;
+    });
   }catch(e){return[];}
 }
 
@@ -1460,7 +1477,7 @@ async function loadGmailWidget(){
 async function fetchGmailUnread(){
   if(!googleToken) return[];
   try{
-    const lr=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?q=is:unread&maxResults=10',
+    const lr=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?q=is:starred&maxResults=20',
       {headers:{Authorization:`Bearer ${googleToken}`}});
     if(lr.status===401){handleGoogleExpired();return[];}
     if(!lr.ok) return[];
