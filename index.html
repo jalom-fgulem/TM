@@ -137,6 +137,10 @@
   .drawer-head{display:flex; justify-content:space-between; align-items:center; padding:14px 20px; border-bottom:1px solid var(--line); background:#fff; flex-shrink:0;}
   .drawer-head h3{margin:0; font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; color:var(--ink-soft);}
   .drawer-body{padding:18px 20px; overflow-y:auto; flex:1;}
+  .cfg-sect{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--ink-soft); margin:18px 0 8px; padding-bottom:5px; border-bottom:1px solid var(--line);}
+  .cfg-sect:first-child{margin-top:0;}
+  .cfg-actions{display:flex; flex-direction:column; gap:8px;}
+  .header-btns{display:flex; gap:8px; align-items:flex-start; margin-top:4px;}
 </style>
 </head>
 <body>
@@ -146,9 +150,12 @@
       <h1>Gestor de tareas</h1>
       <div class="datebar" id="datebar"></div>
     </div>
-    <button class="btn-ghost btn-small notes-btn" onclick="openNotesDrawer()">
-      📝 Notas <span id="notesCountBadge" style="display:none;" class="notes-btn-badge">0</span>
-    </button>
+    <div class="header-btns">
+      <button class="btn-ghost btn-small notes-btn" onclick="openNotesDrawer()">
+        📝 Notas <span id="notesCountBadge" style="display:none;" class="notes-btn-badge">0</span>
+      </button>
+      <button class="btn-ghost btn-small notes-btn" onclick="openConfigDrawer()">⚙️ Configuración</button>
+    </div>
   </div>
 
   <div class="viewtabs">
@@ -160,39 +167,19 @@
     <button id="tab-desarrollo" class="btn-small" onclick="setView('desarrollo')">Desarrollo</button>
   </div>
 
-  <details class="manage">
-    <summary>Gestionar áreas y tipos</summary>
-    <p class="help" style="margin-top:6px;">Áreas</p>
-    <div class="area-manage" id="areaManageList"></div>
-    <div class="area-add">
-      <input type="text" id="newAreaInput" placeholder="Nueva área...">
-      <button class="btn-ghost btn-small" onclick="addArea()">Añadir</button>
-    </div>
-    <p class="help" style="margin-top:12px;">Tipos (cada tipo es una columna del Panel; mantenlos pocos)</p>
-    <div class="area-manage" id="tipoManageList"></div>
-    <div class="area-add">
-      <input type="text" id="newTipoInput" placeholder="Nuevo tipo...">
-      <button class="btn-ghost btn-small" onclick="addTipo()">Añadir</button>
-    </div>
-  </details>
-
   <div id="viewRoot"></div>
 
-  <div style="margin-top:12px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+  <div style="margin-top:12px;">
     <button class="btn-ghost btn-small" onclick="openTaskModal(null)">+ Añadir tarea</button>
-    <span style="display:flex; gap:6px; flex-wrap:wrap;">
-      <button class="btn-ghost btn-small" onclick="copySummary()">Copiar resumen de pendientes</button>
-      <button class="btn-ghost btn-small" onclick="copyBackupToClipboard()">Ver copia (para copiar a mano)</button>
-      <button class="btn-ghost btn-small" onclick="document.getElementById('importFile').click()">Importar copia (archivo)</button>
-      <button class="btn-ghost btn-small" onclick="openPasteImportModal()">Importar copia (pegar texto)</button>
-      <input type="file" id="importFile" accept=".json" style="display:none;" onchange="importBackup(this)">
-    </span>
   </div>
+  <input type="file" id="importFile" accept=".json" style="display:none;" onchange="importBackup(this)">
   <div class="status-msg" id="statusMsg"></div>
 </div>
 
+<!-- Overlay compartido -->
+<div class="drawer-overlay" id="drawerOverlay" onclick="closeAllDrawers()"></div>
+
 <!-- Drawer de notas -->
-<div class="drawer-overlay" id="drawerOverlay" onclick="closeNotesDrawer()"></div>
 <div class="drawer" id="notesDrawer">
   <div class="drawer-head">
     <h3>📝 Notas sin procesar</h3>
@@ -209,6 +196,38 @@
     </div>
     <hr style="border:none; border-top:1px solid var(--line); margin:20px 0 14px;">
     <div id="notesList"></div>
+  </div>
+</div>
+
+<!-- Drawer de configuración -->
+<div class="drawer" id="configDrawer">
+  <div class="drawer-head">
+    <h3>⚙️ Configuración</h3>
+    <button class="btn-ghost btn-small" onclick="closeConfigDrawer()">Cerrar ×</button>
+  </div>
+  <div class="drawer-body">
+    <p class="cfg-sect">Datos</p>
+    <div class="cfg-actions">
+      <button class="btn-ghost btn-small" onclick="copySummary()">Copiar resumen de pendientes</button>
+      <button class="btn-ghost btn-small" onclick="copyBackupToClipboard()">Ver copia de seguridad</button>
+      <button class="btn-ghost btn-small" onclick="document.getElementById('importFile').click()">Importar copia (archivo)</button>
+      <button class="btn-ghost btn-small" onclick="openPasteImportModal()">Importar copia (pegar texto)</button>
+    </div>
+
+    <p class="cfg-sect">Áreas</p>
+    <div class="area-manage" id="areaManageList"></div>
+    <div class="area-add" style="margin-top:8px;">
+      <input type="text" id="newAreaInput" placeholder="Nueva área...">
+      <button class="btn-ghost btn-small" onclick="addArea()">Añadir</button>
+    </div>
+
+    <p class="cfg-sect">Tipos de tarea</p>
+    <p class="help" style="margin-bottom:8px;">Cada tipo es una columna del Panel; mantenlos pocos</p>
+    <div class="area-manage" id="tipoManageList"></div>
+    <div class="area-add" style="margin-top:8px;">
+      <input type="text" id="newTipoInput" placeholder="Nuevo tipo...">
+      <button class="btn-ghost btn-small" onclick="addTipo()">Añadir</button>
+    </div>
   </div>
 </div>
 
@@ -1204,6 +1223,19 @@ function openNotesDrawer(){
 }
 function closeNotesDrawer(){
   document.getElementById('notesDrawer').classList.remove('open');
+  document.getElementById('drawerOverlay').classList.remove('open');
+}
+function openConfigDrawer(){
+  document.getElementById('configDrawer').classList.add('open');
+  document.getElementById('drawerOverlay').classList.add('open');
+  renderAreaManage();
+}
+function closeConfigDrawer(){
+  document.getElementById('configDrawer').classList.remove('open');
+  document.getElementById('drawerOverlay').classList.remove('open');
+}
+function closeAllDrawers(){
+  ['notesDrawer','configDrawer'].forEach(id=>document.getElementById(id).classList.remove('open'));
   document.getElementById('drawerOverlay').classList.remove('open');
 }
 
