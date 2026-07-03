@@ -76,6 +76,8 @@
   .task-meta{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:11.5px; color:var(--ink-soft); margin-top:6px;}
   .overdue{color:var(--alta); font-weight:700;}
   .subprogress{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:11px; color:var(--ink-soft); margin-top:5px;}
+  .badge.link{background:#E8EDF5; color:#1E4C7A; font-weight:600;}
+  .linked-incoming{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:12px; color:var(--ink-soft); margin-bottom:7px; padding:6px 9px; background:#F0F4F8; border-radius:6px; border-left:3px solid #1E4C7A;}
 
   .filters{display:flex; gap:5px; font-family:-apple-system,Helvetica,Arial,sans-serif; flex-wrap:wrap; margin-bottom:8px;}
   .filters button{background:#fff; border:1px solid var(--line); color:var(--ink-soft); font-weight:500;}
@@ -135,7 +137,8 @@
       <div class="panel-box">
         <h2>Captura rápida</h2>
         <div class="row-flex">
-          <textarea id="noteInput" placeholder="Escribe, o usa el dictado de tu teclado (icono del micrófono del propio teclado, no de aquí)."></textarea>
+          <textarea id="noteInput" placeholder="Escribe o dicta con el micrófono →"></textarea>
+          <button class="btn-mic" id="micNote" onclick="startDictation('noteInput','micNote')" title="Dictar nota">🎙️</button>
         </div>
         <div style="margin-top:9px; display:flex; justify-content:flex-end; gap:6px;">
           <button class="btn-primary btn-small" onclick="saveNote()">Guardar nota</button>
@@ -210,6 +213,7 @@ let currentAreaFilter = 'todas';
 let currentTipoFilter = 'todas';
 let tempSubtasks = [];
 let tempExpectedParticipants = [];
+let tempLinkedTaskIds = [];
 
 const monthsEs = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 function fmtDate(d){ const dt=new Date(d+'T00:00:00'); return dt.getDate()+' de '+monthsEs[dt.getMonth()]+' de '+dt.getFullYear(); }
@@ -286,7 +290,7 @@ async function loadState(){
       areas: (settings.areas && settings.areas.length) ? settings.areas : DEFAULT_AREAS.slice(),
       tipos: (settings.tipos && settings.tipos.length) ? settings.tipos : DEFAULT_TIPOS.slice()
     };
-    state.tasks.forEach(t=>{ if(!t.subtasks) t.subtasks=[]; t.subtasks.forEach(s=>{ if(!s.children) s.children=[]; }); });
+    state.tasks.forEach(t=>{ if(!t.subtasks) t.subtasks=[]; t.subtasks.forEach(s=>{ if(!s.children) s.children=[]; }); if(!t.linkedTaskIds) t.linkedTaskIds=[]; });
     state.projects.forEach(p=>{ if(!p.areas) p.areas=[]; if(!p.log) p.log=[]; if(p.active===undefined) p.active=true; });
     setStatus('');
   }catch(e){
@@ -408,6 +412,8 @@ function openTaskModal(taskId, prefill, fromNoteId){
   const selectedAreas = data.areas || [];
   tempSubtasks = (editing && editing.subtasks) ? JSON.parse(JSON.stringify(editing.subtasks)) : [];
   tempExpectedParticipants = (editing && editing.expectedParticipants) ? editing.expectedParticipants.slice() : [];
+  tempLinkedTaskIds = (editing && editing.linkedTaskIds) ? editing.linkedTaskIds.slice() : [];
+  const incomingLinks = editing ? state.tasks.filter(x => x.id !== editing.id && (x.linkedTaskIds||[]).includes(editing.id)) : [];
   const root=document.getElementById('modalRoot');
   root.innerHTML=`
     <div class="modal-bg" onclick="if(event.target===this) closeModal()">
@@ -471,9 +477,19 @@ function openTaskModal(taskId, prefill, fromNoteId){
           </div>
         </div>
         <div class="field">
+          <label>Tareas relacionadas</label>
+          ${incomingLinks.length ? `<div class="linked-incoming">Vinculada desde: ${incomingLinks.map(x=>`<strong>${escapeHtml(x.title)}</strong>`).join(', ')}</div>` : ''}
+          <ul class="sub-list" id="mLinkedList" data-editid="${editing ? editing.id : ''}"></ul>
+          <div class="sub-add">
+            <select id="mLinkedSelect" style="flex:1;"></select>
+            <button type="button" class="btn-ghost btn-small" onclick="addLinkedTaskTemp()">Vincular</button>
+          </div>
+        </div>
+        <div class="field">
           <label>Notas de contexto</label>
           <div class="row-flex">
             <textarea id="mContext" placeholder="Detalle, enlaces, con quién depende...">${escapeHtml(data.context||'')}</textarea>
+            <button type="button" class="btn-mic" id="micContext" onclick="startDictation('mContext','micContext')" title="Dictar">🎙️</button>
           </div>
         </div>
         <div class="modal-actions">
@@ -484,6 +500,7 @@ function openTaskModal(taskId, prefill, fromNoteId){
     </div>`;
   renderSubList();
   renderExpectedParticipants();
+  renderLinkedTasksList();
 }
 function renderSubList(){
   const el=document.getElementById('mSubList'); if(!el) return;
@@ -514,7 +531,51 @@ function addSubtask(){
   tempSubtasks.push({id:uid(), text:val, done:false, children:[]});
   input.value=''; renderSubList();
 }
-function closeModal(){ document.getElementById('modalRoot').innerHTML=''; tempSubtasks=[]; }
+function renderLinkedTasksList(){
+  const listEl=document.getElementById('mLinkedList'); if(!listEl) return;
+  const editId=listEl.dataset.editid;
+  listEl.innerHTML=tempLinkedTaskIds.map((id,i)=>{
+    const lt=state.tasks.find(x=>x.id===id);
+    return `<li>
+      <span>${escapeHtml(lt?lt.title:'(tarea eliminada)')}</span>
+      <button type="button" class="btn-ghost btn-small" onclick="tempLinkedTaskIds.splice(${i},1);renderLinkedTasksList();">× Quitar</button>
+    </li>`;
+  }).join('')||'<li style="border:none;"><span class="empty">Sin tareas vinculadas todavía.</span></li>';
+  const sel=document.getElementById('mLinkedSelect'); if(!sel) return;
+  const prev=sel.value;
+  sel.innerHTML='<option value="">— Seleccionar tarea para vincular —</option>'+
+    state.tasks.filter(x=>x.id!==editId&&!tempLinkedTaskIds.includes(x.id))
+      .map(x=>`<option value="${x.id}"${x.id===prev?' selected':''}>${escapeHtml(x.title)}</option>`).join('');
+}
+// ---- Dictado por voz ----
+let _dictRec = null;
+function startDictation(targetId, btnId){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){ setStatus('El dictado no está disponible en este navegador. Prueba con Chrome.'); return; }
+  if(_dictRec){ _dictRec.stop(); return; }
+  const btn = document.getElementById(btnId);
+  _dictRec = new SR();
+  _dictRec.lang = 'es-ES';
+  _dictRec.continuous = true;
+  _dictRec.interimResults = false;
+  _dictRec.onstart = ()=>{ if(btn) btn.classList.add('rec'); setStatus('Dictando… pulsa el micrófono para detener.'); };
+  _dictRec.onresult = e=>{
+    const el = document.getElementById(targetId); if(!el) return;
+    let txt = '';
+    for(let i=e.resultIndex;i<e.results.length;i++) if(e.results[i].isFinal) txt+=e.results[i][0].transcript;
+    if(txt){ const sep=el.value&&!/\s$/.test(el.value)?' ':''; el.value+=sep+txt; }
+  };
+  _dictRec.onerror = e=>{ if(e.error!=='aborted') setStatus('Error de micrófono: '+e.error); };
+  _dictRec.onend = ()=>{ if(btn) btn.classList.remove('rec'); _dictRec=null; setStatus(''); };
+  _dictRec.start();
+}
+
+function addLinkedTaskTemp(){
+  const sel=document.getElementById('mLinkedSelect'); if(!sel||!sel.value) return;
+  if(!tempLinkedTaskIds.includes(sel.value)) tempLinkedTaskIds.push(sel.value);
+  renderLinkedTasksList();
+}
+function closeModal(){ document.getElementById('modalRoot').innerHTML=''; tempSubtasks=[]; tempLinkedTaskIds=[]; }
 
 function saveTask(taskId, fromNoteId){
   const title=document.getElementById('mTitle').value.trim();
@@ -529,12 +590,13 @@ function saveTask(taskId, fromNoteId){
   const expectedParticipants=tempExpectedParticipants.slice();
   const callWith=document.getElementById('mCallWith').value.trim();
 
+  const linkedTaskIds=tempLinkedTaskIds.slice();
   let t;
   if(taskId){
     t=state.tasks.find(x=>x.id===taskId);
-    Object.assign(t,{title,areas,projectId,tipo,urgency,due,context,subtasks,expectedParticipants,callWith});
+    Object.assign(t,{title,areas,projectId,tipo,urgency,due,context,subtasks,expectedParticipants,callWith,linkedTaskIds});
   } else {
-    t={id:uid(),title,areas,projectId,tipo,urgency,due,context,subtasks,expectedParticipants,callWith,status:'pendiente',created:todayStr()};
+    t={id:uid(),title,areas,projectId,tipo,urgency,due,context,subtasks,expectedParticipants,callWith,linkedTaskIds,status:'pendiente',created:todayStr()};
     state.tasks.unshift(t);
   }
   if(fromNoteId){ state.notes=state.notes.filter(n=>n.id!==fromNoteId); deleteNoteRow(fromNoteId); }
@@ -1040,7 +1102,7 @@ function restoreFromJSONText(text){
   }
   showConfirm('Esto SUSTITUYE todo lo que hay ahora en el gestor de tareas por el contenido de la copia. ¿Continuar?', ()=>{
     state = Object.assign({notes:[],tasks:[],areas:DEFAULT_AREAS.slice(),tipos:DEFAULT_TIPOS.slice(),projects:[],meetings:[],contacts:[]}, data);
-    state.tasks.forEach(t=>{ if(!t.subtasks) t.subtasks=[]; t.subtasks.forEach(s=>{ if(!s.children) s.children=[]; }); });
+    state.tasks.forEach(t=>{ if(!t.subtasks) t.subtasks=[]; t.subtasks.forEach(s=>{ if(!s.children) s.children=[]; }); if(!t.linkedTaskIds) t.linkedTaskIds=[]; });
     state.projects.forEach(p=>{ if(!p.areas) p.areas=[]; if(!p.log) p.log=[]; if(p.active===undefined) p.active=true; });
     persistAll(); render();
     setStatus('Copia restaurada.');
@@ -1162,6 +1224,11 @@ function taskCard(t, showTipo){
   const overdue=t.due && t.due<today && t.status!=='hecha';
   const areaBadges=(t.areas||[]).map(a=>`<span class="badge area">${escapeHtml(a)}</span>`).join('');
   const pn=projName(t.projectId);
+  const outgoing=(t.linkedTaskIds||[]).filter(id=>state.tasks.find(x=>x.id===id));
+  const incoming=state.tasks.filter(x=>x.id!==t.id&&(x.linkedTaskIds||[]).includes(t.id));
+  const totalLinks=new Set([...outgoing,...incoming.map(x=>x.id)]).size;
+  const linkBadge=totalLinks?`<span class="badge link" title="${[...outgoing.map(id=>{const x=state.tasks.find(t=>t.id===id);return x?x.title:''}),...incoming.map(x=>x.title)].filter(Boolean).join(', ')}">🔗 ${totalLinks} vinculada${totalLinks!==1?'s':''}</span>`:'';
+
   const expanded = expandedSubtasks.has(t.id);
   const sub = (t.subtasks&&t.subtasks.length) ? `
     <div class="subprogress" onclick="toggleSubtasksExpand('${t.id}',event)" style="cursor:pointer;">
@@ -1188,6 +1255,7 @@ function taskCard(t, showTipo){
       ${t.meetingId?`<span class="badge proj">📋 Ficha</span>`:''}
       ${t.callWith?`<span class="badge area">📞 ${escapeHtml(t.callWith)}</span>`:''}
       ${pn?`<span class="badge proj">${escapeHtml(pn)}</span>`:''}
+      ${linkBadge}
       ${areaBadges}
     </div>
     ${sub}
