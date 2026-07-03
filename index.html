@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3/tabler-icons.min.css">
 <title>Gestor de tareas</title>
 <style>
@@ -212,6 +213,54 @@
   @media(max-width:820px){.layout{grid-template-columns:1fr;}}
   .view-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
   .view-header h2{font-size:14px;font-weight:600;color:var(--text);margin:0;}
+
+  /* ── RESPONSIVE ─────────────────────────── */
+  @media(max-width:600px){
+    /* Contenedor */
+    .wrap{padding:10px 10px 90px;}
+
+    /* Cabecera */
+    h1{font-size:15px;}
+    .app-header{margin-bottom:8px;}
+    .notes-btn-text{display:none;}
+
+    /* Tabs: solo iconos */
+    .viewtabs{margin-bottom:10px;}
+    .viewtabs button{padding:10px 9px;gap:0;font-size:0;}
+    .viewtabs button i{font-size:19px;}
+
+    /* Kanban: scroll horizontal, columnas fijas */
+    .kanban{display:flex;flex-wrap:nowrap;overflow-x:auto;gap:10px;padding-bottom:8px;-webkit-overflow-scrolling:touch;}
+    .kcol{min-width:270px;flex-shrink:0;}
+
+    /* Modal: bottom sheet */
+    .modal-bg{align-items:flex-end;padding:0;}
+    .modal{border-radius:18px 18px 0 0;max-width:100%;max-height:88vh;border-bottom:none;padding:18px 16px;}
+
+    /* Drawer: ancho completo */
+    .drawer{width:100%;max-width:100%;}
+
+    /* Inputs: font-size 16px evita zoom automático en iOS */
+    textarea,input[type=text],input[type=date],input[type=email],select{font-size:16px;}
+
+    /* Área táctil mínima para botones */
+    button{min-height:40px;}
+    .btn-small{min-height:34px;}
+    .btn-icon{width:40px;height:40px;}
+    .viewtabs button{min-height:44px;}
+
+    /* Filtros: scroll horizontal */
+    .filters{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;}
+
+    /* Panel box: padding ajustado */
+    .panel-box{padding:12px;}
+
+    /* Layout de dos columnas → una columna (ya cubierto en 820px pero reforzamos) */
+    .layout{grid-template-columns:1fr;}
+
+    /* Proyecto head */
+    .proj-head h3{font-size:15px;}
+  }
 </style>
 <script src="https://accounts.google.com/gsi/client" async onload="initGoogleTokenClient()"></script>
 </head>
@@ -224,7 +273,7 @@
     </div>
     <div class="header-btns">
       <button class="btn-ghost btn-small notes-btn" onclick="openNotesDrawer()">
-        <i class="ti ti-note" aria-hidden="true"></i> Notas <span id="notesCountBadge" style="display:none;" class="notes-btn-badge">0</span>
+        <i class="ti ti-note" aria-hidden="true"></i><span class="notes-btn-text"> Notas</span> <span id="notesCountBadge" style="display:none;" class="notes-btn-badge">0</span>
       </button>
       <button class="btn-ghost btn-small" onclick="openConfigDrawer()"><i class="ti ti-settings" aria-hidden="true"></i></button>
       <button class="btn-icon accent" onclick="openTaskModal(null)" title="Nueva tarea"><i class="ti ti-plus" aria-hidden="true"></i></button>
