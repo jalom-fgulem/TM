@@ -27,8 +27,7 @@
   /* Header */
   .app-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px;}
   .header-btns{display:flex;gap:6px;align-items:center;}
-  .notes-btn{white-space:nowrap;display:flex;align-items:center;gap:5px;font-size:13px;}
-  .notes-btn-badge{background:var(--alta);color:#fff;border-radius:99px;padding:1px 7px;font-size:10px;font-weight:700;}
+  .notes-btn-badge{background:var(--alta);color:#fff;border-radius:99px;padding:1px 6px;font-size:10px;font-weight:700;position:absolute;top:-5px;right:-5px;pointer-events:none;}
 
   /* Nav tabs */
   .viewtabs{display:flex;gap:0;margin-bottom:16px;border-bottom:1px solid var(--border);overflow-x:auto;}
@@ -222,7 +221,6 @@
     /* Cabecera */
     h1{font-size:15px;}
     .app-header{margin-bottom:8px;}
-    .notes-btn-text{display:none;}
 
     /* Tabs: solo iconos */
     .viewtabs{margin-bottom:10px;}
@@ -281,10 +279,11 @@
       <div class="datebar" id="datebar"></div>
     </div>
     <div class="header-btns">
-      <button class="btn-ghost btn-small notes-btn" onclick="openNotesDrawer()">
-        <i class="ti ti-note" aria-hidden="true"></i><span class="notes-btn-text"> Notas</span> <span id="notesCountBadge" style="display:none;" class="notes-btn-badge">0</span>
+      <button class="btn-icon" onclick="openNotesDrawer()" title="Notas" style="position:relative;">
+        <i class="ti ti-note" aria-hidden="true"></i>
+        <span id="notesCountBadge" style="display:none;" class="notes-btn-badge" style="position:absolute;top:-4px;right:-4px;"></span>
       </button>
-      <button class="btn-ghost btn-small" onclick="openConfigDrawer()"><i class="ti ti-settings" aria-hidden="true"></i></button>
+      <button class="btn-icon" onclick="openConfigDrawer()" title="Configuración"><i class="ti ti-settings" aria-hidden="true"></i></button>
       <button class="btn-icon accent" onclick="openTaskModal(null)" title="Nueva tarea"><i class="ti ti-plus" aria-hidden="true"></i></button>
     </div>
   </div>
