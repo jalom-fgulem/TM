@@ -214,6 +214,26 @@
   .view-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
   .view-header h2{font-size:14px;font-weight:600;color:var(--text);margin:0;}
 
+  /* Card grid — usado en Lista, Reuniones, Proyectos, CRM */
+  .card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:12px;margin-top:4px;}
+
+  /* Modal ancho */
+  .modal-wide{max-width:680px;}
+
+  /* Campos en 2 columnas dentro del modal */
+  .field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+
+  /* Separadores de sección dentro del modal */
+  .modal-sect{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin:16px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--border);}
+
+  /* Toggles de área (sustituyen a .chk en el modal de tarea) */
+  .area-toggles{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px;}
+  .area-toggle{display:flex;align-items:center;gap:7px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:13px;background:var(--surface2);transition:background .1s,border-color .1s;user-select:none;}
+  .area-toggle input[type=checkbox]{display:none;}
+  .area-toggle-icon{width:16px;height:16px;border:1.5px solid var(--border);border-radius:4px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:10px;transition:all .1s;}
+  .area-toggle.checked{background:var(--accent-bg);border-color:var(--accent-border);color:var(--accent);}
+  .area-toggle.checked .area-toggle-icon{background:var(--accent);border-color:var(--accent);color:#fff;}
+
   /* ── RESPONSIVE ─────────────────────────── */
   @media(max-width:600px){
     /* Contenedor */
@@ -235,6 +255,7 @@
     /* Modal: bottom sheet */
     .modal-bg{align-items:flex-end;padding:0;}
     .modal{border-radius:18px 18px 0 0;max-width:100%;max-height:88vh;border-bottom:none;padding:18px 16px;}
+    .modal-wide{max-width:100%;}
 
     /* Drawer: ancho completo */
     .drawer{width:100%;max-width:100%;}
@@ -265,6 +286,9 @@
 
     /* Layout de dos columnas → una columna (ya cubierto en 820px pero reforzamos) */
     .layout{grid-template-columns:1fr;}
+    .card-grid{grid-template-columns:1fr;}
+    .field-row{grid-template-columns:1fr;}
+    .area-toggles{grid-template-columns:1fr 1fr;}
 
     /* Proyecto head */
     .proj-head h3{font-size:15px;}
@@ -612,57 +636,72 @@ function openTaskModal(taskId, prefill, fromNoteId){
   const root=document.getElementById('modalRoot');
   root.innerHTML=`
     <div class="modal-bg" onclick="if(event.target===this) closeModal()">
-      <div class="modal">
+      <div class="modal modal-wide">
         <h3>${editing?'Editar tarea':'Nueva tarea'}</h3>
+
         <div class="field">
           <label>Título</label>
-          <input type="text" id="mTitle" value="${escapeAttr(data.title||'')}">
+          <input type="text" id="mTitle" value="${escapeAttr(data.title||'')}" placeholder="¿Qué hay que hacer?">
         </div>
-        <div class="field">
-          <label>Áreas afectadas</label>
-          <div class="checks" id="mAreas">
-            ${state.areas.map(a=>`<label class="chk ${selectedAreas.includes(a)?'checked':''}" onclick="this.classList.toggle('checked')">
-              <input type="checkbox" value="${escapeAttr(a)}" ${selectedAreas.includes(a)?'checked':''}> ${escapeHtml(a)}
-            </label>`).join('')}
+
+        <p class="modal-sect">Clasificación</p>
+
+        <div class="field-row">
+          <div class="field" style="margin-bottom:0;">
+            <label>Tipo</label>
+            <select id="mTipo" onchange="document.getElementById('meetingLinkWrap').style.display=(this.value==='Reunión por montar')?'block':'none';document.getElementById('callWrap').style.display=(this.value==='Llamada')?'block':'none';">
+              <option value="" ${!data.tipo?'selected':''}>— Sin tipo —</option>
+              ${state.tipos.map(t=>`<option value="${escapeAttr(t)}" ${data.tipo===t?'selected':''}>${escapeHtml(t)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <label>Urgencia</label>
+            <select id="mUrgency">
+              <option value="alta" ${data.urgency==='alta'?'selected':''}>🔴 Alta</option>
+              <option value="media" ${(!data.urgency||data.urgency==='media')?'selected':''}>🟡 Media</option>
+              <option value="baja" ${data.urgency==='baja'?'selected':''}>🟢 Baja</option>
+            </select>
           </div>
         </div>
-        <div class="field">
-          <label>Proyecto (opcional)</label>
-          <select id="mProject">
-            <option value="">— Sin proyecto —</option>
-            ${state.projects.filter(p=>p.active||p.id===data.projectId).map(p=>`<option value="${p.id}" ${data.projectId===p.id?'selected':''}>${escapeHtml(p.name)}${!p.active?' (archivado)':''}</option>`).join('')}
-          </select>
-        </div>
-        <div class="field">
-          <label>Tipo</label>
-          <select id="mTipo" onchange="document.getElementById('meetingLinkWrap').style.display = (this.value==='Reunión por montar') ? 'block':'none'; document.getElementById('callWrap').style.display = (this.value==='Llamada') ? 'block':'none';">
-            <option value="" ${!data.tipo?'selected':''}>— Sin tipo —</option>
-            ${state.tipos.map(t=>`<option value="${escapeAttr(t)}" ${data.tipo===t?'selected':''}>${escapeHtml(t)}</option>`).join('')}
-          </select>
-        </div>
-        <div id="meetingLinkWrap" style="display:${(data.tipo==='Reunión por montar')?'block':'none'};">
+
+        <div id="meetingLinkWrap" style="display:${(data.tipo==='Reunión por montar')?'block':'none'};margin-top:10px;">
           ${editing ? renderMeetingLinkBlock(editing) : '<p class="help">Guarda la tarea primero; la ficha de reunión se puede vincular al editarla.</p>'}
         </div>
-        <div id="callWrap" class="field" style="display:${(data.tipo==='Llamada')?'block':'none'};">
-          <label>A quién llamas</label>
-          <input type="text" id="mCallWith" list="contactNamesCall" value="${escapeAttr(data.callWith||'')}" placeholder="Nombre y apellido...">
-          <datalist id="contactNamesCall">
-            ${state.contacts.map(c=>`<option value="${escapeAttr(contactFullName(c))}">`).join('')}
-          </datalist>
-          <p class="help" style="margin-top:5px;">Si no está en tu CRM, se guarda igual como texto suelto — date de alta al contacto desde la pestaña CRM si quieres que quede fichado.</p>
+        <div id="callWrap" style="display:${(data.tipo==='Llamada')?'block':'none'};margin-top:10px;">
+          <div class="field" style="margin-bottom:0;">
+            <label>A quién llamas</label>
+            <input type="text" id="mCallWith" list="contactNamesCall" value="${escapeAttr(data.callWith||'')}" placeholder="Nombre y apellido...">
+            <datalist id="contactNamesCall">${state.contacts.map(c=>`<option value="${escapeAttr(contactFullName(c))}">`).join('')}</datalist>
+          </div>
         </div>
-        <div class="field">
-          <label>Urgencia</label>
-          <select id="mUrgency">
-            <option value="alta" ${data.urgency==='alta'?'selected':''}>Alta</option>
-            <option value="media" ${(!data.urgency||data.urgency==='media')?'selected':''}>Media</option>
-            <option value="baja" ${data.urgency==='baja'?'selected':''}>Baja</option>
-          </select>
+
+        <div class="field-row" style="margin-top:12px;">
+          <div class="field" style="margin-bottom:0;">
+            <label>Proyecto (opcional)</label>
+            <select id="mProject">
+              <option value="">— Sin proyecto —</option>
+              ${state.projects.filter(p=>p.active||p.id===data.projectId).map(p=>`<option value="${p.id}" ${data.projectId===p.id?'selected':''}>${escapeHtml(p.name)}${!p.active?' (archivado)':''}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <label>Fecha límite (opcional)</label>
+            <input type="date" id="mDue" value="${data.due||''}">
+          </div>
         </div>
-        <div class="field">
-          <label>Fecha límite (opcional)</label>
-          <input type="date" id="mDue" value="${data.due||''}">
+
+        <p class="modal-sect">Áreas afectadas</p>
+
+        <div class="area-toggles" id="mAreas">
+          ${state.areas.map(a=>`
+          <label class="area-toggle ${selectedAreas.includes(a)?'checked':''}" onclick="this.classList.toggle('checked');var ic=this.querySelector('.area-toggle-icon');ic.textContent=this.classList.contains('checked')?'✓':'';">
+            <input type="checkbox" value="${escapeAttr(a)}" ${selectedAreas.includes(a)?'checked':''}>
+            <span class="area-toggle-icon">${selectedAreas.includes(a)?'✓':''}</span>
+            ${escapeHtml(a)}
+          </label>`).join('')}
         </div>
+
+        <p class="modal-sect">Desglose y relaciones</p>
+
         <div class="field">
           <label>Subtareas</label>
           <ul class="sub-list" id="mSubList"></ul>
@@ -680,13 +719,17 @@ function openTaskModal(taskId, prefill, fromNoteId){
             <button type="button" class="btn-ghost btn-small" onclick="addLinkedTaskTemp()">Vincular</button>
           </div>
         </div>
-        <div class="field">
+
+        <p class="modal-sect">Contexto</p>
+
+        <div class="field" style="margin-bottom:0;">
           <label>Notas de contexto</label>
           <div class="row-flex">
             <textarea id="mContext" placeholder="Detalle, enlaces, con quién depende...">${escapeHtml(data.context||'')}</textarea>
             <button type="button" class="btn-mic" id="micContext" onclick="startDictation('mContext','micContext')" title="Dictar">🎙️</button>
           </div>
         </div>
+
         <div class="modal-actions">
           <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
           <button class="btn-primary" onclick="saveTask('${editing?editing.id:''}','${fromNoteId||''}')">Guardar tarea</button>
@@ -1152,10 +1195,10 @@ function renderReuniones(){
   let meetings=state.meetings.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   if(currentPersonFilter) meetings=meetings.filter(m=>(m.participants||[]).includes(currentPersonFilter));
 
-  const list = meetings.length ? meetings.map(m=>{
+  const list = meetings.length ? `<div class="card-grid">${meetings.map(m=>{
     const pn=projName(m.projectId);
     const parts=(m.participants||[]).map(p=>`<span class="badge area">${escapeHtml(p)}</span>`).join('');
-    const preview=m.summary?(m.summary.length>180?m.summary.slice(0,180)+'…':m.summary):'';
+    const preview=m.summary?(m.summary.length>140?m.summary.slice(0,140)+'…':m.summary):'';
     return `
     <div class="task ${m.importance}" onclick="openMeetingModal('${m.id}')">
       <p class="task-title">${escapeHtml(m.title)}</p>
@@ -1164,13 +1207,13 @@ function renderReuniones(){
         ${pn?`<span class="badge proj">${escapeHtml(pn)}</span>`:''}
         ${parts}
       </div>
-      ${preview?`<p class="task-context">${escapeHtml(preview)}</p>`:''}
-      <div class="task-meta">${fmtDate(m.date)}</div>
-      <div style="margin-top:7px;">
-        <button class="btn-ghost btn-small" onclick="deleteMeeting('${m.id}',event)">Eliminar</button>
+      ${preview?`<p style="font-size:12px;color:var(--text-soft);margin:5px 0 0;line-height:1.4;">${escapeHtml(preview)}</p>`:''}
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;">
+        <div class="task-meta">${fmtDate(m.date)}</div>
+        <button class="btn-ghost btn-small" onclick="deleteMeeting('${m.id}',event)" style="color:var(--alta);">✕</button>
       </div>
     </div>`;
-  }).join('') : '<p class="empty">No hay fichas de reunión'+(currentPersonFilter?' con esa persona':'')+'.</p>';
+  }).join('')}</div>` : '<p class="empty">No hay fichas de reunión'+(currentPersonFilter?' con esa persona':'')+'.</p>';
 
   return pendingBox + procBox + contactShortcut + peopleBox + '<p class="sect-h">Fichas de reunión</p>' + list;
 }
@@ -1199,24 +1242,26 @@ function renderCRM(){
 
   if(rows.length===0) return addBox + '<p class="empty">No hay contactos todavía.</p>';
 
-  const list = rows.map(c=>{
+  const list = '<div class="card-grid">'+rows.map(c=>{
     const fn = contactFullName(c);
     const rc = meetingCount[fn] || 0;
     const cc = callCount[fn] || 0;
     const initials = fn.split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
     return `
-    <div class="crm-card" onclick="openContactDetail('${c.id}')">
-      <div class="crm-avatar">${escapeHtml(initials)}</div>
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:13.5px;font-weight:500;color:var(--text);">${escapeHtml(fn)}</div>
-        <div style="font-size:11.5px;color:var(--text-soft);margin-top:2px;">${[c.cargo,c.empresa].filter(Boolean).map(escapeHtml).join(' · ')||'Sin cargo'}</div>
+    <div class="crm-card" onclick="openContactDetail('${c.id}')" style="flex-direction:column;align-items:flex-start;gap:8px;">
+      <div style="display:flex;align-items:center;gap:10px;width:100%;">
+        <div class="crm-avatar">${escapeHtml(initials)}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13.5px;font-weight:500;color:var(--text);">${escapeHtml(fn)}</div>
+          <div style="font-size:11.5px;color:var(--text-soft);margin-top:2px;">${[c.cargo,c.empresa].filter(Boolean).map(escapeHtml).join(' · ')||'Sin cargo'}</div>
+        </div>
       </div>
-      <div style="font-size:11px;color:var(--text-muted);text-align:right;flex-shrink:0;">
-        <div>${rc} reunión${rc!==1?'es':''}</div>
-        <div>${cc} llamada${cc!==1?'s':''}</div>
+      <div style="display:flex;gap:10px;font-size:11px;color:var(--text-muted);">
+        <span><strong>${rc}</strong> reunión${rc!==1?'es':''}</span>
+        <span><strong>${cc}</strong> llamada${cc!==1?'s':''}</span>
       </div>
     </div>`;
-  }).join('');
+  }).join('')+'</div>';
 
   return addBox + list;
 }
@@ -1841,7 +1886,7 @@ function renderLista(){
     <div class="filters"><span class="filter-label">Urgencia</span>${urgOpts.map(([k,l])=>`<button class="btn-small ${currentUrgFilter===k?'active':''}" onclick="setUrgFilter('${k}')">${l}</button>`).join('')}</div>
     <div class="filters"><span class="filter-label">Área</span>${areaOpts.map(a=>`<button class="btn-small ${currentAreaFilter===a?'active':''}" onclick="setAreaFilter('${escapeAttr(a)}')">${a==='todas'?'Todas':escapeHtml(a)}</button>`).join('')}</div>
     <div class="filters"><span class="filter-label">Tipo</span>${tipoOpts.map(t=>`<button class="btn-small ${currentTipoFilter===t?'active':''}" onclick="setTipoFilter('${escapeAttr(t)}')">${t==='todas'?'Todos':(t==='sintipo'?'Sin tipo':escapeHtml(t))}</button>`).join('')}</div>
-    ${list.length ? list.map(t=>taskCard(t,true)).join('') : '<p class="empty">Nada aquí con estos filtros.</p>'}`;
+    ${list.length ? `<div class="card-grid">${list.map(t=>taskCard(t,true)).join('')}</div>` : '<p class="empty">Nada aquí con estos filtros.</p>'}`;
 }
 
 let showArchivedProjects = false;
@@ -1856,7 +1901,7 @@ function renderProyectosList(filterArea){
   const visible = scope.filter(p=>showArchivedProjects ? !p.active : p.active);
   if(scope.length===0) return addBox+`<p class="empty">${filterArea?'No hay desarrollos todavía.':'No hay proyectos. Crea uno y entra en él para gestionar su panel y su diario.'}</p>`;
   if(visible.length===0) return addBox+toggleBox+'<p class="empty">'+(showArchivedProjects?'No hay archivados.':'No hay activos.')+'</p>';
-  return addBox + toggleBox + visible.map(p=>{
+  return addBox + toggleBox + '<div class="card-grid">' + visible.map(p=>{
     const tasks=state.tasks.filter(t=>t.projectId===p.id);
     const open=tasks.filter(t=>t.status!=='hecha');
     const urgent=open.filter(t=>t.urgency==='alta').length;
@@ -1864,13 +1909,15 @@ function renderProyectosList(filterArea){
     const lastLog=p.log.length?('Último apunte: '+fmtDateShort(p.log[0].date)):'Sin apuntes en el diario';
     return `
     <div class="proj-list-card" onclick="openProject('${p.id}')">
-      <h3>${escapeHtml(p.name)}
-        <button class="btn-ghost btn-small" style="float:right;" onclick="toggleProjectActive('${p.id}',event)">${p.active?'Archivar':'Reactivar'}</button>
-      </h3>
-      <div class="badges-row" style="margin:4px 0 7px;">${areaBadges||'<span class="empty">Sin áreas asignadas</span>'}</div>
-      <div class="proj-meta">${open.length} abiertas${urgent?' · <strong style="color:var(--alta);">'+urgent+' urgente'+(urgent>1?'s':'')+'</strong>':''} · ${tasks.length-open.length} hechas · ${lastLog}</div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">
+        <h3 style="margin:0;font-size:14px;">${escapeHtml(p.name)}</h3>
+        <button class="btn-ghost btn-small" style="flex-shrink:0;" onclick="toggleProjectActive('${p.id}',event)">${p.active?'Archivar':'Reactivar'}</button>
+      </div>
+      <div class="badges-row" style="margin-bottom:8px;">${areaBadges||'<span class="empty">Sin áreas</span>'}</div>
+      <div class="proj-meta">${open.length} abiertas${urgent?' · <strong style="color:var(--alta);">'+urgent+' urgente'+(urgent>1?'s':'')+'</strong>':''} · ${tasks.length-open.length} hechas</div>
+      <div class="proj-meta" style="margin-top:3px;">${lastLog}</div>
     </div>`;
-  }).join('');
+  }).join('')+'</div>';
 }
 
 function renderProjectDetail(){
