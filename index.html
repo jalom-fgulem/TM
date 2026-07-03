@@ -227,49 +227,72 @@ function escapeAttr(s){ return escapeHtml(s).replace(/"/g,'&quot;'); }
 function getProj(id){ return state.projects.find(x=>x.id===id) || null; }
 function projName(id){ const p=getProj(id); return p?p.name:null; }
 
+async function fetchTable(table, orderDir){
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=data&order=id.${orderDir}`, {
+    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+  });
+  if(!res.ok) throw new Error('HTTP '+res.status);
+  const rows = await res.json();
+  return rows.map(r=>r.data);
+}
+async function upsertRow(table, id, data){
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'resolution=merge-duplicates,return=minimal'
+    },
+    body: JSON.stringify([{ id, data, updated_at: new Date().toISOString() }])
+  });
+  if(!res.ok) setStatus('No se pudo guardar (HTTP '+res.status+'). Reintenta.');
+}
+async function deleteRow(table, id){
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+  });
+  if(!res.ok) setStatus('No se pudo borrar (HTTP '+res.status+'). Reintenta.');
+}
+function saveTaskRow(t){ return upsertRow('tasks', t.id, t); }
+function deleteTaskRow(id){ return deleteRow('tasks', id); }
+function saveProjectRow(p){ return upsertRow('projects', p.id, p); }
+function deleteProjectRow(id){ return deleteRow('projects', id); }
+function saveMeetingRow(m){ return upsertRow('meetings', m.id, m); }
+function deleteMeetingRow(id){ return deleteRow('meetings', id); }
+function saveContactRow(c){ return upsertRow('contacts', c.id, c); }
+function deleteContactRow(id){ return deleteRow('contacts', id); }
+function saveNoteRow(n){ return upsertRow('notes', n.id, n); }
+function deleteNoteRow(id){ return deleteRow('notes', id); }
+function saveSettings(){ return upsertRow('board', STORAGE_KEY, { areas: state.areas, tipos: state.tipos }); }
+
 async function loadState(){
-  let loaded=null;
   setStatus('Cargando...');
   try{
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/board?id=eq.${STORAGE_KEY}&select=data`, {
-      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
-    });
-    if(res.ok){
-      const rows = await res.json();
-      if(rows && rows.length && rows[0].data) loaded = rows[0].data;
-      setStatus('');
-    } else {
-      setStatus('Error al conectar con la base de datos (HTTP '+res.status+').');
-    }
-  }catch(e){
-    setStatus('Error de red al cargar los datos.');
-  }
-  if(loaded){
-    state = Object.assign({notes:[],tasks:[],areas:DEFAULT_AREAS.slice(),tipos:DEFAULT_TIPOS.slice(),projects:[]}, loaded);
-    if(!state.areas || state.areas.length===0) state.areas = DEFAULT_AREAS.slice();
-    if(!state.tipos || state.tipos.length===0) state.tipos = DEFAULT_TIPOS.slice();
-    if(!state.projects) state.projects = [];
-    if(!state.meetings) state.meetings = [];
-    if(!state.contacts) state.contacts = [];
+    const [tasks, projects, meetings, contacts, notes, boardRes] = await Promise.all([
+      fetchTable('tasks','desc'),
+      fetchTable('projects','asc'),
+      fetchTable('meetings','desc'),
+      fetchTable('contacts','asc'),
+      fetchTable('notes','desc'),
+      fetch(`${SUPABASE_URL}/rest/v1/board?id=eq.${STORAGE_KEY}&select=data`, {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+      }).then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    ]);
+    const settings = (boardRes && boardRes.length && boardRes[0].data) ? boardRes[0].data : {};
+    state = {
+      tasks, projects, meetings, contacts, notes,
+      areas: (settings.areas && settings.areas.length) ? settings.areas : DEFAULT_AREAS.slice(),
+      tipos: (settings.tipos && settings.tipos.length) ? settings.tipos : DEFAULT_TIPOS.slice()
+    };
     state.tasks.forEach(t=>{ if(!t.subtasks) t.subtasks=[]; t.subtasks.forEach(s=>{ if(!s.children) s.children=[]; }); });
     state.projects.forEach(p=>{ if(!p.areas) p.areas=[]; if(!p.log) p.log=[]; if(p.active===undefined) p.active=true; });
+    setStatus('');
+  }catch(e){
+    setStatus('Error al cargar los datos.');
   }
   render();
-}
-async function persist(){
-  try{
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/board`, {
-      method: 'POST',
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${SUPABASE_KEY}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'resolution=merge-duplicates,return=minimal'
-      },
-      body: JSON.stringify([{ id: STORAGE_KEY, data: state, updated_at: new Date().toISOString() }])
-    });
-    if(!res.ok) setStatus('No se pudo guardar (HTTP '+res.status+'). Reintenta.');
-  }catch(e){ setStatus('Error de red al guardar.'); }
 }
 
 // ---- Áreas ----
@@ -277,19 +300,19 @@ function addArea(){
   const input=document.getElementById('newAreaInput'); const val=input.value.trim();
   if(!val) return;
   if(state.areas.includes(val)){ setStatus('Esa área ya existe.'); return; }
-  state.areas.push(val); input.value=''; persist(); render();
+  state.areas.push(val); input.value=''; saveSettings(); render();
 }
-function removeArea(name){ state.areas=state.areas.filter(a=>a!==name); persist(); render(); }
+function removeArea(name){ state.areas=state.areas.filter(a=>a!==name); saveSettings(); render(); }
 function addTipo(){
   const input=document.getElementById('newTipoInput'); const val=input.value.trim();
   if(!val) return;
   if(state.tipos.includes(val)){ setStatus('Ese tipo ya existe.'); return; }
-  state.tipos.push(val); input.value=''; persist(); render();
+  state.tipos.push(val); input.value=''; saveSettings(); render();
 }
 function removeTipo(name){
   state.tipos=state.tipos.filter(t=>t!==name);
-  state.tasks.forEach(t=>{ if(t.tipo===name) t.tipo=''; });
-  persist(); render();
+  state.tasks.filter(t=>t.tipo===name).forEach(t=>{ t.tipo=''; saveTaskRow(t); });
+  saveSettings(); render();
 }
 
 
@@ -297,11 +320,12 @@ function removeTipo(name){
 function saveNote(){
   const input=document.getElementById('noteInput'); const text=input.value.trim();
   if(!text) return;
-  state.notes.unshift({id:uid(), text, created:todayStr()});
-  input.value=''; persist(); render();
+  const n={id:uid(), text, created:todayStr()};
+  state.notes.unshift(n);
+  input.value=''; saveNoteRow(n); render();
   setStatus('Nota guardada sin procesar.');
 }
-function deleteNote(id){ state.notes=state.notes.filter(n=>n.id!==id); persist(); render(); }
+function deleteNote(id){ state.notes=state.notes.filter(n=>n.id!==id); deleteNoteRow(id); render(); }
 
 function convertNoteManual(id){
   const note=state.notes.find(n=>n.id===id); if(!note) return;
@@ -360,7 +384,7 @@ function createLinkedMeeting(taskId){
   const m = {id:uid(), title:t.title, date:todayStr(), importance:t.urgency||'media', participants:(t.expectedParticipants||[]).slice(), summary:'', acuerdos:'', projectId:t.projectId||null};
   state.meetings.unshift(m);
   t.meetingId = m.id;
-  persist();
+  saveMeetingRow(m); saveTaskRow(t);
   closeModal();
   openMeetingModal(m.id);
 }
@@ -372,7 +396,7 @@ function unlinkMeeting(taskId){
   const t = state.tasks.find(x=>x.id===taskId);
   if(!t) return;
   t.meetingId = null;
-  persist();
+  saveTaskRow(t);
   openTaskModal(taskId);
 }
 
@@ -505,14 +529,17 @@ function saveTask(taskId, fromNoteId){
   const expectedParticipants=tempExpectedParticipants.slice();
   const callWith=document.getElementById('mCallWith').value.trim();
 
+  let t;
   if(taskId){
-    const t=state.tasks.find(x=>x.id===taskId);
+    t=state.tasks.find(x=>x.id===taskId);
     Object.assign(t,{title,areas,projectId,tipo,urgency,due,context,subtasks,expectedParticipants,callWith});
   } else {
-    state.tasks.unshift({id:uid(),title,areas,projectId,tipo,urgency,due,context,subtasks,expectedParticipants,callWith,status:'pendiente',created:todayStr()});
+    t={id:uid(),title,areas,projectId,tipo,urgency,due,context,subtasks,expectedParticipants,callWith,status:'pendiente',created:todayStr()};
+    state.tasks.unshift(t);
   }
-  if(fromNoteId) state.notes=state.notes.filter(n=>n.id!==fromNoteId);
-  closeModal(); persist(); render();
+  if(fromNoteId){ state.notes=state.notes.filter(n=>n.id!==fromNoteId); deleteNoteRow(fromNoteId); }
+  saveTaskRow(t);
+  closeModal(); render();
   setStatus('Tarea guardada.');
 }
 function toggleSubtasksExpand(id,ev){
@@ -524,46 +551,47 @@ function toggleSubtaskInline(taskId, subId){
   const t=state.tasks.find(x=>x.id===taskId); if(!t) return;
   const s=t.subtasks.find(x=>x.id===subId); if(!s) return;
   s.done = !s.done;
-  persist(); render();
+  saveTaskRow(t); render();
 }
 function toggleChildSubtaskInline(taskId, subId, childId){
   const t=state.tasks.find(x=>x.id===taskId); if(!t) return;
   const s=t.subtasks.find(x=>x.id===subId); if(!s || !s.children) return;
   const c=s.children.find(x=>x.id===childId); if(!c) return;
   c.done = !c.done;
-  persist(); render();
+  saveTaskRow(t); render();
 }
 function cycleUrgency(id,ev){
   if(ev) ev.stopPropagation();
   const t=state.tasks.find(x=>x.id===id);
   const order=['alta','media','baja'];
   t.urgency = order[(order.indexOf(t.urgency)+1)%3];
-  persist(); render();
+  saveTaskRow(t); render();
 }
 function toggleDone(id,ev){
   if(ev) ev.stopPropagation();
   const t=state.tasks.find(x=>x.id===id);
   t.status = t.status==='hecha'?'pendiente':'hecha';
-  persist(); render();
+  saveTaskRow(t); render();
 }
 function deleteTask(id,ev){
   if(ev) ev.stopPropagation();
   state.tasks=state.tasks.filter(t=>t.id!==id);
-  persist(); render();
+  deleteTaskRow(id); render();
 }
 
 // ---- Proyectos ----
 function addProject(initialArea){
   const input=document.getElementById('newProjInput'); const val=input.value.trim();
   if(!val) return;
-  state.projects.push({id:uid(), name:val, areas:initialArea?[initialArea]:[], log:[], active:true});
-  input.value=''; persist(); render();
+  const p={id:uid(), name:val, areas:initialArea?[initialArea]:[], log:[], active:true};
+  state.projects.push(p);
+  input.value=''; saveProjectRow(p); render();
 }
 function toggleProjectActive(id,ev){
   if(ev) ev.stopPropagation();
   const p=getProj(id); if(!p) return;
   p.active = !p.active;
-  persist(); render();
+  saveProjectRow(p); render();
 }
 function showConfirm(message, onYes){
   const root=document.getElementById('modalRoot');
@@ -583,10 +611,11 @@ function showConfirm(message, onYes){
 function deleteProject(id,ev){
   if(ev) ev.stopPropagation();
   showConfirm('¿Eliminar el proyecto y su diario? Las tareas asociadas se conservan, pero quedan sin proyecto.', ()=>{
-    state.tasks.forEach(t=>{ if(t.projectId===id) t.projectId=null; });
+    state.tasks.filter(t=>t.projectId===id).forEach(t=>{ t.projectId=null; saveTaskRow(t); });
     state.projects=state.projects.filter(p=>p.id!==id);
+    deleteProjectRow(id);
     if(currentProjectId===id) currentProjectId=null;
-    closeModal(); persist(); render();
+    closeModal(); render();
   });
 }
 function openProject(id){ currentProjectId=id; render(); }
@@ -595,7 +624,7 @@ function toggleProjArea(projectId, area){
   const p=getProj(projectId); if(!p) return;
   if(p.areas.includes(area)) p.areas=p.areas.filter(a=>a!==area);
   else p.areas.push(area);
-  persist(); render();
+  saveProjectRow(p); render();
 }
 function addLogEntry(projectId){
   const p=getProj(projectId); if(!p) return;
@@ -604,13 +633,13 @@ function addLogEntry(projectId){
   if(!text) return;
   p.log.unshift({id:uid(), date:todayStr(), text});
   input.value='';
-  persist(); render();
+  saveProjectRow(p); render();
   setStatus('Apunte añadido al diario.');
 }
 function deleteLogEntry(projectId, entryId){
   const p=getProj(projectId); if(!p) return;
   p.log=p.log.filter(e=>e.id!==entryId);
-  persist(); render();
+  saveProjectRow(p); render();
 }
 
 // ---- Contactos (CRM reducido) ----
@@ -641,13 +670,16 @@ function saveContact(contactId){
   if(!nombre){ setStatus('El nombre no puede estar vacío.'); return; }
   const cargo=document.getElementById('cCargo').value.trim();
   const empresa=document.getElementById('cEmpresa').value.trim();
+  let c;
   if(contactId){
-    const c=state.contacts.find(x=>x.id===contactId);
+    c=state.contacts.find(x=>x.id===contactId);
     Object.assign(c,{nombre,apellidos,cargo,empresa});
   } else {
-    state.contacts.push({id:uid(),nombre,apellidos,cargo,empresa});
+    c={id:uid(),nombre,apellidos,cargo,empresa};
+    state.contacts.push(c);
   }
-  closeModal(); persist();
+  saveContactRow(c);
+  closeModal();
   if(meetingDraftStash){
     restoreMeetingDraft();
   } else {
@@ -671,7 +703,8 @@ function restoreMeetingDraft(){
 function deleteContact(contactId){
   showConfirm('¿Eliminar este contacto? No borra sus menciones en reuniones pasadas.', ()=>{
     state.contacts=state.contacts.filter(c=>c.id!==contactId);
-    closeModal(); persist(); render();
+    deleteContactRow(contactId);
+    closeModal(); render();
   });
 }
 
@@ -792,14 +825,16 @@ function saveMeeting(meetingId){
     state.meetings.unshift(m);
   }
   tempParticipants=[];
-  closeModal(); persist(); render();
+  saveMeetingRow(m);
+  closeModal(); render();
   setStatus('Ficha guardada.');
 }
 function deleteMeeting(id,ev){
   if(ev) ev.stopPropagation();
   showConfirm('¿Eliminar esta ficha de reunión?', ()=>{
     state.meetings=state.meetings.filter(m=>m.id!==id);
-    closeModal(); persist(); render();
+    deleteMeetingRow(id);
+    closeModal(); render();
   });
 }
 
@@ -1007,9 +1042,27 @@ function restoreFromJSONText(text){
     state = Object.assign({notes:[],tasks:[],areas:DEFAULT_AREAS.slice(),tipos:DEFAULT_TIPOS.slice(),projects:[],meetings:[],contacts:[]}, data);
     state.tasks.forEach(t=>{ if(!t.subtasks) t.subtasks=[]; t.subtasks.forEach(s=>{ if(!s.children) s.children=[]; }); });
     state.projects.forEach(p=>{ if(!p.areas) p.areas=[]; if(!p.log) p.log=[]; if(p.active===undefined) p.active=true; });
-    persist(); render();
+    persistAll(); render();
     setStatus('Copia restaurada.');
   });
+}
+async function deleteAllRows(table){
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=not.is.null`, {
+    method: 'DELETE',
+    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+  });
+  if(!res.ok) setStatus('No se pudo limpiar una tabla antes de restaurar (HTTP '+res.status+').');
+}
+async function persistAll(){
+  await Promise.all(['tasks','projects','meetings','contacts','notes'].map(deleteAllRows));
+  await Promise.all([
+    ...state.tasks.map(saveTaskRow),
+    ...state.projects.map(saveProjectRow),
+    ...state.meetings.map(saveMeetingRow),
+    ...state.contacts.map(saveContactRow),
+    ...state.notes.map(saveNoteRow),
+    saveSettings()
+  ]);
 }
 function openPasteImportModal(){
   const root=document.getElementById('modalRoot');
