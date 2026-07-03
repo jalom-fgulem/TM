@@ -1332,6 +1332,15 @@ let googleToken = null;
 let googleTokenExpiry = 0;
 let gTokenClient = null;
 let googleCalendars = []; // [{id, summary, backgroundColor, selected}]
+let _tokenRefreshTimer = null;
+
+function scheduleTokenRefresh(expiresIn){
+  if(_tokenRefreshTimer) clearTimeout(_tokenRefreshTimer);
+  const delay = Math.max((expiresIn - 120) * 1000, 10000); // 2 min antes de expirar
+  _tokenRefreshTimer = setTimeout(()=>{
+    if(gTokenClient) gTokenClient.requestAccessToken({prompt:''});
+  }, delay);
+}
 
 function initGoogleTokenClient(){
   if(typeof google === 'undefined' || !google.accounts) return;
@@ -1343,16 +1352,17 @@ function initGoogleTokenClient(){
       googleToken = resp.access_token;
       googleTokenExpiry = Date.now() + (resp.expires_in - 60)*1000;
       sessionStorage.setItem('g_tok', JSON.stringify({t:googleToken, e:googleTokenExpiry}));
+      scheduleTokenRefresh(resp.expires_in);
       await fetchCalendarList();
       updateGoogleUI();
       if(currentView==='agenda'){ render(); loadAgendaData(); }
-      setStatus('Conectado con Google ✓');
     }
   });
   try{
     const s=JSON.parse(sessionStorage.getItem('g_tok')||'null');
     if(s && s.e > Date.now()){
       googleToken=s.t; googleTokenExpiry=s.e;
+      scheduleTokenRefresh(Math.round((s.e - Date.now())/1000));
       fetchCalendarList().then(()=>{ updateGoogleUI(); if(currentView==='agenda'){ render(); loadAgendaData(); } });
     }
   }catch(e){}
@@ -1363,8 +1373,9 @@ function connectGoogle(){
   gTokenClient.requestAccessToken({prompt: googleToken?'':'consent'});
 }
 function disconnectGoogle(){
+  if(_tokenRefreshTimer){ clearTimeout(_tokenRefreshTimer); _tokenRefreshTimer=null; }
   if(googleToken) try{ google.accounts.oauth2.revoke(googleToken,()=>{}); }catch(e){}
-  googleToken=null; googleTokenExpiry=0;
+  googleToken=null; googleTokenExpiry=0; googleCalendars=[];
   sessionStorage.removeItem('g_tok');
   updateGoogleUI();
   if(currentView==='agenda') render();
