@@ -30,13 +30,38 @@
   *{box-sizing:border-box;}
   body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased;font-size:14px;scrollbar-gutter:stable;}
   .wrap{max-width:1280px;margin:0 auto;padding:20px 20px 60px;}
-  h1{font-size:18px;font-weight:600;margin:0 0 2px;letter-spacing:-0.01em;}
-  .datebar{font-size:11.5px;color:var(--text-soft);margin-bottom:0;text-transform:capitalize;}
-
-  /* Header */
-  .app-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px;}
-  .header-btns{display:flex;gap:6px;align-items:center;}
+  /* ── HEADER ──────────────────────────────── */
+  .app-header{
+    position:sticky;top:0;z-index:30;
+    background:var(--surface);
+    margin:-20px -20px 0;
+    padding:0 20px;
+    border-bottom:1px solid var(--border);
+    display:flex;flex-direction:column;
+    box-shadow:0 1px 8px rgba(0,0,0,.06);
+  }
+  .app-header-row1{display:flex;align-items:center;gap:11px;padding:11px 0 9px;}
+  .header-logo-icon{width:36px;height:36px;flex-shrink:0;display:block;}
+  .header-brand{flex:1;min-width:0;}
+  .header-title{display:flex;align-items:baseline;gap:7px;line-height:1;}
+  .header-title-main{font-size:16px;font-weight:700;letter-spacing:-0.02em;color:var(--text);}
+  .header-title-alias{font-size:12px;font-weight:400;color:var(--text-soft);}
+  h1{font-size:16px;font-weight:700;margin:0;letter-spacing:-0.02em;}
+  .datebar{font-size:11px;color:var(--text-muted);text-transform:capitalize;margin-top:2px;}
+  .header-btns{display:flex;gap:6px;align-items:center;flex-shrink:0;}
   .notes-btn-badge{background:var(--alta);color:#fff;border-radius:99px;padding:1px 6px;font-size:10px;font-weight:700;position:absolute;top:-5px;right:-5px;pointer-events:none;}
+
+  /* Events row below title */
+  .header-events{display:flex;flex-wrap:nowrap;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:9px;}
+  .header-events:empty{display:none;}
+  .header-events::-webkit-scrollbar{display:none;}
+  .header-event-pill{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:99px;color:var(--accent);font-size:11.5px;font-weight:500;white-space:nowrap;}
+  .header-event-pill .ep-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+  .header-event-pill .ep-time{font-weight:700;font-size:11px;}
+  .header-event-pill .ep-title{color:var(--text);font-weight:500;}
+
+  /* Space after sticky header */
+  .viewtabs{margin-top:14px;}
 
   /* Nav tabs */
   .viewtabs{display:flex;gap:0;margin-bottom:16px;border-bottom:1px solid var(--border);overflow-x:auto;overflow-y:hidden;scrollbar-width:none;}
@@ -286,9 +311,12 @@
     /* Contenedor */
     .wrap{padding:10px 10px 90px;}
 
-    /* Cabecera */
-    h1{font-size:15px;}
-    .app-header{margin-bottom:8px;}
+    /* Cabecera responsive */
+    h1,.header-title-main{font-size:14px;}
+    .header-title-alias{font-size:11px;}
+    .app-header{margin:-12px -12px 0;padding:0 12px;}
+    .app-header-row1{padding:9px 0 7px;}
+    .header-logo-icon{width:30px;height:30px;}
 
     /* Tabs: solo iconos */
     .viewtabs{margin-bottom:10px;}
@@ -350,19 +378,48 @@
 <body>
 <div class="wrap">
   <div class="app-header">
-    <div>
-      <h1 id="appTitle">Gestor de tareas</h1>
-      <div class="datebar" id="datebar"></div>
-      <div class="header-events" id="headerEvents"></div>
+    <div class="app-header-row1">
+      <!-- Logo inline -->
+      <svg class="header-logo-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <linearGradient id="hLogo" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#2563EB"/>
+            <stop offset="100%" stop-color="#1E40AF"/>
+          </linearGradient>
+        </defs>
+        <rect width="40" height="40" rx="10" fill="url(#hLogo)"/>
+        <circle cx="12" cy="14" r="3.8" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1.5"/>
+        <polyline points="10.1,14 11.5,15.8 14.4,12.1" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="18" y="13" width="14" height="2" rx="1" fill="rgba(255,255,255,0.45)"/>
+        <circle cx="12" cy="22" r="3.8" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1.5"/>
+        <polyline points="10.1,22 11.5,23.8 14.4,20.1" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="18" y="21" width="10" height="2" rx="1" fill="rgba(255,255,255,0.45)"/>
+        <circle cx="12" cy="30" r="3.8" fill="rgba(255,255,255,0.14)" stroke="#fff" stroke-width="1.6"/>
+        <rect x="18" y="29" width="15" height="2" rx="1" fill="#fff"/>
+      </svg>
+
+      <!-- Brand -->
+      <div class="header-brand">
+        <div class="header-title">
+          <span class="header-title-main" id="appTitle">Gestor de tareas</span>
+          <span class="header-title-alias" id="headerAliasTag"></span>
+        </div>
+        <div class="datebar" id="datebar"></div>
+      </div>
+
+      <!-- Buttons -->
+      <div class="header-btns">
+        <button class="btn-icon" onclick="openNotesDrawer()" title="Notas" style="position:relative;">
+          <i class="ti ti-note" aria-hidden="true"></i>
+          <span id="notesCountBadge" style="display:none;" class="notes-btn-badge"></span>
+        </button>
+        <button class="btn-icon" onclick="openConfigDrawer()" title="Configuración"><i class="ti ti-settings" aria-hidden="true"></i></button>
+        <button class="btn-icon accent" onclick="openTaskModal(null)" title="Nueva tarea"><i class="ti ti-plus" aria-hidden="true"></i></button>
+      </div>
     </div>
-    <div class="header-btns">
-      <button class="btn-icon" onclick="openNotesDrawer()" title="Notas" style="position:relative;">
-        <i class="ti ti-note" aria-hidden="true"></i>
-        <span id="notesCountBadge" style="display:none;" class="notes-btn-badge" style="position:absolute;top:-4px;right:-4px;"></span>
-      </button>
-      <button class="btn-icon" onclick="openConfigDrawer()" title="Configuración"><i class="ti ti-settings" aria-hidden="true"></i></button>
-      <button class="btn-icon accent" onclick="openTaskModal(null)" title="Nueva tarea"><i class="ti ti-plus" aria-hidden="true"></i></button>
-    </div>
+
+    <!-- Upcoming events row -->
+    <div class="header-events" id="headerEvents"></div>
   </div>
 
   <div class="viewtabs">
@@ -1778,12 +1835,12 @@ function updateHeaderEvents(){
   const upcoming=calMonthEvents.filter(ev=>{
     const t=ev.start.dateTime?new Date(ev.start.dateTime):new Date(ev.start.date+'T00:00:00');
     return t>=now;
-  }).slice(0,3);
+  }).slice(0,4);
   if(!upcoming.length){ el.innerHTML=''; return; }
   el.innerHTML=upcoming.map(ev=>{
-    const t=ev.start.dateTime?new Date(ev.start.dateTime).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'';
-    const dot=ev._calColor?`<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${ev._calColor};"></span>`:'';
-    return `<span class="header-event-pill">${dot}${t?t+' · ':''}${escapeHtml(ev.summary||'')}</span>`;
+    const t=ev.start.dateTime?new Date(ev.start.dateTime).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'Todo el día';
+    const dot=ev._calColor?`<span class="ep-dot" style="background:${ev._calColor};"></span>`:'';
+    return `<span class="header-event-pill">${dot}<span class="ep-time">${t}</span><span class="ep-title">${escapeHtml(ev.summary||'(sin título)')}</span></span>`;
   }).join('');
 }
 function saveCfgCalendars(){
@@ -2030,7 +2087,9 @@ function renameTipo(idx, newVal){
 }
 function updateAppTitle(){
   const alias = (state.profile && state.profile.alias) ? state.profile.alias : '';
-  document.getElementById('appTitle').textContent = alias ? `Gestor de tareas de ${alias}` : 'Gestor de tareas';
+  document.getElementById('appTitle').textContent = 'Gestor de tareas';
+  const aliasEl = document.getElementById('headerAliasTag');
+  if(aliasEl) aliasEl.textContent = alias ? `· ${alias}` : '';
 }
 function saveProfile(){
   state.profile = {
