@@ -331,7 +331,7 @@
   .cal-view-tab{padding:3px 11px;border-radius:5px;font-size:12px;font-weight:500;color:var(--text-soft);cursor:pointer;border:none;background:transparent;transition:all .1s;}
   .cal-view-tab.active{background:var(--surface);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.1);}
   /* Week view */
-  .cal-week-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
+  .cal-week-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;}
   .cal-week-col-head{text-align:center;padding:5px 2px 3px;border-radius:7px 7px 0 0;background:var(--bg);}
   .cal-week-col-head.today-col{background:var(--accent-bg);}
   .cal-week-col-head-name{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-soft);}
@@ -1695,6 +1695,7 @@ let calViewDate = new Date();
 let calView = 'month';
 let calSelectedDay = null;
 let calMonthEvents = [];
+let calHeaderEvents = [];
 let currentEmailQuery = 'is:starred';
 let gmailUserLabels = [];
 
@@ -1731,6 +1732,7 @@ function initGoogleTokenClient(){
       await fetchCalendarList();
       updateGoogleUI();
       fetchGmailLabels();
+      refreshHeaderEvents();
       if(currentView==='calendario'||currentView==='correo'){ render(); loadAgendaData(); }
     }
   });
@@ -1742,7 +1744,7 @@ function initGoogleTokenClient(){
       // Token todavía válido
       googleToken=s.t; googleTokenExpiry=s.e;
       scheduleTokenRefresh(Math.round((s.e - Date.now())/1000));
-      fetchCalendarList().then(()=>{ updateGoogleUI(); fetchGmailLabels(); if(currentView==='calendario'||currentView==='correo'){ render(); loadAgendaData(); } });
+      fetchCalendarList().then(()=>{ updateGoogleUI(); fetchGmailLabels(); refreshHeaderEvents(); if(currentView==='calendario'||currentView==='correo'){ render(); loadAgendaData(); } });
     } else if(localStorage.getItem('g_authorized')==='1'){
       // Token expirado pero el usuario ya autorizó antes → refresco silencioso
       gTokenClient.requestAccessToken({prompt:''});
@@ -1852,6 +1854,7 @@ function renderCalendario(){
       </div>
       <button class="btn-ghost btn-small" onclick="loadCalendarData()" title="Actualizar"><i class="ti ti-refresh"></i></button>
     </div>
+    <div class="cal-selector" id="calSelector"></div>
     ${content}
   </div>`;
 }
@@ -1881,7 +1884,7 @@ async function loadCalendarData(){
     tMin=mon.toISOString(); tMax=sun.toISOString();
   }
   calMonthEvents=await fetchCalendarEvents(tMin,tMax);
-  updateHeaderEvents();
+  renderCalendarSelector();
   const el=document.getElementById('calViewContent'); if(!el) return;
   el.innerHTML = calView==='day' ? renderCalDayGrid() : renderCalWeekGrid();
 }
@@ -1962,8 +1965,8 @@ async function loadCalendarMonth(){
   const tMin=new Date(yr,mo,1).toISOString();
   const tMax=new Date(yr,mo+1,0,23,59,59).toISOString();
   calMonthEvents = await fetchCalendarEvents(tMin, tMax);
+  renderCalendarSelector();
   renderCalMonthGrid();
-  updateHeaderEvents();
 }
 function renderCalMonthGrid(){
   const grid=document.getElementById('calMonthGrid'); if(!grid) return;
@@ -1993,11 +1996,33 @@ function renderCalMonthGrid(){
   }
   grid.innerHTML=html;
 }
+async function refreshHeaderEvents(){
+  if(!googleToken) return;
+  const cfg=state.calendarConfig||{};
+  const cfgIds=[cfg.primary,cfg.secondary].filter(Boolean);
+  if(!cfgIds.length){ calHeaderEvents=[]; updateHeaderEvents(); return; }
+  if(!googleCalendars.length) await fetchCalendarList();
+  const activeCals=googleCalendars.filter(c=>cfgIds.includes(c.id));
+  if(!activeCals.length){ calHeaderEvents=[]; updateHeaderEvents(); return; }
+  const now=new Date();
+  const end=new Date(now.getTime()+7*24*60*60*1000);
+  try{
+    const results=await Promise.all(activeCals.map(cal=>
+      fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?timeMin=${encodeURIComponent(now.toISOString())}&timeMax=${encodeURIComponent(end.toISOString())}&singleEvents=true&orderBy=startTime&maxResults=20`,
+        {headers:{Authorization:`Bearer ${googleToken}`}})
+      .then(r=>r.ok?r.json():{items:[]})
+      .then(d=>(d.items||[]).map(ev=>({...ev,_calName:cal.summary,_calColor:cal.backgroundColor})))
+      .catch(()=>[])
+    ));
+    calHeaderEvents=results.flat().sort((a,b)=>(a.start.dateTime||a.start.date)<(b.start.dateTime||b.start.date)?-1:1);
+  }catch(e){ calHeaderEvents=[]; }
+  updateHeaderEvents();
+}
 function updateHeaderEvents(){
   const el=document.getElementById('headerEvents'); if(!el) return;
-  if(!googleToken || !calMonthEvents.length){ el.innerHTML=''; return; }
+  if(!googleToken || !calHeaderEvents.length){ el.innerHTML=''; return; }
   const now=new Date();
-  const upcoming=calMonthEvents.filter(ev=>{
+  const upcoming=calHeaderEvents.filter(ev=>{
     const t=ev.start.dateTime?new Date(ev.start.dateTime):new Date(ev.start.date+'T00:00:00');
     return t>=now;
   }).slice(0,4);
@@ -2013,6 +2038,7 @@ function saveCfgCalendars(){
   const p=document.getElementById('cfgPrimCal'); if(p) state.calendarConfig.primary=p.value;
   const s=document.getElementById('cfgSecCal'); if(s) state.calendarConfig.secondary=s.value;
   saveSettings();
+  refreshHeaderEvents();
 }
 function updateGoogleCalendarConfigUI(){
   const box=document.getElementById('googleCalCfg'); if(!box) return;
@@ -2123,12 +2149,7 @@ async function loadCalendarWidget(){
 async function fetchCalendarEvents(timeMin, timeMax){
   if(!googleToken) return [];
   if(!googleCalendars.length) await fetchCalendarList();
-  // Si el usuario ha configurado calendarios principal/secundario, usar solo esos
-  const cfg=state.calendarConfig||{};
-  const cfgIds=[cfg.primary,cfg.secondary].filter(Boolean);
-  const activeCals = cfgIds.length
-    ? googleCalendars.filter(c=>cfgIds.includes(c.id))
-    : googleCalendars.filter(c=>isCalEnabled(c.id));
+  const activeCals = googleCalendars.filter(c=>isCalEnabled(c.id));
   if(!activeCals.length) return [];
   const now=timeMin||new Date().toISOString();
   const end=timeMax||new Date(Date.now()+7*24*60*60*1000).toISOString();
