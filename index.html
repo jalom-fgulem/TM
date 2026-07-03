@@ -30,7 +30,8 @@
   .notes-btn-badge{background:var(--alta);color:#fff;border-radius:99px;padding:1px 6px;font-size:10px;font-weight:700;position:absolute;top:-5px;right:-5px;pointer-events:none;}
 
   /* Nav tabs */
-  .viewtabs{display:flex;gap:0;margin-bottom:16px;border-bottom:1px solid var(--border);overflow-x:auto;}
+  .viewtabs{display:flex;gap:0;margin-bottom:16px;border-bottom:1px solid var(--border);overflow-x:auto;overflow-y:hidden;scrollbar-width:none;}
+  .viewtabs::-webkit-scrollbar{display:none;}
   .viewtabs button{background:transparent;border:none;border-bottom:2px solid transparent;color:var(--text-soft);font-weight:500;font-size:13px;padding:8px 13px;cursor:pointer;display:flex;align-items:center;gap:5px;margin-bottom:-1px;white-space:nowrap;transition:color .12s;}
   .viewtabs button:hover{color:var(--text);}
   .viewtabs button.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600;}
