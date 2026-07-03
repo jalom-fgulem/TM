@@ -1,0 +1,31 @@
+<svg viewBox="0 0 420 120" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="iconBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2563EB"/>
+      <stop offset="100%" stop-color="#1E40AF"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Icon background -->
+  <rect x="8" y="8" width="104" height="104" rx="24" fill="url(#iconBg)"/>
+
+  <!-- Row 1 — done -->
+  <circle cx="36" cy="44" r="9" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="2"/>
+  <polyline points="30.5,44 34,48.5 41.5,38.5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="52" y="42.5" width="46" height="3" rx="1.5" fill="rgba(255,255,255,0.5)"/>
+
+  <!-- Row 2 — done -->
+  <circle cx="36" cy="66" r="9" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="2"/>
+  <polyline points="30.5,66 34,70.5 41.5,60.5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="52" y="64.5" width="36" height="3" rx="1.5" fill="rgba(255,255,255,0.5)"/>
+
+  <!-- Row 3 — pending -->
+  <circle cx="36" cy="88" r="9" fill="rgba(255,255,255,0.14)" stroke="#fff" stroke-width="2.2"/>
+  <rect x="52" y="86.5" width="50" height="3" rx="1.5" fill="#fff"/>
+
+  <!-- Wordmark -->
+  <text x="130" y="68" font-family="system-ui,-apple-system,'Segoe UI',sans-serif"
+        font-size="36" font-weight="700" fill="#1A1A18" letter-spacing="-0.8">Gestor</text>
+  <text x="130" y="98" font-family="system-ui,-apple-system,'Segoe UI',sans-serif"
+        font-size="36" font-weight="300" fill="#4B5563" letter-spacing="-0.3">de Tareas</text>
+</svg>
