@@ -710,6 +710,7 @@ let currentTipoFilter = 'todas';
 let tempSubtasks = [];
 let tempExpectedParticipants = [];
 let tempLinkedTaskIds = [];
+let tempSourceEmailId = null;
 
 const monthsEs = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 function fmtDate(d){ const dt=new Date(d+'T00:00:00'); return dt.getDate()+' de '+monthsEs[dt.getMonth()]+' de '+dt.getFullYear(); }
@@ -925,6 +926,12 @@ function openTaskModal(taskId, prefill, fromNoteId){
           <input type="text" id="mTitle" value="${escapeAttr(data.title||'')}" placeholder="¿Qué hay que hacer?">
         </div>
 
+        ${(editing?.sourceEmailId||tempSourceEmailId)?`
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#e8f0fe;border-radius:7px;margin-bottom:12px;font-size:12px;">
+          <i class="ti ti-mail" style="color:#1a73e8;font-size:14px;"></i>
+          <span style="flex:1;color:#1a73e8;font-weight:500;">Creada desde un correo</span>
+          <button class="btn-ghost btn-small" onclick="openEmailFromTask('${escapeAttr(editing?.sourceEmailId||tempSourceEmailId||'')}')">Ver correo</button>
+        </div>` : ''}
         <p class="modal-sect">Clasificación</p>
 
         <div class="field-row">
@@ -1131,7 +1138,7 @@ function addLinkedTaskTemp(){
   if(!tempLinkedTaskIds.includes(sel.value)) tempLinkedTaskIds.push(sel.value);
   renderLinkedTasksList();
 }
-function closeModal(){ document.getElementById('modalRoot').innerHTML=''; tempSubtasks=[]; tempLinkedTaskIds=[]; }
+function closeModal(){ document.getElementById('modalRoot').innerHTML=''; tempSubtasks=[]; tempLinkedTaskIds=[]; tempSourceEmailId=null; }
 
 function saveTask(taskId, fromNoteId){
   const title=document.getElementById('mTitle').value.trim();
@@ -1152,7 +1159,7 @@ function saveTask(taskId, fromNoteId){
     t=state.tasks.find(x=>x.id===taskId);
     Object.assign(t,{title,areas,projectId,tipo,urgency,due,context,subtasks,expectedParticipants,callWith,linkedTaskIds});
   } else {
-    t={id:uid(),title,areas,projectId,tipo,urgency,due,context,subtasks,expectedParticipants,callWith,linkedTaskIds,status:'pendiente',created:todayStr()};
+    t={id:uid(),title,areas,projectId,tipo,urgency,due,context,subtasks,expectedParticipants,callWith,linkedTaskIds,status:'pendiente',created:todayStr(),...(tempSourceEmailId?{sourceEmailId:tempSourceEmailId}:{})};
     state.tasks.unshift(t);
   }
   if(fromNoteId){ state.notes=state.notes.filter(n=>n.id!==fromNoteId); deleteNoteRow(fromNoteId); }
@@ -2655,7 +2662,7 @@ function renderEmailPreviewPanel(msg){
     <div class="gmail-preview-subject">${escapeHtml(subject)}</div>
     <div class="gmail-preview-meta"><strong>De:</strong> ${escapeHtml(from)}<br><strong>Fecha:</strong> ${escapeHtml(date)}</div>
     <div class="gmail-preview-actions">
-      <button class="btn-ghost btn-small" onclick="importEmailAsTask('${escapeAttr(subject)}','${escapeAttr(fromClean)}')">+ Tarea</button>
+      <button class="btn-ghost btn-small" onclick="importEmailAsTask('${escapeAttr(subject)}','${escapeAttr(fromClean)}','${escapeAttr(msg.id)}')">+ Tarea</button>
       <button class="btn-danger btn-small" onclick="deleteEmail('${escapeAttr(msg.id)}')" title="Mover a papelera"><i class="ti ti-trash" aria-hidden="true"></i></button>
     </div>
   </div>
@@ -2968,7 +2975,15 @@ function unlinkGTask(taskId){
   if(currentView==='gtasks'||currentView==='lista'||currentView==='panel') render();
 }
 
-function importEmailAsTask(subject, from){
+function openEmailFromTask(msgId){
+  if(!msgId) return;
+  closeModal();
+  setView('correo');
+  // Wait for the correo view to render, then select the email
+  setTimeout(()=>{ selectEmail(msgId); }, 300);
+}
+function importEmailAsTask(subject, from, msgId){
+  tempSourceEmailId = msgId || null;
   openTaskModal(null,{title:subject+(from?` (${from})`:''), tipo:'Correo pendiente'});
 }
 async function deleteEmail(msgId){
@@ -3103,6 +3118,7 @@ function taskCard(t, showTipo){
       ${pn?`<span class="badge proj">${escapeHtml(pn)}</span>`:''}
       ${linkBadge}
       ${areaBadges}
+      ${t.sourceEmailId?`<span class="badge" style="background:#e8f0fe;color:#1a73e8;border:1px solid #c5d8fd;cursor:pointer;" onclick="event.stopPropagation();openEmailFromTask('${escapeAttr(t.sourceEmailId)}')">✉ Ver correo</span>`:''}
     </div>
     ${sub}
     <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;">
