@@ -346,6 +346,17 @@
   .cal-day-event-info{flex:1;min-width:0;}
   .cal-day-event-title{font-size:13px;font-weight:500;}
   .cal-day-event-calname{font-size:11px;color:var(--text-soft);}
+  /* Google Tasks */
+  .gtask-badge{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;color:#1a73e8;background:#e8f0fe;border-radius:4px;padding:1px 6px;flex-shrink:0;}
+  .gtask-card{background:var(--surface);border:1px solid #c5d8fd;border-left:3px solid #1a73e8;border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;cursor:default;}
+  .gtask-card-title{font-size:13px;font-weight:500;color:var(--text);}
+  .gtask-card-meta{font-size:11px;color:var(--text-soft);}
+  .gtask-cal-pill{font-size:10px;padding:1px 5px;border-radius:3px;margin-bottom:2px;border-left:2px solid #1a73e8;background:rgba(26,115,232,.12);color:#1557b0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4;}
+  .gtask-day-row{display:flex;align-items:flex-start;gap:10px;padding:9px 12px;background:#e8f0fe;border:1px solid #c5d8fd;border-left:3px solid #1a73e8;border-radius:8px;margin-bottom:7px;}
+  .gtask-day-row-info{flex:1;min-width:0;}
+  .gtask-day-row-label{font-size:10.5px;font-weight:600;color:#1a73e8;margin-bottom:2px;}
+  .gtask-day-row-title{font-size:13px;font-weight:500;color:var(--text);}
+  .gtask-section-head{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#1a73e8;margin:14px 0 8px;display:flex;align-items:center;gap:6px;}
   @media(max-width:600px){.cal-week-grid{grid-template-columns:repeat(7,1fr);} .cal-week-col-head-day{font-size:13px;} .cal-week-event{display:none;} }
 
   /* Email labels / query switcher */
@@ -1684,7 +1695,7 @@ function render(){
 
 // ---- Google Integration ----
 const GOOGLE_CLIENT_ID = '1043299015570-mi3k1ecnrvle83qfjl186kuucmn4bnd7.apps.googleusercontent.com';
-const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/gmail.modify';
+const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/tasks';
 let googleToken = null;
 let googleTokenExpiry = 0;
 let gTokenClient = null;
@@ -1696,6 +1707,8 @@ let calView = 'month';
 let calSelectedDay = null;
 let calMonthEvents = [];
 let calHeaderEvents = [];
+let googleTaskLists = [];
+let googleTasks = [];
 let currentEmailQuery = 'is:starred';
 let gmailUserLabels = [];
 
@@ -1733,6 +1746,7 @@ function initGoogleTokenClient(){
       updateGoogleUI();
       fetchGmailLabels();
       refreshHeaderEvents();
+      fetchGoogleTasks();
       if(currentView==='calendario'||currentView==='correo'){ render(); loadAgendaData(); }
     }
   });
@@ -1744,7 +1758,7 @@ function initGoogleTokenClient(){
       // Token todavía válido
       googleToken=s.t; googleTokenExpiry=s.e;
       scheduleTokenRefresh(Math.round((s.e - Date.now())/1000));
-      fetchCalendarList().then(()=>{ updateGoogleUI(); fetchGmailLabels(); refreshHeaderEvents(); if(currentView==='calendario'||currentView==='correo'){ render(); loadAgendaData(); } });
+      fetchCalendarList().then(()=>{ updateGoogleUI(); fetchGmailLabels(); refreshHeaderEvents(); fetchGoogleTasks(); if(currentView==='calendario'||currentView==='correo'){ render(); loadAgendaData(); } });
     } else if(localStorage.getItem('g_authorized')==='1'){
       // Token expirado pero el usuario ya autorizó antes → refresco silencioso
       gTokenClient.requestAccessToken({prompt:''});
@@ -1889,8 +1903,18 @@ async function loadCalendarData(){
   el.innerHTML = calView==='day' ? renderCalDayGrid() : renderCalWeekGrid();
 }
 function renderCalDayGrid(){
-  if(!calMonthEvents.length) return '<p class="empty" style="padding:16px;">Sin eventos este día.</p>';
-  return calMonthEvents.map(ev=>{
+  const dateStr=calViewDate.toISOString().slice(0,10);
+  const dayTasks=googleTasks.filter(t=>t.due&&t.due.slice(0,10)===dateStr);
+  const taskHtml=dayTasks.map(t=>`<div class="gtask-day-row">
+    <div class="gtask-day-row-info">
+      <div class="gtask-day-row-label">✓ Google Tasks · ${escapeHtml(t._listTitle||'')}</div>
+      <div class="gtask-day-row-title">${escapeHtml(t.title||'')}</div>
+      ${t.notes?`<div style="font-size:11px;color:var(--text-soft);margin-top:2px;">${escapeHtml(t.notes.slice(0,80))}</div>`:''}
+    </div>
+    <button class="btn-ghost btn-small" style="flex-shrink:0;" onclick="completeGoogleTask('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">✓</button>
+  </div>`).join('');
+  if(!calMonthEvents.length && !dayTasks.length) return '<p class="empty" style="padding:16px;">Sin eventos ni tareas este día.</p>';
+  return taskHtml+calMonthEvents.map(ev=>{
     const t=ev.start.dateTime?new Date(ev.start.dateTime).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'Todo el día';
     const tend=ev.end?.dateTime?new Date(ev.end.dateTime).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'';
     const dot=ev._calColor?`<span class="cal-day-event-dot" style="background:${ev._calColor};"></span>`:'';
@@ -1922,12 +1946,14 @@ function renderCalWeekGrid(){
       const t=ev.start.dateTime?new Date(ev.start.dateTime).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'';
       return `<div class="cal-week-event" style="background:${ev._calColor||'var(--accent)'};">${t?t+' ':''}${escapeHtml(ev.summary||'')}</div>`;
     }).join('');
+    const colTasks=googleTasks.filter(t=>t.due&&t.due.slice(0,10)===ds);
+    const taskHtml=colTasks.map(t=>`<div class="gtask-cal-pill">✓ ${escapeHtml(t.title||'')}</div>`).join('');
     return `<div class="cal-week-col">
       <div class="cal-week-col-head ${isT?'today-col':''}">
         <div class="cal-week-col-head-name">${names[i]}</div>
         <div class="cal-week-col-head-day">${d.getDate()}</div>
       </div>
-      <div class="cal-week-col-body">${evHtml}</div>
+      <div class="cal-week-col-body">${evHtml}${taskHtml}</div>
     </div>`;
   }).join('')+'</div>';
 }
@@ -1951,13 +1977,20 @@ function renderCalDayDetail(){
   const d=new Date(calSelectedDay+'T12:00:00');
   const label=d.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
   det.style.display='block';
-  det.innerHTML=`<div class="cal-day-detail-head">${label}</div>`+(
-    evs.length ? evs.map(ev=>{
+  const dayTasks=googleTasks.filter(t=>t.due&&t.due.slice(0,10)===calSelectedDay);
+  det.innerHTML=`<div class="cal-day-detail-head">${label}</div>`+
+    (evs.length ? evs.map(ev=>{
       const t=ev.start.dateTime?new Date(ev.start.dateTime).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'Todo el día';
       const dot=ev._calColor?`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${ev._calColor};flex-shrink:0;margin-top:3px;"></span>`:'';
       return `<div class="agenda-event">${dot}<span class="agenda-event-time">${t}</span><span class="agenda-event-title">${escapeHtml(ev.summary||'(sin título)')}</span></div>`;
-    }).join('') : '<p class="empty">Sin eventos este día.</p>'
-  );
+    }).join('') : '<p class="empty">Sin eventos este día.</p>')+
+    (dayTasks.length ? `<div style="margin-top:10px;font-size:11px;font-weight:700;color:#1a73e8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">✓ Tareas</div>`+
+      dayTasks.map(t=>`<div class="agenda-event" style="border-left:2px solid #1a73e8;padding-left:8px;">
+        <span class="agenda-event-time" style="color:#1a73e8;font-size:11px;">${escapeHtml(t._listTitle||'Tasks')}</span>
+        <span class="agenda-event-title">${escapeHtml(t.title||'')}
+          <button class="btn-ghost btn-small" style="font-size:10px;padding:1px 6px;margin-left:6px;" onclick="event.stopPropagation();completeGoogleTask('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">✓</button>
+        </span>
+      </div>`).join('') : '');
 }
 async function loadCalendarMonth(){
   const grid=document.getElementById('calMonthGrid'); if(!grid) return;
@@ -1979,6 +2012,8 @@ function renderCalMonthGrid(){
   let startDow=firstDay.getDay(); if(startDow===0) startDow=7; startDow--;
   const byDay={};
   calMonthEvents.forEach(ev=>{const d=ev.start.dateTime?ev.start.dateTime.slice(0,10):ev.start.date; if(!byDay[d])byDay[d]=[]; byDay[d].push(ev);});
+  const taskByDay={};
+  googleTasks.filter(t=>t.due).forEach(t=>{const d=t.due.slice(0,10); if(!taskByDay[d])taskByDay[d]=[]; taskByDay[d].push(t);});
   const dowLabels=['Lu','Ma','Mi','Ju','Vi','Sá','Do'];
   let html=dowLabels.map(d=>`<div class="cal-dow">${d}</div>`).join('');
   for(let i=0;i<startDow;i++) html+=`<div class="cal-day other-month"></div>`;
@@ -1990,8 +2025,10 @@ function renderCalMonthGrid(){
     const maxShow=3;
     const dots=evs.slice(0,maxShow).map(ev=>`<div class="cal-event-pill" style="background:${ev._calColor||'var(--accent)'};">${escapeHtml(ev.summary||'')}</div>`).join('');
     const more=evs.length>maxShow?`<div class="cal-event-more">+${evs.length-maxShow} más</div>`:'';
+    const dayTasks=(taskByDay[dateStr]||[]);
+    const taskDots=dayTasks.slice(0,2).map(t=>`<div class="gtask-cal-pill">✓ ${escapeHtml(t.title||'')}</div>`).join('');
     html+=`<div class="cal-day ${isToday?'today':''} ${isSel?'selected':''}" data-date="${dateStr}" onclick="selectCalDay('${dateStr}')">
-      <div class="cal-day-num">${d}</div>${dots}${more}
+      <div class="cal-day-num">${d}</div>${dots}${more}${taskDots}
     </div>`;
   }
   grid.innerHTML=html;
@@ -2287,6 +2324,65 @@ function extractEmailBody(payload){
   walk(payload);
   return{text,html};
 }
+async function fetchGoogleTaskLists(){
+  if(!googleToken) return;
+  try{
+    const r=await fetch('https://tasks.googleapis.com/tasks/v1/users/@me/lists?maxResults=20',{headers:{Authorization:`Bearer ${googleToken}`}});
+    if(r.status===401){handleGoogleExpired();return;}
+    if(!r.ok) return;
+    googleTaskLists=(await r.json()).items||[];
+  }catch(e){}
+}
+async function fetchGoogleTasks(){
+  if(!googleToken) return;
+  if(!googleTaskLists.length) await fetchGoogleTaskLists();
+  if(!googleTaskLists.length) return;
+  try{
+    const results=await Promise.all(googleTaskLists.map(list=>
+      fetch(`https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(list.id)}/tasks?showCompleted=false&showHidden=false&maxResults=100`,
+        {headers:{Authorization:`Bearer ${googleToken}`}})
+      .then(r=>r.ok?r.json():{items:[]})
+      .then(d=>(d.items||[]).filter(t=>t.status!=='completed').map(t=>({...t,_listId:list.id,_listTitle:list.title})))
+      .catch(()=>[])
+    ));
+    googleTasks=results.flat();
+    if(currentView==='lista'||currentView==='panel') render();
+    if(currentView==='calendario'){ if(calView==='month') renderCalMonthGrid(); else loadCalendarData(); }
+  }catch(e){}
+}
+async function completeGoogleTask(listId,taskId){
+  if(!googleToken) return;
+  try{
+    await fetch(`https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(listId)}/tasks/${encodeURIComponent(taskId)}`,{
+      method:'PATCH',
+      headers:{Authorization:`Bearer ${googleToken}`,'Content-Type':'application/json'},
+      body:JSON.stringify({status:'completed'})
+    });
+    googleTasks=googleTasks.filter(t=>!(t.id===taskId&&t._listId===listId));
+    setStatus('Tarea marcada como completada en Google Tasks.');
+    if(currentView==='lista'||currentView==='panel') render();
+    if(currentView==='calendario'){ if(calView==='month') renderCalMonthGrid(); else loadCalendarData(); }
+  }catch(e){ setStatus('Error al completar la tarea.'); }
+}
+function googleTaskCard(t){
+  const due=t.due?t.due.slice(0,10):'';
+  const today=todayStr();
+  const overdue=due&&due<today;
+  return `<div class="gtask-card">
+    <div style="display:flex;align-items:flex-start;gap:8px;">
+      <span class="gtask-badge">G Tasks</span>
+      <span class="gtask-card-title">${escapeHtml(t.title||'(sin título)')}</span>
+    </div>
+    ${t.notes?`<div class="gtask-card-meta">${escapeHtml(t.notes.slice(0,120))}${t.notes.length>120?'…':''}</div>`:''}
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+      <div class="gtask-card-meta">
+        ${t._listTitle?`<span style="font-weight:500;">${escapeHtml(t._listTitle)}</span> · `:''}
+        ${due?`<span style="${overdue?'color:var(--alta);font-weight:600;':''}">Límite: ${fmtDateShort(due)}</span>`:'Sin fecha'}
+      </div>
+      <button class="btn-ghost btn-small" onclick="completeGoogleTask('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">✓ Completar</button>
+    </div>
+  </div>`;
+}
 function importEmailAsTask(subject, from){
   openTaskModal(null,{title:subject+(from?` (${from})`:''), tipo:'Correo pendiente'});
 }
@@ -2472,7 +2568,8 @@ function renderLista(){
     <div class="filters"><span class="filter-label">Urgencia</span>${urgOpts.map(([k,l])=>`<button class="btn-small ${currentUrgFilter===k?'active':''}" onclick="setUrgFilter('${k}')">${l}</button>`).join('')}</div>
     <div class="filters"><span class="filter-label">Área</span>${areaOpts.map(a=>`<button class="btn-small ${currentAreaFilter===a?'active':''}" onclick="setAreaFilter('${escapeAttr(a)}')">${a==='todas'?'Todas':escapeHtml(a)}</button>`).join('')}</div>
     <div class="filters"><span class="filter-label">Tipo</span>${tipoOpts.map(t=>`<button class="btn-small ${currentTipoFilter===t?'active':''}" onclick="setTipoFilter('${escapeAttr(t)}')">${t==='todas'?'Todos':(t==='sintipo'?'Sin tipo':escapeHtml(t))}</button>`).join('')}</div>
-    ${list.length ? `<div class="card-grid">${list.map(t=>taskCard(t,true)).join('')}</div>` : '<p class="empty">Nada aquí con estos filtros.</p>'}`;
+    ${list.length ? `<div class="card-grid">${list.map(t=>taskCard(t,true)).join('')}</div>` : '<p class="empty">Nada aquí con estos filtros.</p>'}
+    ${googleTasks.length ? `<div class="gtask-section-head"><svg width="14" height="14" viewBox="0 0 24 24" fill="#1a73e8"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>Google Tasks<button class="btn-ghost btn-small" onclick="fetchGoogleTasks()" style="margin-left:4px;" title="Actualizar"><i class="ti ti-refresh" style="font-size:11px;"></i></button></div><div class="card-grid">${googleTasks.map(t=>googleTaskCard(t)).join('')}</div>` : ''}`;
 }
 
 let showArchivedProjects = false;
