@@ -357,6 +357,40 @@
   .gtask-day-row-label{font-size:10.5px;font-weight:600;color:#1a73e8;margin-bottom:2px;}
   .gtask-day-row-title{font-size:13px;font-weight:500;color:var(--text);}
   .gtask-section-head{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#1a73e8;margin:14px 0 8px;display:flex;align-items:center;gap:6px;}
+
+  /* Google Tasks view */
+  .gtasks-layout{display:grid;grid-template-columns:200px 1fr;border:1px solid var(--border);border-radius:10px;overflow:hidden;height:calc(100dvh - 158px);min-height:360px;background:var(--surface);}
+  .gtl-sidebar{overflow-y:auto;border-right:1px solid var(--border);background:var(--bg);padding:6px 4px;}
+  .gtl-sidebar-head{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-soft);padding:8px 10px 4px;}
+  .gtl-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .12s;}
+  .gtl-item:hover{background:var(--hover);}
+  .gtl-item.active{background:#e8f0fe;color:#1a73e8;font-weight:600;}
+  .gtl-item-icon{width:16px;height:16px;flex-shrink:0;opacity:.6;}
+  .gtl-main{display:flex;flex-direction:column;overflow:hidden;}
+  .gtl-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border);gap:10px;flex-shrink:0;}
+  .gtl-header-title{font-size:15px;font-weight:600;color:var(--text);}
+  .gtl-add-row{display:flex;align-items:center;gap:8px;padding:8px 16px;border-bottom:1px solid var(--border);flex-shrink:0;}
+  .gtl-add-input{flex:1;border:1px solid var(--border);border-radius:7px;padding:7px 10px;font-size:13px;background:var(--surface);color:var(--text);}
+  .gtl-add-input:focus{outline:none;border-color:#1a73e8;}
+  .gtl-task-list{flex:1;overflow-y:auto;padding:8px 0;}
+  .gtl-task-item{display:flex;align-items:flex-start;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s;}
+  .gtl-task-item:hover{background:var(--hover);}
+  .gtl-task-circle{width:18px;height:18px;border-radius:50%;border:2px solid #1a73e8;flex-shrink:0;margin-top:1px;cursor:pointer;transition:background .12s;}
+  .gtl-task-circle:hover{background:#e8f0fe;}
+  .gtl-task-body{flex:1;min-width:0;}
+  .gtl-task-title{font-size:13px;color:var(--text);font-weight:500;}
+  .gtl-task-meta{font-size:11px;color:var(--text-soft);margin-top:2px;}
+  .gtl-task-due-overdue{color:var(--alta);font-weight:600;}
+  .gtl-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:8px;color:var(--text-soft);font-size:13px;opacity:.6;}
+
+  /* Google sync section in task modal */
+  .gsync-section{background:#f0f4ff;border:1px solid #c5d8fd;border-radius:8px;padding:12px 14px;margin-top:12px;display:flex;flex-direction:column;gap:10px;}
+  .gsync-section-title{font-size:12px;font-weight:700;color:#1a73e8;text-transform:uppercase;letter-spacing:.06em;display:flex;align-items:center;gap:6px;}
+  .gsync-row{display:flex;align-items:center;gap:8px;}
+  .gsync-row label{font-size:13px;color:var(--text);cursor:pointer;display:flex;align-items:center;gap:6px;}
+  .gsync-sub{display:flex;align-items:center;gap:8px;margin-left:24px;flex-wrap:wrap;}
+  .gsync-sub select,.gsync-sub input[type=date],.gsync-sub input[type=time]{font-size:12px;border:1px solid var(--border);border-radius:6px;padding:4px 8px;background:var(--surface);color:var(--text);}
+
   @media(max-width:600px){.cal-week-grid{grid-template-columns:repeat(7,1fr);} .cal-week-col-head-day{font-size:13px;} .cal-week-event{display:none;} }
 
   /* Email labels / query switcher */
@@ -490,6 +524,7 @@
     <button id="tab-desarrollo" onclick="setView('desarrollo')"><i class="ti ti-code" aria-hidden="true"></i> Desarrollo</button>
     <button id="tab-calendario" onclick="setView('calendario')"><i class="ti ti-calendar" aria-hidden="true"></i> Calendario</button>
     <button id="tab-correo" onclick="setView('correo')"><i class="ti ti-mail" aria-hidden="true"></i> Correo</button>
+    <button id="tab-gtasks" onclick="setView('gtasks')"><i class="ti ti-checkbox" aria-hidden="true"></i> G Tasks</button>
   </div>
 
   <div id="viewRoot"></div>
@@ -952,6 +987,37 @@ function openTaskModal(taskId, prefill, fromNoteId){
           </div>
         </div>
 
+        ${googleToken ? `
+        <div class="gsync-section">
+          <div class="gsync-section-title">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="#1a73e8"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+            Sincronizar con Google
+          </div>
+          <div>
+            <div class="gsync-row">
+              <label><input type="checkbox" id="gSyncTask" onchange="document.getElementById('gSyncTaskSub').style.display=this.checked?'flex':'none'"> Añadir a Google Tasks</label>
+            </div>
+            <div class="gsync-sub" id="gSyncTaskSub" style="display:none;margin-top:6px;">
+              <select id="gSyncTaskList">
+                ${googleTaskLists.map(l=>`<option value="${escapeAttr(l.id)}">${escapeHtml(l.title)}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+          <div>
+            <div class="gsync-row">
+              <label><input type="checkbox" id="gSyncCal" onchange="document.getElementById('gSyncCalSub').style.display=this.checked?'flex':'none'"> Crear evento en calendario</label>
+            </div>
+            <div class="gsync-sub" id="gSyncCalSub" style="display:none;margin-top:6px;gap:6px;flex-wrap:wrap;">
+              <select id="gSyncCalId">
+                ${googleCalendars.map(c=>`<option value="${escapeAttr(c.id)}">${escapeHtml(c.summary||c.id)}</option>`).join('')}
+              </select>
+              <input type="date" id="gSyncCalDate" value="${data.due||todayStr()}">
+              <input type="time" id="gSyncCalStart" value="09:00">
+              <input type="time" id="gSyncCalEnd" value="10:00">
+            </div>
+          </div>
+        </div>` : ''}
+
         <div class="modal-actions">
           <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
           <button class="btn-primary" onclick="saveTask('${editing?editing.id:''}','${fromNoteId||''}')">Guardar tarea</button>
@@ -1061,6 +1127,34 @@ function saveTask(taskId, fromNoteId){
   }
   if(fromNoteId){ state.notes=state.notes.filter(n=>n.id!==fromNoteId); deleteNoteRow(fromNoteId); }
   saveTaskRow(t);
+
+  // Google sync
+  const syncTask = document.getElementById('gSyncTask');
+  const syncCal = document.getElementById('gSyncCal');
+  if(syncTask?.checked){
+    const listId = document.getElementById('gSyncTaskList')?.value;
+    if(listId && googleToken){
+      const body = {title};
+      if(due) body.due = due+'T00:00:00.000Z';
+      if(context) body.notes = context;
+      fetch(`https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(listId)}/tasks`,{
+        method:'POST', headers:{Authorization:`Bearer ${googleToken}`,'Content-Type':'application/json'}, body:JSON.stringify(body)
+      }).then(r=>r.ok?r.json():null).then(nt=>{ if(nt){ googleTasks.unshift({...nt,_listId:listId,_listTitle:googleTaskLists.find(l=>l.id===listId)?.title||''}); setStatus('Tarea guardada y añadida a Google Tasks.'); } }).catch(()=>{});
+    }
+  }
+  if(syncCal?.checked){
+    const calId = document.getElementById('gSyncCalId')?.value;
+    const calDate = document.getElementById('gSyncCalDate')?.value;
+    const calStart = document.getElementById('gSyncCalStart')?.value || '09:00';
+    const calEnd = document.getElementById('gSyncCalEnd')?.value || '10:00';
+    if(calId && calDate && googleToken){
+      const event = {summary:title, description:context||'', start:{dateTime:`${calDate}T${calStart}:00`, timeZone:'Europe/Madrid'}, end:{dateTime:`${calDate}T${calEnd}:00`, timeZone:'Europe/Madrid'}};
+      fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events`,{
+        method:'POST', headers:{Authorization:`Bearer ${googleToken}`,'Content-Type':'application/json'}, body:JSON.stringify(event)
+      }).then(r=>r.ok?setStatus('Evento creado en Google Calendar.'):null).catch(()=>{});
+    }
+  }
+
   closeModal(); render();
   setStatus('Tarea guardada.');
 }
@@ -1670,7 +1764,7 @@ function closeAllDrawers(){
   document.getElementById('drawerOverlay').classList.remove('open');
 }
 
-function setView(v){ currentView=v; if(v!=='proyectos' && v!=='desarrollo') currentProjectId=null; if(v!=='reuniones' && v!=='crm') currentPersonFilter=null; if(v!=='crm') currentContactId=null; render(); if(v==='calendario'){ loadCalendarMonth(); } else if(v==='correo') loadGmailWidget(); }
+function setView(v){ currentView=v; if(v!=='proyectos' && v!=='desarrollo') currentProjectId=null; if(v!=='reuniones' && v!=='crm') currentPersonFilter=null; if(v!=='crm') currentContactId=null; render(); if(v==='calendario'){ loadCalendarMonth(); } else if(v==='correo') loadGmailWidget(); else if(v==='gtasks'){ if(googleToken) fetchGoogleTasks(); } }
 function setUrgFilter(f){ currentUrgFilter=f; render(); }
 function setAreaFilter(f){ currentAreaFilter=f; render(); }
 function setTipoFilter(f){ currentTipoFilter=f; render(); }
@@ -1678,7 +1772,7 @@ function setPersonFilter(name){ currentPersonFilter = (currentPersonFilter===nam
 
 function render(){
   renderNotes(); renderAreaManage();
-  ['panel','lista','proyectos','reuniones','crm','desarrollo','calendario','correo'].forEach(v=>{
+  ['panel','lista','proyectos','reuniones','crm','desarrollo','calendario','correo','gtasks'].forEach(v=>{
     const el=document.getElementById('tab-'+v); if(el) el.classList.toggle('active', currentView===v);
   });
   const root=document.getElementById('viewRoot');
@@ -1689,6 +1783,7 @@ function render(){
   else if(currentView==='desarrollo') root.innerHTML = currentProjectId ? renderProjectDetail() : renderProyectosList(DEV_AREA);
   else if(currentView==='calendario') root.innerHTML=renderCalendario();
   else if(currentView==='correo') root.innerHTML=renderCorreo();
+  else if(currentView==='gtasks') root.innerHTML=renderGTasks();
   else if(currentProjectId) root.innerHTML=renderProjectDetail();
   else root.innerHTML=renderProyectosList();
 }
@@ -1709,6 +1804,7 @@ let calMonthEvents = [];
 let calHeaderEvents = [];
 let googleTaskLists = [];
 let googleTasks = [];
+let currentGTaskList = null;
 let currentEmailQuery = 'is:starred';
 let gmailUserLabels = [];
 
@@ -2346,7 +2442,7 @@ async function fetchGoogleTasks(){
       .catch(()=>[])
     ));
     googleTasks=results.flat();
-    if(currentView==='lista'||currentView==='panel') render();
+    if(currentView==='lista'||currentView==='panel'||currentView==='gtasks') render();
     if(currentView==='calendario'){ if(calView==='month') renderCalMonthGrid(); else loadCalendarData(); }
   }catch(e){}
 }
@@ -2360,7 +2456,7 @@ async function completeGoogleTask(listId,taskId){
     });
     googleTasks=googleTasks.filter(t=>!(t.id===taskId&&t._listId===listId));
     setStatus('Tarea marcada como completada en Google Tasks.');
-    if(currentView==='lista'||currentView==='panel') render();
+    if(currentView==='lista'||currentView==='panel'||currentView==='gtasks') render();
     if(currentView==='calendario'){ if(calView==='month') renderCalMonthGrid(); else loadCalendarData(); }
   }catch(e){ setStatus('Error al completar la tarea.'); }
 }
@@ -2382,6 +2478,84 @@ function googleTaskCard(t){
       <button class="btn-ghost btn-small" onclick="completeGoogleTask('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">✓ Completar</button>
     </div>
   </div>`;
+}
+function renderGTasks(){
+  if(!googleToken){
+    return `<div style="padding:40px;text-align:center;color:var(--text-soft);">
+      <p style="font-size:15px;margin-bottom:12px;">Conecta Google para ver tus tareas.</p>
+    </div>`;
+  }
+  const lists = googleTaskLists;
+  const activeList = currentGTaskList || (lists[0]?.id || null);
+  const tasks = googleTasks.filter(t=>t._listId===activeList);
+  const today = todayStr();
+
+  const sidebarItems = lists.map(l=>`
+    <div class="gtl-item ${l.id===activeList?'active':''}" onclick="selectGTaskList('${escapeAttr(l.id)}')">
+      <svg class="gtl-item-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+      ${escapeHtml(l.title)}
+    </div>`).join('');
+
+  const taskItems = tasks.length ? tasks.map(t=>{
+    const due=t.due?t.due.slice(0,10):'';
+    const overdue=due&&due<today;
+    return `<div class="gtl-task-item">
+      <div class="gtl-task-circle" onclick="event.stopPropagation();completeGoogleTask('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')" title="Completar"></div>
+      <div class="gtl-task-body">
+        <div class="gtl-task-title">${escapeHtml(t.title||'(sin título)')}</div>
+        ${t.notes?`<div class="gtl-task-meta">${escapeHtml(t.notes.slice(0,100))}${t.notes.length>100?'…':''}</div>`:''}
+        ${due?`<div class="gtl-task-meta ${overdue?'gtl-task-due-overdue':''}">Límite: ${fmtDateShort(due)}</div>`:''}
+      </div>
+    </div>`;
+  }).join('') : `<div class="gtl-empty"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg><span>Sin tareas pendientes</span></div>`;
+
+  const activeTitle = lists.find(l=>l.id===activeList)?.title || 'Tareas';
+
+  return `<div class="gtasks-layout">
+    <div class="gtl-sidebar">
+      <div class="gtl-sidebar-head">Listas</div>
+      ${sidebarItems}
+      ${!lists.length?`<div style="padding:12px 10px;font-size:12px;color:var(--text-soft);">Cargando…</div>`:''}
+    </div>
+    <div class="gtl-main">
+      <div class="gtl-header">
+        <span class="gtl-header-title">${escapeHtml(activeTitle)}</span>
+        <button class="btn-ghost btn-small" onclick="fetchGoogleTasks()" title="Actualizar"><i class="ti ti-refresh" style="font-size:12px;"></i> Actualizar</button>
+      </div>
+      <div class="gtl-add-row">
+        <input class="gtl-add-input" id="gtlAddInput" placeholder="Añadir tarea…" onkeydown="if(event.key==='Enter') addGTaskQuick('${escapeAttr(activeList||'')}')">
+        <button class="btn-primary btn-small" onclick="addGTaskQuick('${escapeAttr(activeList||'')}')">Añadir</button>
+      </div>
+      <div class="gtl-task-list">
+        ${taskItems}
+      </div>
+    </div>
+  </div>`;
+}
+function selectGTaskList(listId){
+  currentGTaskList = listId;
+  if(currentView==='gtasks') render();
+}
+async function addGTaskQuick(listId){
+  const input = document.getElementById('gtlAddInput');
+  if(!input) return;
+  const title = input.value.trim();
+  if(!title || !listId || !googleToken) return;
+  input.value = '';
+  try{
+    const r = await fetch(`https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(listId)}/tasks`,{
+      method:'POST',
+      headers:{Authorization:`Bearer ${googleToken}`,'Content-Type':'application/json'},
+      body: JSON.stringify({title})
+    });
+    if(r.status===401){handleGoogleExpired();return;}
+    if(r.ok){
+      const newTask = await r.json();
+      googleTasks.unshift({...newTask, _listId:listId, _listTitle: googleTaskLists.find(l=>l.id===listId)?.title||''});
+      if(currentView==='gtasks') render();
+      setStatus('Tarea añadida en Google Tasks.');
+    }
+  }catch(e){ setStatus('Error al añadir la tarea.'); }
 }
 function importEmailAsTask(subject, from){
   openTaskModal(null,{title:subject+(from?` (${from})`:''), tipo:'Correo pendiente'});
