@@ -993,6 +993,12 @@ function openTaskModal(taskId, prefill, fromNoteId){
             <svg width="13" height="13" viewBox="0 0 24 24" fill="#1a73e8"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
             Sincronizar con Google
           </div>
+          ${editing && editing.gTaskId ? `
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span style="font-size:12px;color:#1a73e8;font-weight:600;">✓ Vinculada con Google Tasks</span>
+            <span style="font-size:11px;color:var(--text-soft);">${escapeHtml(googleTasks.find(x=>x.id===editing.gTaskId)?._listTitle||'')}</span>
+            <button class="btn-ghost btn-small" onclick="unlinkGTask('${escapeAttr(editing.gTaskId||'')}')">Desvincular</button>
+          </div>` : `
           <div>
             <div class="gsync-row">
               <label><input type="checkbox" id="gSyncTask" onchange="document.getElementById('gSyncTaskSub').style.display=this.checked?'flex':'none'"> Añadir a Google Tasks</label>
@@ -1002,10 +1008,10 @@ function openTaskModal(taskId, prefill, fromNoteId){
                 ${googleTaskLists.map(l=>`<option value="${escapeAttr(l.id)}">${escapeHtml(l.title)}</option>`).join('')}
               </select>
             </div>
-          </div>
+          </div>`}
           <div>
             <div class="gsync-row">
-              <label><input type="checkbox" id="gSyncCal" onchange="document.getElementById('gSyncCalSub').style.display=this.checked?'flex':'none'"> Crear evento en calendario</label>
+              <label><input type="checkbox" id="gSyncCal" onchange="document.getElementById('gSyncCalSub').style.display=this.checked?'flex':'none'"> Crear evento en Google Calendar</label>
             </div>
             <div class="gsync-sub" id="gSyncCalSub" style="display:none;margin-top:6px;gap:6px;flex-wrap:wrap;">
               <select id="gSyncCalId">
@@ -1128,9 +1134,8 @@ function saveTask(taskId, fromNoteId){
   if(fromNoteId){ state.notes=state.notes.filter(n=>n.id!==fromNoteId); deleteNoteRow(fromNoteId); }
   saveTaskRow(t);
 
-  // Google sync
+  // Google sync — create new Google Task
   const syncTask = document.getElementById('gSyncTask');
-  const syncCal = document.getElementById('gSyncCal');
   if(syncTask?.checked){
     const listId = document.getElementById('gSyncTaskList')?.value;
     if(listId && googleToken){
@@ -1139,9 +1144,33 @@ function saveTask(taskId, fromNoteId){
       if(context) body.notes = context;
       fetch(`https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(listId)}/tasks`,{
         method:'POST', headers:{Authorization:`Bearer ${googleToken}`,'Content-Type':'application/json'}, body:JSON.stringify(body)
-      }).then(r=>r.ok?r.json():null).then(nt=>{ if(nt){ googleTasks.unshift({...nt,_listId:listId,_listTitle:googleTaskLists.find(l=>l.id===listId)?.title||''}); setStatus('Tarea guardada y añadida a Google Tasks.'); } }).catch(()=>{});
+      }).then(r=>r.ok?r.json():null).then(nt=>{
+        if(nt){
+          googleTasks.unshift({...nt,_listId:listId,_listTitle:googleTaskLists.find(l=>l.id===listId)?.title||''});
+          t.gTaskId = nt.id;
+          t.gTaskListId = listId;
+          saveTaskRow(t);
+          setStatus('Tarea guardada y vinculada con Google Tasks.');
+        }
+      }).catch(()=>{});
     }
+  } else if(t.gTaskId && t.gTaskListId && googleToken){
+    // Sync changes back to linked Google Task
+    const gBody = {title};
+    if(due) gBody.due = due+'T00:00:00.000Z'; else gBody.due = null;
+    if(context) gBody.notes = context;
+    fetch(`https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(t.gTaskListId)}/tasks/${encodeURIComponent(t.gTaskId)}`,{
+      method:'PATCH', headers:{Authorization:`Bearer ${googleToken}`,'Content-Type':'application/json'}, body:JSON.stringify(gBody)
+    }).then(r=>{
+      if(r.ok){
+        const idx=googleTasks.findIndex(x=>x.id===t.gTaskId);
+        if(idx>=0) Object.assign(googleTasks[idx],{title,notes:context,due:due?due+'T00:00:00.000Z':''});
+      }
+    }).catch(()=>{});
   }
+
+  // Google Calendar event
+  const syncCal = document.getElementById('gSyncCal');
   if(syncCal?.checked){
     const calId = document.getElementById('gSyncCalId')?.value;
     const calDate = document.getElementById('gSyncCalDate')?.value;
@@ -2464,7 +2493,7 @@ function googleTaskCard(t){
   const due=t.due?t.due.slice(0,10):'';
   const today=todayStr();
   const overdue=due&&due<today;
-  return `<div class="gtask-card">
+  return `<div class="gtask-card" onclick="openGTaskModal('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')" style="cursor:pointer;">
     <div style="display:flex;align-items:flex-start;gap:8px;">
       <span class="gtask-badge">G Tasks</span>
       <span class="gtask-card-title">${escapeHtml(t.title||'(sin título)')}</span>
@@ -2475,7 +2504,7 @@ function googleTaskCard(t){
         ${t._listTitle?`<span style="font-weight:500;">${escapeHtml(t._listTitle)}</span> · `:''}
         ${due?`<span style="${overdue?'color:var(--alta);font-weight:600;':''}">Límite: ${fmtDateShort(due)}</span>`:'Sin fecha'}
       </div>
-      <button class="btn-ghost btn-small" onclick="completeGoogleTask('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">✓ Completar</button>
+      <button class="btn-ghost btn-small" onclick="event.stopPropagation();completeGoogleTask('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">✓ Completar</button>
     </div>
   </div>`;
 }
@@ -2499,10 +2528,11 @@ function renderGTasks(){
   const taskItems = tasks.length ? tasks.map(t=>{
     const due=t.due?t.due.slice(0,10):'';
     const overdue=due&&due<today;
-    return `<div class="gtl-task-item">
+    const linked=state.tasks.find(x=>x.gTaskId===t.id);
+    return `<div class="gtl-task-item" onclick="openGTaskModal('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">
       <div class="gtl-task-circle" onclick="event.stopPropagation();completeGoogleTask('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')" title="Completar"></div>
       <div class="gtl-task-body">
-        <div class="gtl-task-title">${escapeHtml(t.title||'(sin título)')}</div>
+        <div class="gtl-task-title">${escapeHtml(t.title||'(sin título)')}${linked?` <span style="font-size:10px;color:#1a73e8;font-weight:600;margin-left:4px;">↔ ${escapeHtml(linked.title.slice(0,25))}${linked.title.length>25?'…':''}</span>`:''}</div>
         ${t.notes?`<div class="gtl-task-meta">${escapeHtml(t.notes.slice(0,100))}${t.notes.length>100?'…':''}</div>`:''}
         ${due?`<div class="gtl-task-meta ${overdue?'gtl-task-due-overdue':''}">Límite: ${fmtDateShort(due)}</div>`:''}
       </div>
@@ -2557,6 +2587,143 @@ async function addGTaskQuick(listId){
     }
   }catch(e){ setStatus('Error al añadir la tarea.'); }
 }
+function openGTaskModal(listId, taskId){
+  const t = googleTasks.find(x=>x._listId===listId&&x.id===taskId);
+  if(!t) return;
+  const localLinked = state.tasks.find(x=>x.gTaskId===taskId);
+  const due = t.due ? t.due.slice(0,10) : '';
+  const root = document.getElementById('modalRoot');
+  root.innerHTML = `
+    <div class="modal-bg" onclick="if(event.target===this) closeModal()">
+      <div class="modal modal-wide">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <h3 style="margin:0;">Editar Google Task</h3>
+          <span class="gtask-badge" style="font-size:11px;padding:3px 8px;">G Tasks · ${escapeHtml(t._listTitle||'')}</span>
+        </div>
+
+        <div class="field">
+          <label>Título</label>
+          <input type="text" id="gtmTitle" value="${escapeAttr(t.title||'')}" placeholder="Título de la tarea">
+        </div>
+
+        <div class="field">
+          <label>Notas</label>
+          <textarea id="gtmNotes" placeholder="Notas adicionales…">${escapeHtml(t.notes||'')}</textarea>
+        </div>
+
+        <div class="field">
+          <label>Fecha límite</label>
+          <input type="date" id="gtmDue" value="${due}">
+        </div>
+
+        <div class="gsync-section">
+          <div class="gsync-section-title">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="#1a73e8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6" stroke="#1a73e8" stroke-width="2"/><line x1="8" y1="2" x2="8" y2="6" stroke="#1a73e8" stroke-width="2"/><line x1="3" y1="10" x2="21" y2="10" stroke="#1a73e8" stroke-width="2"/></svg>
+            Crear evento en Google Calendar
+          </div>
+          <div class="gsync-row">
+            <label><input type="checkbox" id="gtmSyncCal" onchange="document.getElementById('gtmCalSub').style.display=this.checked?'flex':'none'"> Añadir al calendario</label>
+          </div>
+          <div class="gsync-sub" id="gtmCalSub" style="display:none;margin-top:6px;gap:6px;flex-wrap:wrap;">
+            <select id="gtmCalId">
+              ${googleCalendars.map(c=>`<option value="${escapeAttr(c.id)}">${escapeHtml(c.summary||c.id)}</option>`).join('')}
+            </select>
+            <input type="time" id="gtmCalStart" value="09:00">
+            <input type="time" id="gtmCalEnd" value="10:00">
+          </div>
+        </div>
+
+        <div class="field" style="margin-top:12px;">
+          <label>${localLinked ? 'Tarea local vinculada' : 'Vincular con tarea local (opcional)'}</label>
+          ${localLinked ? `
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--accent-bg);border-radius:7px;">
+            <span style="flex:1;font-size:13px;color:var(--text);">${escapeHtml(localLinked.title)}</span>
+            <button class="btn-ghost btn-small" onclick="openTaskModal('${escapeAttr(localLinked.id)}')">Abrir</button>
+            <button class="btn-ghost btn-small" style="color:var(--alta);" onclick="unlinkGTask('${escapeAttr(taskId)}')">Desvincular</button>
+          </div>` : `
+          <select id="gtmLinkLocal">
+            <option value="">— Sin vincular —</option>
+            ${state.tasks.filter(x=>!x.gTaskId&&x.status!=='hecha').map(x=>`<option value="${escapeAttr(x.id)}">${escapeHtml(x.title)}</option>`).join('')}
+          </select>`}
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+          <button class="btn-ghost" style="color:var(--alta);" onclick="event.stopPropagation();completeGoogleTask('${escapeAttr(listId)}','${escapeAttr(taskId)}');closeModal()">✓ Completar</button>
+          <button class="btn-primary" onclick="saveGTaskModal('${escapeAttr(listId)}','${escapeAttr(taskId)}')">Guardar</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function saveGTaskModal(listId, taskId){
+  const title = document.getElementById('gtmTitle')?.value.trim();
+  if(!title){ setStatus('El título no puede estar vacío.'); return; }
+  const notes = document.getElementById('gtmNotes')?.value.trim() || '';
+  const due   = document.getElementById('gtmDue')?.value || '';
+  const linkLocalId = document.getElementById('gtmLinkLocal')?.value || '';
+  if(!googleToken) return;
+  try{
+    const body = {title, notes};
+    if(due) body.due = due+'T00:00:00.000Z'; else body.due = null;
+    const r = await fetch(`https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(listId)}/tasks/${encodeURIComponent(taskId)}`,{
+      method:'PATCH',
+      headers:{Authorization:`Bearer ${googleToken}`,'Content-Type':'application/json'},
+      body:JSON.stringify(body)
+    });
+    if(r.status===401){ handleGoogleExpired(); return; }
+    if(!r.ok){ setStatus('Error al guardar Google Task.'); return; }
+
+    // Update local cache
+    const idx = googleTasks.findIndex(x=>x._listId===listId&&x.id===taskId);
+    if(idx>=0) Object.assign(googleTasks[idx], {title, notes, due: due?due+'T00:00:00.000Z':''});
+
+    // Create calendar event if checked
+    const syncCal = document.getElementById('gtmSyncCal');
+    if(syncCal?.checked && due){
+      const calId    = document.getElementById('gtmCalId')?.value;
+      const calStart = document.getElementById('gtmCalStart')?.value || '09:00';
+      const calEnd   = document.getElementById('gtmCalEnd')?.value   || '10:00';
+      if(calId){
+        const ev = {summary:title, description:notes,
+          start:{dateTime:`${due}T${calStart}:00`,timeZone:'Europe/Madrid'},
+          end:  {dateTime:`${due}T${calEnd}:00`,  timeZone:'Europe/Madrid'}};
+        await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events`,{
+          method:'POST', headers:{Authorization:`Bearer ${googleToken}`,'Content-Type':'application/json'}, body:JSON.stringify(ev)
+        });
+        if(calView==='month') renderCalMonthGrid(); else if(currentView==='calendario') loadCalendarData();
+      }
+    }
+
+    // Link to local task (new link selected)
+    if(linkLocalId){
+      const local = state.tasks.find(x=>x.id===linkLocalId);
+      if(local){ local.gTaskId=taskId; local.gTaskListId=listId; saveTaskRow(local); }
+    }
+
+    // Sync changes to already-linked local task
+    const linked = state.tasks.find(x=>x.gTaskId===taskId);
+    if(linked){
+      linked.title = title;
+      if(notes) linked.context = notes;
+      if(due)   linked.due = due;
+      saveTaskRow(linked);
+    }
+
+    setStatus('Google Task guardada.');
+    closeModal();
+    if(currentView==='gtasks'||currentView==='lista'||currentView==='panel') render();
+  }catch(e){ setStatus('Error al guardar Google Task.'); }
+}
+
+function unlinkGTask(taskId){
+  const linked = state.tasks.find(x=>x.gTaskId===taskId);
+  if(linked){ delete linked.gTaskId; delete linked.gTaskListId; saveTaskRow(linked); }
+  setStatus('Vínculo eliminado.');
+  closeModal();
+  if(currentView==='gtasks'||currentView==='lista'||currentView==='panel') render();
+}
+
 function importEmailAsTask(subject, from){
   openTaskModal(null,{title:subject+(from?` (${from})`:''), tipo:'Correo pendiente'});
 }
