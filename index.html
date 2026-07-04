@@ -2004,6 +2004,7 @@ function renderCalendario(){
         <button class="cal-view-tab ${calView==='week'?'active':''}" onclick="setCalView('week')">Semana</button>
         <button class="cal-view-tab ${calView==='month'?'active':''}" onclick="setCalView('month')">Mes</button>
       </div>
+      <button class="btn-primary btn-small" onclick="openCalEventModal(null)" style="gap:4px;"><i class="ti ti-plus"></i> Evento</button>
       <button class="btn-ghost btn-small" onclick="loadCalendarData()" title="Actualizar"><i class="ti ti-refresh"></i></button>
     </div>
     <div class="cal-selector" id="calSelector"></div>
@@ -2081,7 +2082,7 @@ function renderCalDayGrid(){
     const t=ev.start.dateTime?new Date(ev.start.dateTime).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'Todo el día';
     const tend=ev.end?.dateTime?new Date(ev.end.dateTime).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'';
     const dot=ev._calColor?`<span class="cal-day-event-dot" style="background:${ev._calColor};"></span>`:'';
-    return `<div class="cal-day-event-row">
+    return `<div class="cal-day-event-row" style="cursor:pointer;" onclick="openCalEventModal('${escapeAttr(ev.id)}')">
       ${dot}
       <div class="cal-day-event-info">
         <div class="cal-day-event-time">${t}${tend?' – '+tend:''}</div>
@@ -2107,7 +2108,7 @@ function renderCalWeekGrid(){
     const evs=byDay[ds]||[];
     const evHtml=evs.map(ev=>{
       const t=ev.start.dateTime?new Date(ev.start.dateTime).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'';
-      return `<div class="cal-week-event" style="background:${ev._calColor||'var(--accent)'};">${t?t+' ':''}${escapeHtml(ev.summary||'')}</div>`;
+      return `<div class="cal-week-event" style="background:${ev._calColor||'var(--accent)'};cursor:pointer;" onclick="event.stopPropagation();openCalEventModal('${escapeAttr(ev.id)}')">${t?t+' ':''}${escapeHtml(ev.summary||'')}</div>`;
     }).join('');
     const colGTasks=googleTasks.filter(t=>t.due&&t.due.slice(0,10)===ds);
     const colLTasks=state.tasks.filter(t=>t.due===ds&&t.status!=='hecha');
@@ -2169,7 +2170,7 @@ function renderCalDayDetail(){
     (evs.length ? evs.map(ev=>{
       const t=ev.start.dateTime?new Date(ev.start.dateTime).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'Todo el día';
       const dot=ev._calColor?`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${ev._calColor};flex-shrink:0;margin-top:3px;"></span>`:'';
-      return `<div class="agenda-event">${dot}<span class="agenda-event-time">${t}</span><span class="agenda-event-title">${escapeHtml(ev.summary||'(sin título)')}</span></div>`;
+      return `<div class="agenda-event" style="cursor:pointer;" onclick="openCalEventModal('${escapeAttr(ev.id)}')">${dot}<span class="agenda-event-time">${t}</span><span class="agenda-event-title">${escapeHtml(ev.summary||'(sin título)')}</span></div>`;
     }).join('') : '<p class="empty">Sin eventos este día.</p>')+
     (dayGTasks.length ? `<div style="margin-top:10px;font-size:11px;font-weight:700;color:#1a73e8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">✓ Google Tasks</div>`+
       dayGTasks.map(t=>`<div class="agenda-event" style="border-left:2px solid #1a73e8;padding-left:8px;cursor:pointer;" onclick="openGTaskModal('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">
@@ -2225,7 +2226,7 @@ function renderCalMonthGrid(){
     const isSel=dateStr===calSelectedDay;
     const evs=byDay[dateStr]||[];
     const maxShow=3;
-    const dots=evs.slice(0,maxShow).map(ev=>`<div class="cal-event-pill" style="background:${ev._calColor||'var(--accent)'};">${escapeHtml(ev.summary||'')}</div>`).join('');
+    const dots=evs.slice(0,maxShow).map(ev=>`<div class="cal-event-pill" style="background:${ev._calColor||'var(--accent)'};cursor:pointer;" onclick="event.stopPropagation();openCalEventModal('${escapeAttr(ev.id)}')">${escapeHtml(ev.summary||'')}</div>`).join('');
     const more=evs.length>maxShow?`<div class="cal-event-more">+${evs.length-maxShow} más</div>`:'';
     const dayTasks=(taskByDay[dateStr]||[]);
     const taskDots=dayTasks.slice(0,3).map(t=>t._type==='gtask'
@@ -2253,7 +2254,7 @@ async function refreshHeaderEvents(){
       fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?timeMin=${encodeURIComponent(now.toISOString())}&timeMax=${encodeURIComponent(end.toISOString())}&singleEvents=true&orderBy=startTime&maxResults=20`,
         {headers:{Authorization:`Bearer ${googleToken}`}})
       .then(r=>r.ok?r.json():{items:[]})
-      .then(d=>(d.items||[]).map(ev=>({...ev,_calName:cal.summary,_calColor:cal.backgroundColor})))
+      .then(d=>(d.items||[]).map(ev=>({...ev,_calName:cal.summary,_calColor:cal.backgroundColor,_calId:cal.id})))
       .catch(()=>[])
     ));
     calHeaderEvents=results.flat().sort((a,b)=>(a.start.dateTime||a.start.date)<(b.start.dateTime||b.start.date)?-1:1);
@@ -2388,6 +2389,152 @@ async function loadCalendarWidget(){
     </div>`;
   }).join('');
 }
+function _findCalEvent(id){ return calMonthEvents.find(x=>x.id===id)||calHeaderEvents.find(x=>x.id===id)||null; }
+
+function openCalEventModal(eventId, defaultDate){
+  const ev = eventId ? _findCalEvent(eventId) : null;
+  const isAllDay = ev ? !!ev.start?.date : false;
+  const startDt = ev?.start?.dateTime ? new Date(ev.start.dateTime) : null;
+  const endDt   = ev?.end?.dateTime   ? new Date(ev.end.dateTime)   : null;
+  const startDate = ev ? (ev.start.date || ev.start.dateTime?.slice(0,10)) : (defaultDate || todayStr());
+  const startTime = startDt ? startDt.toTimeString().slice(0,5) : '09:00';
+  // Google all-day end is exclusive — subtract 1 day for display
+  const endDateRaw = ev ? (ev.end?.date || ev.end?.dateTime?.slice(0,10)) : startDate;
+  const endDateDisp = (ev && ev.end?.date)
+    ? new Date(new Date(ev.end.date+'T12:00:00').getTime()-86400000).toISOString().slice(0,10)
+    : endDateRaw;
+  const endTime = endDt ? endDt.toTimeString().slice(0,5) : '10:00';
+  const calId = ev?._calId || googleCalendars[0]?.id || 'primary';
+  const root = document.getElementById('modalRoot');
+  root.innerHTML = `
+    <div class="modal-bg" onclick="if(event.target===this) closeModal()">
+      <div class="modal modal-wide">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <h3 style="margin:0;">${ev ? 'Editar evento' : 'Nuevo evento'}</h3>
+          ${ev?._calName ? `<span style="font-size:12px;color:var(--text-soft);">${escapeHtml(ev._calName)}</span>` : ''}
+        </div>
+        <div class="field">
+          <label>Título</label>
+          <input type="text" id="cevTitle" value="${escapeAttr(ev?.summary||'')}" placeholder="Título del evento">
+        </div>
+        <div class="field">
+          <label>Calendario</label>
+          <select id="cevCalId">
+            ${googleCalendars.map(c=>`<option value="${escapeAttr(c.id)}" ${c.id===calId?'selected':''}>${escapeHtml(c.summary||c.id)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="gsync-row" style="margin-bottom:12px;">
+          <label><input type="checkbox" id="cevAllDay" onchange="toggleCalEventAllDay(this.checked)" ${isAllDay?'checked':''}> Todo el día</label>
+        </div>
+        <div class="field-row">
+          <div class="field" style="margin-bottom:0;">
+            <label>Fecha inicio</label>
+            <input type="date" id="cevStartDate" value="${startDate}" onchange="if(document.getElementById('cevEndDate').value<this.value) document.getElementById('cevEndDate').value=this.value;">
+          </div>
+          <div class="field" style="margin-bottom:0;" id="cevStartTimeWrap">
+            <label>Hora inicio</label>
+            <input type="time" id="cevStartTime" value="${startTime}">
+          </div>
+        </div>
+        <div class="field-row" style="margin-top:10px;">
+          <div class="field" style="margin-bottom:0;">
+            <label>Fecha fin</label>
+            <input type="date" id="cevEndDate" value="${endDateDisp}">
+          </div>
+          <div class="field" style="margin-bottom:0;" id="cevEndTimeWrap">
+            <label>Hora fin</label>
+            <input type="time" id="cevEndTime" value="${endTime}">
+          </div>
+        </div>
+        <div class="field" style="margin-top:12px;">
+          <label>Descripción (opcional)</label>
+          <textarea id="cevDesc" placeholder="Notas, enlace de videoconferencia…">${escapeHtml(ev?.description||'')}</textarea>
+        </div>
+        <div class="field">
+          <label>Ubicación (opcional)</label>
+          <input type="text" id="cevLocation" value="${escapeAttr(ev?.location||'')}" placeholder="Dirección, sala, enlace…">
+        </div>
+        <div class="modal-actions">
+          <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+          ${ev ? `<button class="btn-ghost" style="color:var(--alta);" onclick="deleteCalEvent('${escapeAttr(ev.id)}','${escapeAttr(ev._calId||'')}')">Eliminar</button>` : ''}
+          <button class="btn-primary" onclick="saveCalEvent('${escapeAttr(eventId||'')}','${escapeAttr(ev?._calId||'')}')">Guardar</button>
+        </div>
+      </div>
+    </div>`;
+  toggleCalEventAllDay(isAllDay);
+}
+
+function toggleCalEventAllDay(allDay){
+  const sw = document.getElementById('cevStartTimeWrap');
+  const ew = document.getElementById('cevEndTimeWrap');
+  if(sw) sw.style.display = allDay ? 'none' : '';
+  if(ew) ew.style.display = allDay ? 'none' : '';
+}
+
+async function saveCalEvent(eventId, originalCalId){
+  const title = document.getElementById('cevTitle')?.value.trim();
+  if(!title){ setStatus('El título no puede estar vacío.'); return; }
+  const newCalId   = document.getElementById('cevCalId')?.value || originalCalId || 'primary';
+  const allDay     = document.getElementById('cevAllDay')?.checked;
+  const startDate  = document.getElementById('cevStartDate')?.value;
+  const startTime  = document.getElementById('cevStartTime')?.value || '00:00';
+  const endDate    = document.getElementById('cevEndDate')?.value || startDate;
+  const endTime    = document.getElementById('cevEndTime')?.value || '01:00';
+  const desc       = document.getElementById('cevDesc')?.value.trim() || '';
+  const location   = document.getElementById('cevLocation')?.value.trim() || '';
+  if(!startDate || !googleToken) return;
+  const body = { summary: title };
+  if(desc)     body.description = desc;
+  if(location) body.location    = location;
+  if(allDay){
+    body.start = { date: startDate };
+    const endExcl = new Date(endDate+'T12:00:00'); endExcl.setDate(endExcl.getDate()+1);
+    body.end = { date: endExcl.toISOString().slice(0,10) };
+  } else {
+    body.start = { dateTime: `${startDate}T${startTime}:00`, timeZone: 'Europe/Madrid' };
+    body.end   = { dateTime: `${endDate}T${endTime}:00`,     timeZone: 'Europe/Madrid' };
+  }
+  try{
+    let r;
+    if(eventId && originalCalId && newCalId !== originalCalId){
+      // Move to different calendar: delete + create
+      await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(originalCalId)}/events/${encodeURIComponent(eventId)}`,
+        { method:'DELETE', headers:{Authorization:`Bearer ${googleToken}`} });
+      r = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(newCalId)}/events`,
+        { method:'POST', headers:{Authorization:`Bearer ${googleToken}`,'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    } else if(eventId){
+      r = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(originalCalId||newCalId)}/events/${encodeURIComponent(eventId)}`,
+        { method:'PUT', headers:{Authorization:`Bearer ${googleToken}`,'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    } else {
+      r = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(newCalId)}/events`,
+        { method:'POST', headers:{Authorization:`Bearer ${googleToken}`,'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    }
+    if(r.status===401){ handleGoogleExpired(); return; }
+    if(!r.ok){ setStatus('Error al guardar el evento.'); return; }
+    setStatus(eventId ? 'Evento actualizado.' : 'Evento creado.');
+    closeModal();
+    loadCalendarData(); refreshHeaderEvents();
+  }catch(e){ setStatus('Error al guardar el evento.'); }
+}
+
+async function deleteCalEvent(eventId, calId){
+  if(!googleToken || !eventId || !calId) return;
+  if(!confirm('¿Eliminar este evento de Google Calendar?')) return;
+  try{
+    const r = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events/${encodeURIComponent(eventId)}`,
+      { method:'DELETE', headers:{Authorization:`Bearer ${googleToken}`} });
+    if(r.status===401){ handleGoogleExpired(); return; }
+    if(r.ok || r.status===204){
+      calMonthEvents  = calMonthEvents.filter(x=>x.id!==eventId);
+      calHeaderEvents = calHeaderEvents.filter(x=>x.id!==eventId);
+      setStatus('Evento eliminado.');
+      closeModal();
+      if(currentView==='calendario') render();
+      refreshHeaderEvents();
+    } else { setStatus('Error al eliminar el evento.'); }
+  }catch(e){ setStatus('Error al eliminar el evento.'); }
+}
+
 async function fetchCalendarEvents(timeMin, timeMax){
   if(!googleToken) return [];
   if(!googleCalendars.length) await fetchCalendarList();
@@ -2400,7 +2547,7 @@ async function fetchCalendarEvents(timeMin, timeMax){
       fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?timeMin=${encodeURIComponent(now)}&timeMax=${encodeURIComponent(end)}&singleEvents=true&orderBy=startTime&maxResults=50`,
         {headers:{Authorization:`Bearer ${googleToken}`}})
       .then(r=>{ if(r.status===401){handleGoogleExpired();} return r.ok?r.json():{items:[]}; })
-      .then(d=>(d.items||[]).map(ev=>({...ev,_calName:cal.summary,_calColor:cal.backgroundColor})))
+      .then(d=>(d.items||[]).map(ev=>({...ev,_calName:cal.summary,_calColor:cal.backgroundColor,_calId:cal.id})))
       .catch(()=>[])
     ));
     return results.flat().sort((a,b)=>{
