@@ -357,6 +357,16 @@
   .gtask-day-row-label{font-size:10.5px;font-weight:600;color:#1a73e8;margin-bottom:2px;}
   .gtask-day-row-title{font-size:13px;font-weight:500;color:var(--text);}
   .gtask-section-head{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#1a73e8;margin:14px 0 8px;display:flex;align-items:center;gap:6px;}
+  .ltask-cal-pill{font-size:10px;padding:1px 5px;border-radius:3px;margin-bottom:2px;border-left:2px solid #7c3aed;background:rgba(124,58,237,.1);color:#5b21b6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4;cursor:pointer;}
+  .ltask-cal-pill:hover{background:rgba(124,58,237,.18);}
+  .ltask-cal-pill.alta{border-left-color:#ef4444;background:rgba(239,68,68,.08);color:#b91c1c;}
+  .ltask-cal-pill.media{border-left-color:#f59e0b;background:rgba(245,158,11,.08);color:#92400e;}
+  .ltask-cal-pill.baja{border-left-color:#22c55e;background:rgba(34,197,94,.08);color:#15803d;}
+  .ltask-day-row{display:flex;align-items:flex-start;gap:10px;padding:9px 12px;background:rgba(124,58,237,.07);border:1px solid rgba(124,58,237,.2);border-left:3px solid #7c3aed;border-radius:8px;margin-bottom:7px;cursor:pointer;}
+  .ltask-day-row:hover{background:rgba(124,58,237,.12);}
+  .ltask-day-row.alta{border-left-color:#ef4444;background:rgba(239,68,68,.06);border-color:rgba(239,68,68,.2);}
+  .ltask-day-row.media{border-left-color:#f59e0b;background:rgba(245,158,11,.06);border-color:rgba(245,158,11,.2);}
+  .ltask-day-row.baja{border-left-color:#22c55e;background:rgba(34,197,94,.06);border-color:rgba(34,197,94,.2);}
 
   /* Google Tasks view */
   .gtasks-layout{display:grid;grid-template-columns:200px 1fr;border:1px solid var(--border);border-radius:10px;overflow:hidden;height:calc(100dvh - 158px);min-height:360px;background:var(--surface);}
@@ -2029,16 +2039,24 @@ async function loadCalendarData(){
 }
 function renderCalDayGrid(){
   const dateStr=calViewDate.toISOString().slice(0,10);
-  const dayTasks=googleTasks.filter(t=>t.due&&t.due.slice(0,10)===dateStr);
-  const taskHtml=dayTasks.map(t=>`<div class="gtask-day-row">
+  const dayGTasks=googleTasks.filter(t=>t.due&&t.due.slice(0,10)===dateStr);
+  const dayLTasks=state.tasks.filter(t=>t.due===dateStr&&t.status!=='hecha');
+  const taskHtml=dayGTasks.map(t=>`<div class="gtask-day-row" onclick="openGTaskModal('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">
     <div class="gtask-day-row-info">
       <div class="gtask-day-row-label">✓ Google Tasks · ${escapeHtml(t._listTitle||'')}</div>
       <div class="gtask-day-row-title">${escapeHtml(t.title||'')}</div>
       ${t.notes?`<div style="font-size:11px;color:var(--text-soft);margin-top:2px;">${escapeHtml(t.notes.slice(0,80))}</div>`:''}
     </div>
-    <button class="btn-ghost btn-small" style="flex-shrink:0;" onclick="completeGoogleTask('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">✓</button>
+    <button class="btn-ghost btn-small" style="flex-shrink:0;" onclick="event.stopPropagation();completeGoogleTask('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">✓</button>
+  </div>`).join('')
+  +dayLTasks.map(t=>`<div class="ltask-day-row ${t.urgency||''}" onclick="openTaskModal('${escapeAttr(t.id)}')">
+    <div class="gtask-day-row-info">
+      <div class="gtask-day-row-label" style="color:#7c3aed;">● Tarea · ${escapeHtml(t.tipo||t.urgency||'')}</div>
+      <div class="gtask-day-row-title">${escapeHtml(t.title||'')}</div>
+      ${t.context?`<div style="font-size:11px;color:var(--text-soft);margin-top:2px;">${escapeHtml(t.context.slice(0,80))}</div>`:''}
+    </div>
   </div>`).join('');
-  if(!calMonthEvents.length && !dayTasks.length) return '<p class="empty" style="padding:16px;">Sin eventos ni tareas este día.</p>';
+  if(!calMonthEvents.length && !dayGTasks.length && !dayLTasks.length) return '<p class="empty" style="padding:16px;">Sin eventos ni tareas este día.</p>';
   return taskHtml+calMonthEvents.map(ev=>{
     const t=ev.start.dateTime?new Date(ev.start.dateTime).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'Todo el día';
     const tend=ev.end?.dateTime?new Date(ev.end.dateTime).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'';
@@ -2071,8 +2089,10 @@ function renderCalWeekGrid(){
       const t=ev.start.dateTime?new Date(ev.start.dateTime).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'';
       return `<div class="cal-week-event" style="background:${ev._calColor||'var(--accent)'};">${t?t+' ':''}${escapeHtml(ev.summary||'')}</div>`;
     }).join('');
-    const colTasks=googleTasks.filter(t=>t.due&&t.due.slice(0,10)===ds);
-    const taskHtml=colTasks.map(t=>`<div class="gtask-cal-pill">✓ ${escapeHtml(t.title||'')}</div>`).join('');
+    const colGTasks=googleTasks.filter(t=>t.due&&t.due.slice(0,10)===ds);
+    const colLTasks=state.tasks.filter(t=>t.due===ds&&t.status!=='hecha');
+    const taskHtml=colGTasks.map(t=>`<div class="gtask-cal-pill" onclick="event.stopPropagation();openGTaskModal('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">✓ ${escapeHtml(t.title||'')}</div>`).join('')
+      +colLTasks.map(t=>`<div class="ltask-cal-pill ${t.urgency||''}" onclick="event.stopPropagation();openTaskModal('${escapeAttr(t.id)}')">● ${escapeHtml(t.title||'')}</div>`).join('');
     return `<div class="cal-week-col">
       <div class="cal-week-col-head ${isT?'today-col':''}">
         <div class="cal-week-col-head-name">${names[i]}</div>
@@ -2102,19 +2122,25 @@ function renderCalDayDetail(){
   const d=new Date(calSelectedDay+'T12:00:00');
   const label=d.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
   det.style.display='block';
-  const dayTasks=googleTasks.filter(t=>t.due&&t.due.slice(0,10)===calSelectedDay);
+  const dayGTasks=googleTasks.filter(t=>t.due&&t.due.slice(0,10)===calSelectedDay);
+  const dayLTasks=state.tasks.filter(t=>t.due===calSelectedDay&&t.status!=='hecha');
   det.innerHTML=`<div class="cal-day-detail-head">${label}</div>`+
     (evs.length ? evs.map(ev=>{
       const t=ev.start.dateTime?new Date(ev.start.dateTime).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'Todo el día';
       const dot=ev._calColor?`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${ev._calColor};flex-shrink:0;margin-top:3px;"></span>`:'';
       return `<div class="agenda-event">${dot}<span class="agenda-event-time">${t}</span><span class="agenda-event-title">${escapeHtml(ev.summary||'(sin título)')}</span></div>`;
     }).join('') : '<p class="empty">Sin eventos este día.</p>')+
-    (dayTasks.length ? `<div style="margin-top:10px;font-size:11px;font-weight:700;color:#1a73e8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">✓ Tareas</div>`+
-      dayTasks.map(t=>`<div class="agenda-event" style="border-left:2px solid #1a73e8;padding-left:8px;">
+    (dayGTasks.length ? `<div style="margin-top:10px;font-size:11px;font-weight:700;color:#1a73e8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">✓ Google Tasks</div>`+
+      dayGTasks.map(t=>`<div class="agenda-event" style="border-left:2px solid #1a73e8;padding-left:8px;cursor:pointer;" onclick="openGTaskModal('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">
         <span class="agenda-event-time" style="color:#1a73e8;font-size:11px;">${escapeHtml(t._listTitle||'Tasks')}</span>
         <span class="agenda-event-title">${escapeHtml(t.title||'')}
           <button class="btn-ghost btn-small" style="font-size:10px;padding:1px 6px;margin-left:6px;" onclick="event.stopPropagation();completeGoogleTask('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">✓</button>
         </span>
+      </div>`).join('') : '')+
+    (dayLTasks.length ? `<div style="margin-top:10px;font-size:11px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">● Tareas</div>`+
+      dayLTasks.map(t=>`<div class="agenda-event" style="border-left:2px solid #7c3aed;padding-left:8px;cursor:pointer;" onclick="openTaskModal('${escapeAttr(t.id)}')">
+        <span class="agenda-event-time" style="color:#7c3aed;font-size:11px;">${escapeHtml(t.tipo||t.urgency||'')}</span>
+        <span class="agenda-event-title">${escapeHtml(t.title||'')}</span>
       </div>`).join('') : '');
 }
 async function loadCalendarMonth(){
@@ -2138,7 +2164,8 @@ function renderCalMonthGrid(){
   const byDay={};
   calMonthEvents.forEach(ev=>{const d=ev.start.dateTime?ev.start.dateTime.slice(0,10):ev.start.date; if(!byDay[d])byDay[d]=[]; byDay[d].push(ev);});
   const taskByDay={};
-  googleTasks.filter(t=>t.due).forEach(t=>{const d=t.due.slice(0,10); if(!taskByDay[d])taskByDay[d]=[]; taskByDay[d].push(t);});
+  googleTasks.filter(t=>t.due).forEach(t=>{const d=t.due.slice(0,10); if(!taskByDay[d])taskByDay[d]=[]; taskByDay[d].push({_type:'gtask',...t});});
+  state.tasks.filter(t=>t.due&&t.status!=='hecha').forEach(t=>{if(!taskByDay[t.due])taskByDay[t.due]=[]; taskByDay[t.due].push({_type:'ltask',...t});});
   const dowLabels=['Lu','Ma','Mi','Ju','Vi','Sá','Do'];
   let html=dowLabels.map(d=>`<div class="cal-dow">${d}</div>`).join('');
   for(let i=0;i<startDow;i++) html+=`<div class="cal-day other-month"></div>`;
@@ -2151,7 +2178,10 @@ function renderCalMonthGrid(){
     const dots=evs.slice(0,maxShow).map(ev=>`<div class="cal-event-pill" style="background:${ev._calColor||'var(--accent)'};">${escapeHtml(ev.summary||'')}</div>`).join('');
     const more=evs.length>maxShow?`<div class="cal-event-more">+${evs.length-maxShow} más</div>`:'';
     const dayTasks=(taskByDay[dateStr]||[]);
-    const taskDots=dayTasks.slice(0,2).map(t=>`<div class="gtask-cal-pill">✓ ${escapeHtml(t.title||'')}</div>`).join('');
+    const taskDots=dayTasks.slice(0,3).map(t=>t._type==='gtask'
+      ? `<div class="gtask-cal-pill" onclick="event.stopPropagation();openGTaskModal('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">✓ ${escapeHtml(t.title||'')}</div>`
+      : `<div class="ltask-cal-pill ${t.urgency||''}" onclick="event.stopPropagation();openTaskModal('${escapeAttr(t.id)}')">● ${escapeHtml(t.title||'')}</div>`
+    ).join('');
     html+=`<div class="cal-day ${isToday?'today':''} ${isSel?'selected':''}" data-date="${dateStr}" onclick="selectCalDay('${dateStr}')">
       <div class="cal-day-num">${d}</div>${dots}${more}${taskDots}
     </div>`;
