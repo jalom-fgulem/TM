@@ -367,6 +367,9 @@
   .ltask-day-row.alta{border-left-color:#ef4444;background:rgba(239,68,68,.06);border-color:rgba(239,68,68,.2);}
   .ltask-day-row.media{border-left-color:#f59e0b;background:rgba(245,158,11,.06);border-color:rgba(245,158,11,.2);}
   .ltask-day-row.baja{border-left-color:#22c55e;background:rgba(34,197,94,.06);border-color:rgba(34,197,94,.2);}
+  .ltask-cal-pill.overdue,.gtask-cal-pill.overdue{border-left-color:#ef4444;background:rgba(239,68,68,.18);color:#b91c1c;font-weight:700;animation:overdue-pulse 2s ease-in-out infinite;}
+  .ltask-day-row.overdue,.gtask-day-row.overdue{border-left-color:#ef4444;background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);animation:overdue-pulse 2s ease-in-out infinite;}
+  @keyframes overdue-pulse{0%,100%{opacity:1;}50%{opacity:.65;}}
 
   /* Google Tasks view */
   .gtasks-layout{display:grid;grid-template-columns:200px 1fr;border:1px solid var(--border);border-radius:10px;overflow:hidden;height:calc(100dvh - 158px);min-height:360px;background:var(--surface);}
@@ -2039,8 +2042,12 @@ async function loadCalendarData(){
 }
 function renderCalDayGrid(){
   const dateStr=calViewDate.toISOString().slice(0,10);
+  const today2=todayStr();
+  const isToday3=dateStr===today2;
   const dayGTasks=googleTasks.filter(t=>t.due&&t.due.slice(0,10)===dateStr);
   const dayLTasks=state.tasks.filter(t=>t.due===dateStr&&t.status!=='hecha');
+  const overdueGTasks=isToday3?googleTasks.filter(t=>t.due&&t.due.slice(0,10)<today2):[];
+  const overdueLTasks=isToday3?state.tasks.filter(t=>t.due&&t.due<today2&&t.status!=='hecha'):[];
   const taskHtml=dayGTasks.map(t=>`<div class="gtask-day-row" onclick="openGTaskModal('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">
     <div class="gtask-day-row-info">
       <div class="gtask-day-row-label">✓ Google Tasks · ${escapeHtml(t._listTitle||'')}</div>
@@ -2056,8 +2063,21 @@ function renderCalDayGrid(){
       ${t.context?`<div style="font-size:11px;color:var(--text-soft);margin-top:2px;">${escapeHtml(t.context.slice(0,80))}</div>`:''}
     </div>
   </div>`).join('');
-  if(!calMonthEvents.length && !dayGTasks.length && !dayLTasks.length) return '<p class="empty" style="padding:16px;">Sin eventos ni tareas este día.</p>';
-  return taskHtml+calMonthEvents.map(ev=>{
+  const overdueHtml=overdueGTasks.map(t=>`<div class="gtask-day-row overdue" onclick="openGTaskModal('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">
+    <div class="gtask-day-row-info">
+      <div class="gtask-day-row-label" style="color:#ef4444;">⚠ Vencida · Google Tasks · ${escapeHtml(t._listTitle||'')}</div>
+      <div class="gtask-day-row-title">${escapeHtml(t.title||'')}</div>
+    </div>
+    <button class="btn-ghost btn-small" style="flex-shrink:0;" onclick="event.stopPropagation();completeGoogleTask('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">✓</button>
+  </div>`).join('')
+  +overdueLTasks.map(t=>`<div class="ltask-day-row overdue" onclick="openTaskModal('${escapeAttr(t.id)}')">
+    <div class="gtask-day-row-info">
+      <div class="gtask-day-row-label" style="color:#ef4444;">⚠ Vencida · ${escapeHtml(t.tipo||t.urgency||'Tarea')}</div>
+      <div class="gtask-day-row-title">${escapeHtml(t.title||'')}</div>
+    </div>
+  </div>`).join('');
+  if(!calMonthEvents.length && !dayGTasks.length && !dayLTasks.length && !overdueGTasks.length && !overdueLTasks.length) return '<p class="empty" style="padding:16px;">Sin eventos ni tareas este día.</p>';
+  return overdueHtml+taskHtml+calMonthEvents.map(ev=>{
     const t=ev.start.dateTime?new Date(ev.start.dateTime).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'Todo el día';
     const tend=ev.end?.dateTime?new Date(ev.end.dateTime).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'';
     const dot=ev._calColor?`<span class="cal-day-event-dot" style="background:${ev._calColor};"></span>`:'';
@@ -2091,8 +2111,13 @@ function renderCalWeekGrid(){
     }).join('');
     const colGTasks=googleTasks.filter(t=>t.due&&t.due.slice(0,10)===ds);
     const colLTasks=state.tasks.filter(t=>t.due===ds&&t.status!=='hecha');
+    const isToday2=ds===today;
+    const overdueGTasks=isToday2?googleTasks.filter(t=>t.due&&t.due.slice(0,10)<today):[];
+    const overdueLTasks=isToday2?state.tasks.filter(t=>t.due&&t.due<today&&t.status!=='hecha'):[];
     const taskHtml=colGTasks.map(t=>`<div class="gtask-cal-pill" onclick="event.stopPropagation();openGTaskModal('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">✓ ${escapeHtml(t.title||'')}</div>`).join('')
-      +colLTasks.map(t=>`<div class="ltask-cal-pill ${t.urgency||''}" onclick="event.stopPropagation();openTaskModal('${escapeAttr(t.id)}')">● ${escapeHtml(t.title||'')}</div>`).join('');
+      +colLTasks.map(t=>`<div class="ltask-cal-pill ${t.urgency||''}" onclick="event.stopPropagation();openTaskModal('${escapeAttr(t.id)}')">● ${escapeHtml(t.title||'')}</div>`).join('')
+      +overdueGTasks.map(t=>`<div class="gtask-cal-pill overdue" onclick="event.stopPropagation();openGTaskModal('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">⚠ ${escapeHtml(t.title||'')}</div>`).join('')
+      +overdueLTasks.map(t=>`<div class="ltask-cal-pill ${t.urgency||''} overdue" onclick="event.stopPropagation();openTaskModal('${escapeAttr(t.id)}')">⚠ ${escapeHtml(t.title||'')}</div>`).join('');
     return `<div class="cal-week-col">
       <div class="cal-week-col-head ${isT?'today-col':''}">
         <div class="cal-week-col-head-name">${names[i]}</div>
@@ -2122,9 +2147,25 @@ function renderCalDayDetail(){
   const d=new Date(calSelectedDay+'T12:00:00');
   const label=d.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
   det.style.display='block';
+  const isSelectedToday = calSelectedDay===todayStr();
   const dayGTasks=googleTasks.filter(t=>t.due&&t.due.slice(0,10)===calSelectedDay);
   const dayLTasks=state.tasks.filter(t=>t.due===calSelectedDay&&t.status!=='hecha');
+  const overdueGDet=isSelectedToday?googleTasks.filter(t=>t.due&&t.due.slice(0,10)<calSelectedDay):[];
+  const overdueLDet=isSelectedToday?state.tasks.filter(t=>t.due&&t.due<calSelectedDay&&t.status!=='hecha'):[];
+  const overdueSection=(overdueGDet.length||overdueLDet.length)?
+    `<div style="margin-top:10px;font-size:11px;font-weight:700;color:#ef4444;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">⚠ Vencidas</div>`+
+    overdueGDet.map(t=>`<div class="agenda-event" style="border-left:2px solid #ef4444;padding-left:8px;cursor:pointer;background:rgba(239,68,68,.05);border-radius:4px;" onclick="openGTaskModal('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">
+      <span class="agenda-event-time" style="color:#ef4444;font-size:11px;">G Tasks · ${escapeHtml(t._listTitle||'')}</span>
+      <span class="agenda-event-title">${escapeHtml(t.title||'')}
+        <button class="btn-ghost btn-small" style="font-size:10px;padding:1px 6px;margin-left:6px;" onclick="event.stopPropagation();completeGoogleTask('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">✓</button>
+      </span>
+    </div>`).join('')+
+    overdueLDet.map(t=>`<div class="agenda-event" style="border-left:2px solid #ef4444;padding-left:8px;cursor:pointer;background:rgba(239,68,68,.05);border-radius:4px;" onclick="openTaskModal('${escapeAttr(t.id)}')">
+      <span class="agenda-event-time" style="color:#ef4444;font-size:11px;">${escapeHtml(t.tipo||t.urgency||'Tarea')}</span>
+      <span class="agenda-event-title">${escapeHtml(t.title||'')}</span>
+    </div>`).join('') : '';
   det.innerHTML=`<div class="cal-day-detail-head">${label}</div>`+
+    overdueSection+
     (evs.length ? evs.map(ev=>{
       const t=ev.start.dateTime?new Date(ev.start.dateTime).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'Todo el día';
       const dot=ev._calColor?`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${ev._calColor};flex-shrink:0;margin-top:3px;"></span>`:'';
@@ -2164,8 +2205,17 @@ function renderCalMonthGrid(){
   const byDay={};
   calMonthEvents.forEach(ev=>{const d=ev.start.dateTime?ev.start.dateTime.slice(0,10):ev.start.date; if(!byDay[d])byDay[d]=[]; byDay[d].push(ev);});
   const taskByDay={};
-  googleTasks.filter(t=>t.due).forEach(t=>{const d=t.due.slice(0,10); if(!taskByDay[d])taskByDay[d]=[]; taskByDay[d].push({_type:'gtask',...t});});
-  state.tasks.filter(t=>t.due&&t.status!=='hecha').forEach(t=>{if(!taskByDay[t.due])taskByDay[t.due]=[]; taskByDay[t.due].push({_type:'ltask',...t});});
+  googleTasks.filter(t=>t.due).forEach(t=>{
+    const d=t.due.slice(0,10);
+    if(!taskByDay[d])taskByDay[d]=[];
+    taskByDay[d].push({_type:'gtask',...t});
+    if(d<today&&d!==today){if(!taskByDay[today])taskByDay[today]=[]; taskByDay[today].push({_type:'gtask',_overdue:true,...t});}
+  });
+  state.tasks.filter(t=>t.due&&t.status!=='hecha').forEach(t=>{
+    if(!taskByDay[t.due])taskByDay[t.due]=[];
+    taskByDay[t.due].push({_type:'ltask',...t});
+    if(t.due<today&&t.due!==today){if(!taskByDay[today])taskByDay[today]=[]; taskByDay[today].push({_type:'ltask',_overdue:true,...t});}
+  });
   const dowLabels=['Lu','Ma','Mi','Ju','Vi','Sá','Do'];
   let html=dowLabels.map(d=>`<div class="cal-dow">${d}</div>`).join('');
   for(let i=0;i<startDow;i++) html+=`<div class="cal-day other-month"></div>`;
@@ -2179,8 +2229,8 @@ function renderCalMonthGrid(){
     const more=evs.length>maxShow?`<div class="cal-event-more">+${evs.length-maxShow} más</div>`:'';
     const dayTasks=(taskByDay[dateStr]||[]);
     const taskDots=dayTasks.slice(0,3).map(t=>t._type==='gtask'
-      ? `<div class="gtask-cal-pill" onclick="event.stopPropagation();openGTaskModal('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">✓ ${escapeHtml(t.title||'')}</div>`
-      : `<div class="ltask-cal-pill ${t.urgency||''}" onclick="event.stopPropagation();openTaskModal('${escapeAttr(t.id)}')">● ${escapeHtml(t.title||'')}</div>`
+      ? `<div class="gtask-cal-pill${t._overdue?' overdue':''}" onclick="event.stopPropagation();openGTaskModal('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">${t._overdue?'⚠ ':'✓ '}${escapeHtml(t.title||'')}</div>`
+      : `<div class="ltask-cal-pill ${t.urgency||''}${t._overdue?' overdue':''}" onclick="event.stopPropagation();openTaskModal('${escapeAttr(t.id)}')">${t._overdue?'⚠ ':'● '}${escapeHtml(t.title||'')}</div>`
     ).join('');
     html+=`<div class="cal-day ${isToday?'today':''} ${isSel?'selected':''}" data-date="${dateStr}" onclick="selectCalDay('${dateStr}')">
       <div class="cal-day-num">${d}</div>${dots}${more}${taskDots}
