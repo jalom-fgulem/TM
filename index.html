@@ -304,16 +304,20 @@
   .email-attach-item{display:inline-flex;align-items:center;gap:5px;font-size:12px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:4px 9px;cursor:pointer;transition:background .1s;max-width:220px;}
   .email-attach-item:hover{background:var(--accent-bg);}
   .email-attach-item span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .thread-section{border-top:1px solid var(--border);flex-shrink:0;}
-  .thread-section-title{font-size:11px;font-weight:600;color:var(--text-soft);text-transform:uppercase;letter-spacing:.06em;padding:9px 16px 7px;display:flex;align-items:center;gap:5px;}
-  .thread-msg-item{border-top:1px solid var(--border);}
-  .thread-msg-head{display:flex;align-items:center;justify-content:space-between;padding:8px 16px;cursor:pointer;gap:8px;transition:background .1s;}
-  .thread-msg-head:hover{background:var(--bg);}
-  .thread-msg-from{font-size:12.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
-  .thread-msg-date{font-size:10.5px;color:var(--text-soft);white-space:nowrap;}
-  .thread-msg-chevron{font-size:12px;color:var(--text-soft);transition:transform .15s;}
-  .thread-msg-body{padding:0 16px 12px;border-top:1px solid var(--border);background:var(--bg);}
-  .thread-msg-loading{font-size:12px;color:var(--text-soft);padding:10px 0;}
+  .thread-toggle{background:none;border:none;padding:0;cursor:pointer;color:var(--text-soft);font-size:11px;flex-shrink:0;width:16px;text-align:center;transition:transform .15s;line-height:1;}
+  .thread-toggle.open{transform:rotate(90deg);}
+  .thread-count-badge{font-size:10px;font-weight:700;color:var(--text-soft);background:var(--border);border-radius:8px;padding:1px 5px;flex-shrink:0;}
+  .thread-sub-container{border-left:3px solid var(--border);margin-left:8px;display:none;}
+  .thread-sub-container.open{display:block;}
+  .thread-sub-item{padding:7px 12px 7px 14px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .1s;border-left:3px solid transparent;}
+  .thread-sub-item:hover{background:var(--bg);}
+  .thread-sub-item.selected{background:var(--accent-bg);}
+  .thread-sub-item.has-task{border-left-color:#1a73e8;}
+  .thread-sub-row1{display:flex;align-items:baseline;justify-content:space-between;gap:4px;margin-bottom:2px;}
+  .thread-sub-from{font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;}
+  .thread-sub-date{font-size:10px;color:var(--text-soft);white-space:nowrap;flex-shrink:0;}
+  .thread-sub-snippet{font-size:11px;color:var(--text-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .thread-sub-loading{font-size:12px;color:var(--text-soft);padding:8px 14px;}
   .drive-files-list{list-style:none;margin:0 0 6px;padding:0;display:flex;flex-wrap:wrap;gap:6px;}
   .drive-file-item{display:inline-flex;align-items:center;gap:5px;font-size:12px;background:#e8f0fe;border:1px solid #c5d8fd;border-radius:6px;padding:4px 9px;max-width:240px;}
   .drive-file-item span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
@@ -3292,33 +3296,48 @@ async function loadGmailWidget(){
   const msgs=await fetchGmailUnread();
   if(!msgs.length){ el.innerHTML='<p class="empty" style="padding:16px 12px;">No hay emails con este filtro.</p>'; return; }
   const linkedEmailIds=new Set((state.tasks||[]).filter(t=>t.sourceEmailId).map(t=>t.sourceEmailId));
-  // Group threadIds to detect threads with multiple messages in this list
-  const threadCounts={};
-  msgs.forEach(m=>{ const tid=m.threadId||m._threadId; if(tid) threadCounts[tid]=(threadCounts[tid]||0)+1; });
-  el.innerHTML=msgs.map(msg=>{
-    const hdrs=msg.payload?.headers||[];
+  // Group by threadId, keep insertion order of first appearance
+  const byThread=new Map();
+  msgs.forEach(m=>{
+    const tid=m.threadId||m._threadId||m.id;
+    if(!byThread.has(tid)) byThread.set(tid,[]);
+    byThread.get(tid).push(m);
+  });
+  // Sort each thread's messages oldest→newest so last = most recent
+  byThread.forEach(tMsgs=>tMsgs.sort((a,b)=>{
+    const dA=new Date((a.payload?.headers||[]).find(h=>h.name==='Date')?.value||0);
+    const dB=new Date((b.payload?.headers||[]).find(h=>h.name==='Date')?.value||0);
+    return dA-dB;
+  }));
+  el.innerHTML=[...byThread.entries()].map(([tid,tMsgs])=>{
+    const main=tMsgs[tMsgs.length-1]; // newest = representative
+    const count=tMsgs.length;
+    const hdrs=main.payload?.headers||[];
     const subject=hdrs.find(h=>h.name==='Subject')?.value||'(sin asunto)';
     const from=(hdrs.find(h=>h.name==='From')?.value||'').replace(/<[^>]+>/,'').trim()||'(desconocido)';
     const date=hdrs.find(h=>h.name==='Date')?.value||'';
-    const unread=(msg.labelIds||[]).includes('UNREAD');
-    const sel=selectedEmailId===msg.id;
-    const hasTask=linkedEmailIds.has(msg.id);
-    const hasAtt=extractAttachments(msg.payload).length>0;
-    const tid=msg.threadId||msg._threadId;
-    const isThread=tid&&(threadCounts[tid]>1);
-    return `<div class="gmail-list-item${sel?' selected':''}${hasTask?' has-task':''}" data-id="${msg.id}" data-tid="${tid||''}" onclick="selectEmail('${msg.id}','${tid||''}')">
+    const unread=(main.labelIds||[]).includes('UNREAD');
+    const sel=selectedEmailId===main.id;
+    const hasTask=linkedEmailIds.has(main.id);
+    const hasAtt=tMsgs.some(m=>extractAttachments(m.payload).length>0);
+    const mainRow=`<div class="gmail-list-item${sel?' selected':''}${hasTask?' has-task':''}" data-id="${main.id}" data-tid="${tid}" onclick="selectEmail('${main.id}','${tid}')">
       <div class="gli-row1">
-        <div class="gli-from${unread?' bold':''}">${escapeHtml(from)}</div>
+        ${count>1?`<button class="thread-toggle" onclick="event.stopPropagation();toggleListThread('${escapeAttr(tid)}')" title="Ver hilo"><i class="ti ti-chevron-right" aria-hidden="true"></i></button>`:'<span style="width:16px;flex-shrink:0;display:inline-block;"></span>'}
+        <div class="gli-from${unread?' bold':''}" style="min-width:0;">${escapeHtml(from)}</div>
         <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
-          ${hasAtt?`<i class="ti ti-paperclip" style="font-size:11px;color:var(--text-soft);" aria-label="Tiene adjuntos"></i>`:''}
-          ${isThread?`<span style="font-size:10px;color:var(--text-soft);font-weight:600;">${threadCounts[tid]}</span>`:''}
-          <div class="gli-date">${escapeHtml(formatEmailDate(date))}</div>
+          ${hasAtt?`<i class="ti ti-paperclip" style="font-size:11px;color:var(--text-soft);" aria-hidden="true"></i>`:''}
+          ${count>1?`<span class="thread-count-badge">${count}</span>`:''}
+          <span class="gli-date">${escapeHtml(formatEmailDate(date))}</span>
         </div>
       </div>
       <div class="gli-subject${unread?' bold':''}">${escapeHtml(subject)}</div>
-      <div class="gli-snippet">${escapeHtml(msg.snippet||'')}</div>
+      <div class="gli-snippet">${escapeHtml(main.snippet||'')}</div>
       ${hasTask?`<span class="gli-task-badge"><i class="ti ti-checkbox" aria-hidden="true"></i> Tarea vinculada</span>`:''}
     </div>`;
+    const subContainer=count>1?`<div class="thread-sub-container" id="thread-sub-${tid}">
+      <div class="thread-sub-loading">Cargando hilo…</div>
+    </div>`:'';
+    return mainRow+subContainer;
   }).join('');
 }
 async function fetchGmailUnread(){
@@ -3363,26 +3382,49 @@ function formatEmailDate(dateStr){
     return d.toLocaleDateString('es-ES',{day:'numeric',month:'short'})+` ${t}`;
   }catch(e){return'';}
 }
+const _expandedThreads={};
+async function toggleListThread(tid){
+  const container=document.getElementById(`thread-sub-${tid}`); if(!container) return;
+  const btn=document.querySelector(`.gmail-list-item[data-tid="${tid}"] .thread-toggle`);
+  const isOpen=container.classList.contains('open');
+  container.classList.toggle('open',!isOpen);
+  btn?.classList.toggle('open',!isOpen);
+  if(isOpen||_expandedThreads[tid]) return;
+  _expandedThreads[tid]=true;
+  const linkedEmailIds=new Set((state.tasks||[]).filter(t=>t.sourceEmailId).map(t=>t.sourceEmailId));
+  try{
+    const r=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/threads/${tid}?format=metadata&metadataHeaders=From&metadataHeaders=Date&metadataHeaders=Subject`,{headers:{Authorization:`Bearer ${googleToken}`}});
+    if(!r.ok) throw new Error();
+    const thread=await r.json();
+    const msgs=(thread.messages||[]).slice().reverse(); // newest first
+    container.innerHTML=msgs.map(m=>{
+      const hdrs=m.payload?.headers||[];
+      const from=(hdrs.find(h=>h.name==='From')?.value||'').replace(/<[^>]+>/,'').trim()||'(desconocido)';
+      const date=hdrs.find(h=>h.name==='Date')?.value||'';
+      const isLinked=linkedEmailIds.has(m.id);
+      const isSel=selectedEmailId===m.id;
+      return `<div class="thread-sub-item${isSel?' selected':''}${isLinked?' has-task':''}" data-id="${m.id}" data-tid="${tid}" onclick="selectEmail('${m.id}','${tid}')">
+        <div class="thread-sub-row1">
+          <span class="thread-sub-from">${escapeHtml(from)}</span>
+          <span class="thread-sub-date">${escapeHtml(formatEmailDate(date))}</span>
+        </div>
+        <div class="thread-sub-snippet">${escapeHtml(m.snippet||'')}</div>
+        ${isLinked?`<span class="gli-task-badge" style="margin-top:3px;"><i class="ti ti-checkbox" aria-hidden="true"></i> Tarea vinculada</span>`:''}
+      </div>`;
+    }).join('');
+  }catch(e){ container.innerHTML='<div class="thread-sub-loading" style="color:var(--alta);">Error al cargar el hilo.</div>'; _expandedThreads[tid]=false; }
+}
 async function selectEmail(msgId, threadId){
   selectedEmailId=msgId;
-  document.querySelectorAll('.gmail-list-item').forEach(el=>el.classList.toggle('selected',el.dataset.id===msgId));
+  document.querySelectorAll('.gmail-list-item,.thread-sub-item').forEach(el=>el.classList.toggle('selected',el.dataset.id===msgId));
   const col=document.getElementById('gmailPreviewCol'); if(!col) return;
   col.innerHTML='<div class="gmail-preview-empty"><i class="ti ti-loader" style="font-size:24px;opacity:.4;" aria-hidden="true"></i></div>';
   try{
-    const tid=threadId||document.querySelector(`.gmail-list-item[data-id="${msgId}"]`)?.dataset?.tid||'';
-    const [msgRes, threadRes] = await Promise.all([
-      fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}?format=full`,{headers:{Authorization:`Bearer ${googleToken}`}}),
-      tid ? fetch(`https://gmail.googleapis.com/gmail/v1/users/me/threads/${tid}?format=full&fields=id,messages(id,snippet,payload(headers,mimeType,parts(filename,mimeType,body(attachmentId,size),parts(filename,mimeType,body(attachmentId,size)))))`,{headers:{Authorization:`Bearer ${googleToken}`}}) : null
-    ]);
-    if(msgRes.status===401){handleGoogleExpired();return;}
-    if(!msgRes.ok) throw new Error();
-    const msg=await msgRes.json();
-    let threadMsgs=[];
-    if(threadRes&&threadRes.ok){ const td=await threadRes.json(); threadMsgs=(td.messages||[]).filter(m=>m.id!==msgId); }
-    renderEmailPreviewPanel(msg, threadMsgs);
-    // Auto-load thread message bodies
-    threadMsgs.forEach(tm=>loadThreadMsgContent(tm.id));
-    // Mark as read if unread
+    const r=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}?format=full`,{headers:{Authorization:`Bearer ${googleToken}`}});
+    if(r.status===401){handleGoogleExpired();return;}
+    if(!r.ok) throw new Error();
+    const msg=await r.json();
+    renderEmailPreviewPanel(msg);
     if((msg.labelIds||[]).includes('UNREAD')) markEmailAsRead(msgId);
   }catch(e){
     if(col) col.innerHTML='<div class="gmail-preview-empty">Error al cargar el mensaje.</div>';
@@ -3412,7 +3454,7 @@ function selectNextEmail(removedMsgId){
     if(col) col.innerHTML='<div class="gmail-preview-empty"><i class="ti ti-mail" style="font-size:32px;opacity:.3;" aria-hidden="true"></i><span>Bandeja vacía</span></div>';
   }
 }
-function renderEmailPreviewPanel(msg, threadMsgs){
+function renderEmailPreviewPanel(msg){
   const col=document.getElementById('gmailPreviewCol'); if(!col) return;
   const hdrs=msg.payload?.headers||[];
   const subject=hdrs.find(h=>h.name==='Subject')?.value||'(sin asunto)';
@@ -3420,11 +3462,9 @@ function renderEmailPreviewPanel(msg, threadMsgs){
   const date=hdrs.find(h=>h.name==='Date')?.value||'';
   const fromClean=from.replace(/<[^>]+>/,'').trim();
   const atts=extractAttachments(msg.payload);
-  const threadAtts=[];
-  (threadMsgs||[]).forEach(tm=>{ extractAttachments(tm.payload).forEach(a=>threadAtts.push({...a,_msgId:tm.id,_from:(tm.payload?.headers||[]).find(h=>h.name==='From')?.value||''})); });
   col.innerHTML=`<div class="gmail-preview-head">
     <div class="gmail-preview-subject">${escapeHtml(subject)}</div>
-    <div class="gmail-preview-meta"><strong>De:</strong> ${escapeHtml(from)}<br><strong>Fecha:</strong> ${escapeHtml(date)}</div>
+    <div class="gmail-preview-meta"><strong>De:</strong> ${escapeHtml(from)}<br><strong>Fecha:</strong> ${escapeHtml(formatEmailDate(date))}</div>
     <div class="gmail-preview-actions">
       <button class="btn-ghost btn-small" onclick="importEmailAsTask('${escapeAttr(subject)}','${escapeAttr(fromClean)}','${escapeAttr(msg.id)}')">+ Tarea</button>
       <button class="btn-ghost btn-small" style="color:#1a73e8;border-color:#c5d8fd;" onclick="addCorreoPendiente('${escapeAttr(subject)}','${escapeAttr(msg.id)}')"><i class="ti ti-mail-forward" aria-hidden="true"></i> Correo pendiente</button>
@@ -3432,22 +3472,16 @@ function renderEmailPreviewPanel(msg, threadMsgs){
       <button class="btn-danger btn-small" onclick="deleteEmail('${escapeAttr(msg.id)}')" title="Mover a papelera"><i class="ti ti-trash" aria-hidden="true"></i></button>
     </div>
   </div>
-  ${(atts.length||threadAtts.length)?`<div class="email-attachments">
-    <div class="email-attachments-title"><i class="ti ti-paperclip" aria-hidden="true"></i> ${atts.length+threadAtts.length} adjunto${atts.length+threadAtts.length>1?'s':''}</div>
+  ${atts.length?`<div class="email-attachments">
+    <div class="email-attachments-title"><i class="ti ti-paperclip" aria-hidden="true"></i> ${atts.length} adjunto${atts.length>1?'s':''}</div>
     <div class="email-attach-list">
       ${atts.map(a=>`<div class="email-attach-item" onclick="openEmailAttachment('${escapeAttr(msg.id)}','${escapeAttr(a.attachmentId||'')}','${escapeAttr(a.filename)}','${escapeAttr(a.mimeType)}')" title="${escapeAttr(a.filename)}">
         <i class="ti ${attachmentIcon(a.mimeType)}" aria-hidden="true"></i>
         <span>${escapeHtml(a.filename)}</span>
       </div>`).join('')}
-      ${threadAtts.map(a=>`<div class="email-attach-item" style="opacity:.8;" onclick="openEmailAttachment('${escapeAttr(a._msgId)}','${escapeAttr(a.attachmentId||'')}','${escapeAttr(a.filename)}','${escapeAttr(a.mimeType)}')" title="${escapeAttr(a.filename)} (de ${escapeAttr(a._from.replace(/<[^>]+>/,'').trim())})">
-        <i class="ti ${attachmentIcon(a.mimeType)}" aria-hidden="true"></i>
-        <span>${escapeHtml(a.filename)}</span>
-        <i class="ti ti-corner-down-right" style="font-size:9px;opacity:.5;" aria-hidden="true"></i>
-      </div>`).join('')}
     </div>
   </div>`:''}
-  <div class="gmail-preview-body" id="gmailPreviewBody"></div>
-  ${(threadMsgs&&threadMsgs.length)?renderThreadSection(threadMsgs,msg.id):''}`;
+  <div class="gmail-preview-body" id="gmailPreviewBody"></div>`;
   const bodyEl=document.getElementById('gmailPreviewBody');
   const body=extractEmailBody(msg.payload);
   if(body.html){
@@ -3460,70 +3494,6 @@ function renderEmailPreviewPanel(msg, threadMsgs){
   } else {
     bodyEl.innerHTML=`<pre style="white-space:pre-wrap;font-size:13px;font-family:system-ui,sans-serif;margin:0;">${escapeHtml(body.text||'(sin contenido)')}</pre>`;
   }
-}
-function renderThreadSection(threadMsgs, currentMsgId){
-  if(!threadMsgs||!threadMsgs.length) return '';
-  const items=threadMsgs.map(tm=>{
-    const hdrs=tm.payload?.headers||[];
-    const from=(hdrs.find(h=>h.name==='From')?.value||'').replace(/<[^>]+>/,'').trim()||'(desconocido)';
-    const date=hdrs.find(h=>h.name==='Date')?.value||'';
-    const tmAtts=extractAttachments(tm.payload);
-    return `<div class="thread-msg-item" id="thread-${tm.id}">
-      <div class="thread-msg-head" onclick="toggleThreadMsg('${tm.id}')">
-        <div class="thread-msg-from">${escapeHtml(from)}</div>
-        <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
-          ${tmAtts.length?`<i class="ti ti-paperclip" style="font-size:11px;color:var(--text-soft);" aria-hidden="true"></i>`:''}
-          <span class="thread-msg-date">${escapeHtml(formatEmailDate(date))}</span>
-          <i class="ti ti-chevron-up thread-msg-chevron" aria-hidden="true"></i>
-        </div>
-      </div>
-      <div class="thread-msg-body" id="thread-body-${tm.id}" style="display:block;">
-        <div class="thread-msg-loading">Cargando…</div>
-      </div>
-    </div>`;
-  }).join('');
-  return `<div class="thread-section">
-    <div class="thread-section-title"><i class="ti ti-messages" aria-hidden="true"></i> ${threadMsgs.length} mensaje${threadMsgs.length>1?'s más':' más'} en este hilo</div>
-    ${items}
-  </div>`;
-}
-function toggleThreadMsg(msgId){
-  const bodyEl=document.getElementById(`thread-body-${msgId}`);
-  const item=document.getElementById(`thread-${msgId}`);
-  if(!bodyEl||!item) return;
-  const isOpen=bodyEl.style.display!=='none';
-  bodyEl.style.display=isOpen?'none':'block';
-  item.querySelector('.thread-msg-chevron')?.classList.toggle('ti-chevron-up',!isOpen);
-  item.querySelector('.thread-msg-chevron')?.classList.toggle('ti-chevron-down',isOpen);
-  if(!isOpen) loadThreadMsgContent(msgId);
-}
-async function loadThreadMsgContent(msgId){
-  const bodyEl=document.getElementById(`thread-body-${msgId}`);
-  if(!bodyEl||bodyEl.dataset.loaded) return;
-  bodyEl.dataset.loaded='1';
-  try{
-    const r=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}?format=full`,{headers:{Authorization:`Bearer ${googleToken}`}});
-    if(!r.ok){ bodyEl.innerHTML='<p style="color:var(--alta);font-size:12px;padding:8px;">Error al cargar.</p>'; return; }
-    const m=await r.json();
-    const atts=extractAttachments(m.payload);
-    const body=extractEmailBody(m.payload);
-    let html=atts.length?`<div class="email-attach-list" style="margin:8px 0;">
-      ${atts.map(a=>`<div class="email-attach-item" onclick="openEmailAttachment('${escapeAttr(m.id)}','${escapeAttr(a.attachmentId||'')}','${escapeAttr(a.filename)}','${escapeAttr(a.mimeType)}')" title="${escapeAttr(a.filename)}">
-        <i class="ti ${attachmentIcon(a.mimeType)}" aria-hidden="true"></i><span>${escapeHtml(a.filename)}</span>
-      </div>`).join('')}
-    </div>`:'';
-    if(body.html){
-      const iframe=document.createElement('iframe');
-      iframe.className='gmail-preview-iframe';
-      iframe.setAttribute('sandbox','allow-popups allow-same-origin');
-      bodyEl.innerHTML=html;
-      bodyEl.appendChild(iframe);
-      iframe.srcdoc=`<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:system-ui,sans-serif;font-size:13px;line-height:1.6;margin:0;padding:8px;color:#1A1A18;word-break:break-word;}a{color:#2563EB;}img{max-width:100%;}</style></head><body>${body.html}</body></html>`;
-      iframe.onload=()=>{ try{ iframe.style.height=iframe.contentDocument.body.scrollHeight+8+'px'; }catch(e){} };
-    } else {
-      bodyEl.innerHTML=html+`<pre style="white-space:pre-wrap;font-size:12px;font-family:system-ui,sans-serif;margin:0;padding:8px;">${escapeHtml(body.text||'(sin contenido)')}</pre>`;
-    }
-  }catch(e){ bodyEl.innerHTML='<p style="color:var(--alta);font-size:12px;padding:8px;">Error al cargar.</p>'; }
 }
 function extractAttachments(payload){
   const atts=[];
