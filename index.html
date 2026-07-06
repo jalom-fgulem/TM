@@ -295,9 +295,26 @@
   .gmail-preview-head{padding:14px 16px 10px;border-bottom:1px solid var(--border);flex-shrink:0;}
   .gmail-preview-subject{font-size:15px;font-weight:700;line-height:1.35;margin-bottom:7px;}
   .gmail-preview-meta{font-size:11.5px;color:var(--text-soft);line-height:1.8;}
-  .gmail-preview-actions{display:flex;gap:6px;margin-top:9px;}
+  .gmail-preview-actions{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap;}
   .gmail-preview-body{flex:1;overflow-y:auto;padding:14px 16px;}
   .gmail-preview-iframe{width:100%;border:none;display:block;}
+  .email-attachments{padding:10px 16px;border-top:1px solid var(--border);flex-shrink:0;background:var(--bg);}
+  .email-attachments-title{font-size:11px;font-weight:600;color:var(--text-soft);text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px;}
+  .email-attach-list{display:flex;flex-wrap:wrap;gap:6px;}
+  .email-attach-item{display:inline-flex;align-items:center;gap:5px;font-size:12px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:4px 9px;cursor:pointer;transition:background .1s;max-width:220px;}
+  .email-attach-item:hover{background:var(--accent-bg);}
+  .email-attach-item span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .drive-files-list{list-style:none;margin:0 0 6px;padding:0;display:flex;flex-wrap:wrap;gap:6px;}
+  .drive-file-item{display:inline-flex;align-items:center;gap:5px;font-size:12px;background:#e8f0fe;border:1px solid #c5d8fd;border-radius:6px;padding:4px 9px;max-width:240px;}
+  .drive-file-item span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
+  .drive-file-item a{color:#1a73e8;text-decoration:none;font-weight:500;}
+  .drive-file-item a:hover{text-decoration:underline;}
+  .drive-search-results{margin-top:6px;border:1px solid var(--border);border-radius:6px;overflow:hidden;display:none;}
+  .drive-search-results.open{display:block;}
+  .drive-result-item{padding:7px 10px;font-size:12.5px;cursor:pointer;display:flex;align-items:center;gap:7px;border-bottom:1px solid var(--border);}
+  .drive-result-item:last-child{border-bottom:none;}
+  .drive-result-item:hover{background:var(--accent-bg);}
+  .drive-result-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   @media(max-width:860px){.gmail-layout{grid-template-columns:150px 1fr;height:calc(100dvh - 148px);}  .gmail-preview-col{display:none;}}
   @media(max-width:600px){.gmail-layout{grid-template-columns:1fr;height:auto;min-height:0;} .gmail-sidebar{display:none;} .gmail-list-col{border-right:none;max-height:60vh;}}
   .agenda-connect{text-align:center;padding:48px 20px;}
@@ -822,6 +839,7 @@ let tempSubtasks = [];
 let tempExpectedParticipants = [];
 let tempLinkedTaskIds = [];
 let tempSourceEmailId = null;
+let tempDriveFiles = [];
 
 const monthsEs = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 function fmtDate(d){ const dt=new Date(d+'T00:00:00'); return dt.getDate()+' de '+monthsEs[dt.getMonth()]+' de '+dt.getFullYear(); }
@@ -1036,6 +1054,7 @@ function openTaskModal(taskId, prefill, fromNoteId){
   tempSubtasks = (editing && editing.subtasks) ? JSON.parse(JSON.stringify(editing.subtasks)) : [];
   tempExpectedParticipants = (editing && editing.expectedParticipants) ? editing.expectedParticipants.slice() : [];
   tempLinkedTaskIds = (editing && editing.linkedTaskIds) ? editing.linkedTaskIds.slice() : [];
+  tempDriveFiles = (editing && editing.driveFiles) ? editing.driveFiles.slice() : [];
   const incomingLinks = editing ? state.tasks.filter(x => x.id !== editing.id && (x.linkedTaskIds||[]).includes(editing.id)) : [];
   const root=document.getElementById('modalRoot');
   root.innerHTML=`
@@ -1134,6 +1153,16 @@ function openTaskModal(taskId, prefill, fromNoteId){
           </div>
         </div>
 
+        ${googleToken ? `
+        <p class="modal-sect">Adjuntos de Drive</p>
+        <div class="field">
+          <ul class="drive-files-list" id="mDriveList"></ul>
+          <div class="sub-add">
+            <input type="text" id="mDriveSearch" placeholder="Buscar en Drive..." oninput="searchDriveFiles(this.value)">
+          </div>
+          <div class="drive-search-results" id="mDriveResults"></div>
+        </div>` : ''}
+
         <p class="modal-sect">Contexto</p>
 
         <div class="field" style="margin-bottom:0;">
@@ -1190,6 +1219,7 @@ function openTaskModal(taskId, prefill, fromNoteId){
   renderSubList();
   renderExpectedParticipants();
   renderLinkedTasksList();
+  renderDriveFilesList();
 }
 function renderSubList(){
   const el=document.getElementById('mSubList'); if(!el) return;
@@ -1269,7 +1299,7 @@ function addLinkedTaskTemp(){
   if(!tempLinkedTaskIds.includes(sel.value)) tempLinkedTaskIds.push(sel.value);
   renderLinkedTasksList();
 }
-function closeModal(){ document.getElementById('modalRoot').innerHTML=''; tempSubtasks=[]; tempLinkedTaskIds=[]; tempSourceEmailId=null; }
+function closeModal(){ document.getElementById('modalRoot').innerHTML=''; tempSubtasks=[]; tempLinkedTaskIds=[]; tempSourceEmailId=null; tempDriveFiles=[]; }
 
 function saveTask(taskId, fromNoteId){
   const title=document.getElementById('mTitle').value.trim();
@@ -1286,12 +1316,13 @@ function saveTask(taskId, fromNoteId){
   const callWith=document.getElementById('mCallWith').value.trim();
 
   const linkedTaskIds=tempLinkedTaskIds.slice();
+  const driveFiles=tempDriveFiles.slice();
   let t;
   if(taskId){
     t=state.tasks.find(x=>x.id===taskId);
-    Object.assign(t,{title,areas,projectId,tipo,urgency,due,start,context,subtasks,expectedParticipants,callWith,linkedTaskIds});
+    Object.assign(t,{title,areas,projectId,tipo,urgency,due,start,context,subtasks,expectedParticipants,callWith,linkedTaskIds,driveFiles});
   } else {
-    t={id:uid(),title,areas,projectId,tipo,urgency,due,start,context,subtasks,expectedParticipants,callWith,linkedTaskIds,status:'pendiente',created:todayStr(),...(tempSourceEmailId?{sourceEmailId:tempSourceEmailId}:{})};
+    t={id:uid(),title,areas,projectId,tipo,urgency,due,start,context,subtasks,expectedParticipants,callWith,linkedTaskIds,driveFiles,status:'pendiente',created:todayStr(),...(tempSourceEmailId?{sourceEmailId:tempSourceEmailId}:{})};
     state.tasks.unshift(t);
   }
   if(fromNoteId){ state.notes=state.notes.filter(n=>n.id!==fromNoteId); deleteNoteRow(fromNoteId); }
@@ -2004,7 +2035,7 @@ function render(){
 
 // ---- Google Integration ----
 const GOOGLE_CLIENT_ID = '1043299015570-mi3k1ecnrvle83qfjl186kuucmn4bnd7.apps.googleusercontent.com';
-const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/tasks';
+const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/drive.readonly';
 let googleToken = null;
 let googleTokenExpiry = 0;
 let gTokenClient = null;
@@ -3330,6 +3361,7 @@ function renderEmailPreviewPanel(msg){
   const from=hdrs.find(h=>h.name==='From')?.value||'';
   const date=hdrs.find(h=>h.name==='Date')?.value||'';
   const fromClean=from.replace(/<[^>]+>/,'').trim();
+  const atts=extractAttachments(msg.payload);
   col.innerHTML=`<div class="gmail-preview-head">
     <div class="gmail-preview-subject">${escapeHtml(subject)}</div>
     <div class="gmail-preview-meta"><strong>De:</strong> ${escapeHtml(from)}<br><strong>Fecha:</strong> ${escapeHtml(date)}</div>
@@ -3340,6 +3372,15 @@ function renderEmailPreviewPanel(msg){
       <button class="btn-danger btn-small" onclick="deleteEmail('${escapeAttr(msg.id)}')" title="Mover a papelera"><i class="ti ti-trash" aria-hidden="true"></i></button>
     </div>
   </div>
+  ${atts.length?`<div class="email-attachments">
+    <div class="email-attachments-title"><i class="ti ti-paperclip" aria-hidden="true"></i> ${atts.length} adjunto${atts.length>1?'s':''}</div>
+    <div class="email-attach-list">
+      ${atts.map(a=>`<div class="email-attach-item" onclick="openEmailAttachment('${escapeAttr(msg.id)}','${escapeAttr(a.attachmentId||'')}','${escapeAttr(a.filename)}','${escapeAttr(a.mimeType)}')" title="${escapeAttr(a.filename)}">
+        <i class="ti ${attachmentIcon(a.mimeType)}" aria-hidden="true"></i>
+        <span>${escapeHtml(a.filename)}</span>
+      </div>`).join('')}
+    </div>
+  </div>`:''}
   <div class="gmail-preview-body" id="gmailPreviewBody"></div>`;
   const bodyEl=document.getElementById('gmailPreviewBody');
   const body=extractEmailBody(msg.payload);
@@ -3353,6 +3394,107 @@ function renderEmailPreviewPanel(msg){
   } else {
     bodyEl.innerHTML=`<pre style="white-space:pre-wrap;font-size:13px;font-family:system-ui,sans-serif;margin:0;">${escapeHtml(body.text||'(sin contenido)')}</pre>`;
   }
+}
+function extractAttachments(payload){
+  const atts=[];
+  function walk(p){
+    if(!p) return;
+    if(p.filename && p.filename.length>0 && p.body){
+      atts.push({filename:p.filename, mimeType:p.mimeType||'application/octet-stream', attachmentId:p.body.attachmentId||null, size:p.body.size||0});
+    }
+    if(p.parts) p.parts.forEach(walk);
+  }
+  walk(payload);
+  return atts;
+}
+function attachmentIcon(mimeType){
+  if(!mimeType) return 'ti-paperclip';
+  if(mimeType.startsWith('image/')) return 'ti-photo';
+  if(mimeType==='application/pdf') return 'ti-file-type-pdf';
+  if(mimeType.includes('spreadsheet')||mimeType.includes('excel')) return 'ti-table';
+  if(mimeType.includes('presentation')||mimeType.includes('powerpoint')) return 'ti-presentation';
+  if(mimeType.includes('word')||mimeType.includes('document')) return 'ti-file-text';
+  if(mimeType.startsWith('video/')) return 'ti-video';
+  if(mimeType.startsWith('audio/')) return 'ti-music';
+  return 'ti-paperclip';
+}
+async function openEmailAttachment(msgId, attachmentId, filename, mimeType){
+  if(!googleToken) return;
+  setStatus('Descargando adjunto…');
+  try{
+    const r=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}/attachments/${attachmentId}`,{headers:{Authorization:`Bearer ${googleToken}`}});
+    if(r.status===401){handleGoogleExpired();return;}
+    if(!r.ok){setStatus('Error al descargar adjunto.');return;}
+    const data=await r.json();
+    const b64=data.data.replace(/-/g,'+').replace(/_/g,'/');
+    const bytes=Uint8Array.from(atob(b64),c=>c.charCodeAt(0));
+    const blob=new Blob([bytes],{type:mimeType||'application/octet-stream'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download=filename; a.target='_blank';
+    document.body.appendChild(a); a.click();
+    setTimeout(()=>{URL.revokeObjectURL(url);a.remove();},2000);
+    setStatus('Adjunto descargado.');
+  }catch(e){ setStatus('Error al descargar adjunto.'); }
+}
+function driveFileIcon(mimeType){
+  if(!mimeType) return 'ti-file';
+  if(mimeType==='application/vnd.google-apps.document') return 'ti-file-text';
+  if(mimeType==='application/vnd.google-apps.spreadsheet') return 'ti-table';
+  if(mimeType==='application/vnd.google-apps.presentation') return 'ti-presentation';
+  if(mimeType==='application/pdf') return 'ti-file-type-pdf';
+  if(mimeType.startsWith('image/')) return 'ti-photo';
+  return 'ti-file';
+}
+let _driveSearchTimer=null;
+function searchDriveFiles(query){
+  const res=document.getElementById('mDriveResults'); if(!res) return;
+  if(_driveSearchTimer) clearTimeout(_driveSearchTimer);
+  if(!query||query.length<2){ res.classList.remove('open'); res.innerHTML=''; return; }
+  _driveSearchTimer=setTimeout(async()=>{
+    if(!googleToken){ res.classList.remove('open'); return; }
+    res.classList.add('open');
+    res.innerHTML='<div class="drive-result-item" style="color:var(--text-soft);cursor:default;">Buscando…</div>';
+    try{
+      const q=encodeURIComponent(`name contains '${query.replace(/'/g,"\\'")}' and trashed=false`);
+      const r=await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,mimeType,webViewLink)&pageSize=10&orderBy=viewedByMeTime+desc`,{headers:{Authorization:`Bearer ${googleToken}`}});
+      if(r.status===401){handleGoogleExpired();return;}
+      if(r.status===403){res.innerHTML='<div class="drive-result-item" style="color:var(--text-soft);cursor:default;">Sin acceso a Drive. Reconecta Google.</div>';return;}
+      if(!r.ok){res.innerHTML='<div class="drive-result-item" style="color:var(--text-soft);cursor:default;">Error al buscar.</div>';return;}
+      const data=await r.json();
+      const files=data.files||[];
+      if(!files.length){res.innerHTML='<div class="drive-result-item" style="color:var(--text-soft);cursor:default;">Sin resultados.</div>';return;}
+      res.innerHTML=files.map(f=>`
+        <div class="drive-result-item" onclick="attachDriveFile(${JSON.stringify(JSON.stringify({id:f.id,name:f.name,mimeType:f.mimeType,url:f.webViewLink}))})">
+          <i class="ti ${driveFileIcon(f.mimeType)}" style="color:#1a73e8;flex-shrink:0;" aria-hidden="true"></i>
+          <span class="drive-result-name">${escapeHtml(f.name)}</span>
+        </div>`).join('');
+    }catch(e){res.innerHTML='<div class="drive-result-item" style="color:var(--text-soft);cursor:default;">Error al buscar.</div>';}
+  },400);
+}
+function attachDriveFile(jsonStr){
+  const file=JSON.parse(jsonStr);
+  if(tempDriveFiles.find(f=>f.id===file.id)) return;
+  tempDriveFiles.push(file);
+  renderDriveFilesList();
+  const res=document.getElementById('mDriveResults');
+  if(res){res.classList.remove('open');res.innerHTML='';}
+  const inp=document.getElementById('mDriveSearch');
+  if(inp) inp.value='';
+}
+function removeDriveFile(id){
+  tempDriveFiles=tempDriveFiles.filter(f=>f.id!==id);
+  renderDriveFilesList();
+}
+function renderDriveFilesList(){
+  const el=document.getElementById('mDriveList'); if(!el) return;
+  if(!tempDriveFiles.length){el.innerHTML='';return;}
+  el.innerHTML=tempDriveFiles.map(f=>`
+    <li class="drive-file-item">
+      <i class="ti ${driveFileIcon(f.mimeType)}" style="color:#1a73e8;flex-shrink:0;" aria-hidden="true"></i>
+      <a href="${escapeAttr(f.url)}" target="_blank" rel="noopener">${escapeHtml(f.name)}</a>
+      <button class="btn-ghost btn-small" style="padding:0 4px;min-width:0;" onclick="removeDriveFile('${escapeAttr(f.id)}')" title="Quitar">×</button>
+    </li>`).join('');
 }
 function extractEmailBody(payload){
   if(!payload) return{text:'',html:''};
@@ -3948,6 +4090,7 @@ function taskCard(t, showTipo){
       ${linkBadge}
       ${areaBadges}
       ${t.sourceEmailId?`<span class="badge" style="background:#e8f0fe;color:#1a73e8;border:1px solid #c5d8fd;cursor:pointer;" onclick="event.stopPropagation();openEmailFromTask('${escapeAttr(t.sourceEmailId)}')">✉ Ver correo</span>`:''}
+      ${(t.driveFiles&&t.driveFiles.length)?t.driveFiles.map(f=>`<a class="badge" style="background:#e6f4ea;color:#137333;border:1px solid #b7dfbf;text-decoration:none;" href="${escapeAttr(f.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()"><i class="ti ${driveFileIcon(f.mimeType)}" aria-hidden="true"></i> ${escapeHtml(f.name.length>22?f.name.slice(0,20)+'…':f.name)}</a>`).join(''):''}
     </div>
     ${sub}
     <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;">
