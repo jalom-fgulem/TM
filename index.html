@@ -3330,6 +3330,8 @@ function renderEmailPreviewPanel(msg){
     <div class="gmail-preview-meta"><strong>De:</strong> ${escapeHtml(from)}<br><strong>Fecha:</strong> ${escapeHtml(date)}</div>
     <div class="gmail-preview-actions">
       <button class="btn-ghost btn-small" onclick="importEmailAsTask('${escapeAttr(subject)}','${escapeAttr(fromClean)}','${escapeAttr(msg.id)}')">+ Tarea</button>
+      <button class="btn-ghost btn-small" style="color:#1a73e8;border-color:#c5d8fd;" onclick="addCorreoPendiente('${escapeAttr(subject)}','${escapeAttr(msg.id)}')"><i class="ti ti-mail-forward" aria-hidden="true"></i> Correo pendiente</button>
+      <button class="btn-ghost btn-small" onclick="archiveEmail('${escapeAttr(msg.id)}')" title="Archivar"><i class="ti ti-archive" aria-hidden="true"></i> Archivar</button>
       <button class="btn-danger btn-small" onclick="deleteEmail('${escapeAttr(msg.id)}')" title="Mover a papelera"><i class="ti ti-trash" aria-hidden="true"></i></button>
     </div>
   </div>
@@ -3651,7 +3653,37 @@ function openEmailFromTask(msgId){
 }
 function importEmailAsTask(subject, from, msgId){
   tempSourceEmailId = msgId || null;
-  openTaskModal(null,{title:subject+(from?` (${from})`:''), tipo:'Correo pendiente'});
+  openTaskModal(null,{title:subject+(from?` (${from})`:'')});
+}
+function addCorreoPendiente(subject, msgId){
+  tempSourceEmailId = msgId || null;
+  openTaskModal(null,{title:subject, tipo:'Correo pendiente'});
+}
+async function archiveEmail(msgId){
+  if(!googleToken) return;
+  const el=document.querySelector(`.gmail-list-item[data-id="${msgId}"]`);
+  if(el){ el.style.opacity='0.4'; el.style.pointerEvents='none'; }
+  try{
+    const res=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}/modify`,{
+      method:'POST',
+      headers:{Authorization:`Bearer ${googleToken}`,'Content-Type':'application/json'},
+      body:JSON.stringify({removeLabelIds:['INBOX']})
+    });
+    if(res.status===401){handleGoogleExpired();return;}
+    if(res.ok){
+      if(el) el.remove();
+      if(selectedEmailId===msgId){
+        selectedEmailId=null;
+        const col=document.getElementById('gmailPreviewCol');
+        if(col) col.innerHTML='<div class="gmail-preview-empty"><i class="ti ti-mail" style="font-size:32px;opacity:.3;" aria-hidden="true"></i><span>Selecciona un correo</span></div>';
+      }
+      setStatus('Email archivado.');
+    }
+    else{ if(el){el.style.opacity='';el.style.pointerEvents='';} setStatus('Error al archivar el email.'); }
+  }catch(e){
+    if(el){el.style.opacity='';el.style.pointerEvents='';}
+    setStatus('Error al archivar el email.');
+  }
 }
 async function deleteEmail(msgId){
   if(!googleToken) return;
