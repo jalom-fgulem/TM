@@ -332,7 +332,21 @@
   .cal-month{width:100%;}
   .cal-nav{display:flex;align-items:center;gap:8px;margin-bottom:14px;}
   .cal-nav-label{flex:1;text-align:center;font-size:15px;font-weight:600;text-transform:capitalize;}
-  .cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;}
+  .cal-grid{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+  .cal-dow-row{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));background:var(--surface2);border-bottom:1px solid var(--border);}
+  .cal-month-week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-bottom:1px solid var(--border);}
+  .cal-month-week:last-child{border-bottom:none;}
+  .cal-spans-container{grid-column:1/-1;grid-row:1;background:var(--surface);padding:2px 0;}
+  .cal-spans-inner{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));}
+  .cal-span-bar{height:20px;border-radius:4px;padding:0 6px;font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;display:flex;align-items:center;margin:1px 2px;color:#fff;background:#7c3aed;}
+  .cal-span-bar.alta{background:#ef4444;}
+  .cal-span-bar.media{background:#f59e0b;}
+  .cal-span-bar.baja{background:#22c55e;}
+  .cal-span-bar.cont-before{border-radius:0 4px 4px 0;margin-left:0;}
+  .cal-span-bar.cont-after{border-radius:4px 0 0 4px;margin-right:0;}
+  .cal-span-bar.cont-both{border-radius:0;margin:1px 0;}
+  .cal-week-allday-strip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-bottom:1px solid var(--border);background:var(--surface);min-height:0;}
+  .cal-week-allday-strip:empty,.cal-week-allday-strip-empty{display:none;}
   .cal-dow{text-align:center;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);padding:4px 0 6px;}
   .cal-day{border:1px solid var(--border);border-radius:7px;padding:5px 6px;min-height:72px;cursor:pointer;background:var(--surface);transition:border-color .1s;}
   .cal-day:hover{border-color:var(--border-strong);}
@@ -2192,22 +2206,35 @@ function renderCalWeekGrid(){
     if(!byDay[d])byDay[d]=[]; byDay[d].push(ev);
   });
   const names=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
-  return '<div class="cal-week-grid">'+Array.from({length:7},(_,i)=>{
+  const weekDays=Array.from({length:7},(_,i)=>{
     const d=new Date(mon); d.setDate(mon.getDate()+i);
-    const ds=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  });
+
+  // Spanning bars strip (all-day gcal events + multi-day tasks)
+  const spanItems=[..._gcalAllDaySpans(calMonthEvents),..._ltaskSpans()].filter(it=>it.end>=weekDays[0]&&it.start<=weekDays[6]);
+  const bars=_buildSpanBars(spanItems,weekDays);
+  const maxLane=bars.length?Math.max(...bars.map(b=>b.lane)):0;
+  const stripHtml=bars.length?`<div class="cal-week-allday-strip" style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-auto-rows:22px;min-height:${maxLane*23+4}px;padding:2px 0;border-bottom:1px solid var(--border);">
+    ${bars.map(b=>`<div class="cal-span-bar ${b.cls}" style="grid-column:${b.col}/span ${b.span};grid-row:${b.lane};background:${b.color};" onclick="${b.onClick}" title="${escapeHtml(b.label)}">${b.cBefore?'◀ ':''}${escapeHtml(b.label)}${b.cAfter?' ▶':''}</div>`).join('')}
+  </div>`:'';
+
+  const colsHtml=weekDays.map((ds,i)=>{
+    const d=new Date(mon); d.setDate(mon.getDate()+i);
     const isT=ds===today;
     const evs=byDay[ds]||[];
-    const evHtml=evs.map(ev=>{
-      const t=ev.start.dateTime?new Date(ev.start.dateTime).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'';
-      return `<div class="cal-week-event" style="background:${ev._calColor||'var(--accent)'};cursor:pointer;" onclick="event.stopPropagation();openCalEventModal('${escapeAttr(ev.id)}')">${t?t+' ':''}${escapeHtml(ev.summary||'')}</div>`;
+    const evHtml=evs.filter(ev=>ev.start.dateTime).map(ev=>{
+      const t=new Date(ev.start.dateTime).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+      return `<div class="cal-week-event" style="background:${ev._calColor||'var(--accent)'};cursor:pointer;" onclick="event.stopPropagation();openCalEventModal('${escapeAttr(ev.id)}')">${t} ${escapeHtml(ev.summary||'')}</div>`;
     }).join('');
-    const colGTasks=googleTasks.filter(t=>t.due&&t.due.slice(0,10)===ds);
-    const colLTasks=state.tasks.filter(t=>t.status!=='hecha'&&taskSpanPos(t,ds));
-    const isToday2=ds===today;
-    const overdueGTasks=isToday2?googleTasks.filter(t=>t.due&&t.due.slice(0,10)<today):[];
-    const overdueLTasks=isToday2?state.tasks.filter(t=>t.due&&t.due<today&&t.status!=='hecha'):[];
-    const taskHtml=(showCalGTasks?colGTasks.map(t=>`<div class="gtask-cal-pill" onclick="event.stopPropagation();openGTaskModal('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">✓ ${escapeHtml(t.title||'')}</div>`).join(''):'')
-      +(showCalLocalTasks?colLTasks.map(t=>{const pos=taskSpanPos(t,ds);const sc=pos&&pos!=='single'?' span-'+pos:'';return `<div class="ltask-cal-pill ${t.urgency||''}${sc}" onclick="event.stopPropagation();openTaskModal('${escapeAttr(t.id)}')">${pos==='mid'||pos==='end'?'━ ':'● '}${escapeHtml(t.title||'')}</div>`;}).join(''):'')
+    // Only single-day tasks in column cells (multi-day ones are in the strip above)
+    const colGTasks=showCalGTasks?googleTasks.filter(t=>t.due&&t.due.slice(0,10)===ds):[];
+    const colLTasks=showCalLocalTasks?state.tasks.filter(t=>t.status!=='hecha'&&(!t.start||t.start===t.due)&&t.due===ds):[];
+    const overdueGTasks=isT&&showCalGTasks?googleTasks.filter(t=>t.due&&t.due.slice(0,10)<today):[];
+    const overdueLTasks=isT&&showCalLocalTasks?state.tasks.filter(t=>t.due&&t.due<today&&t.status!=='hecha'&&(!t.start||t.start===t.due)):[];
+    const taskHtml=
+       (showCalGTasks?colGTasks.map(t=>`<div class="gtask-cal-pill" onclick="event.stopPropagation();openGTaskModal('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">✓ ${escapeHtml(t.title||'')}</div>`).join(''):'')
+      +(showCalLocalTasks?colLTasks.map(t=>`<div class="ltask-cal-pill ${t.urgency||''}" onclick="event.stopPropagation();openTaskModal('${escapeAttr(t.id)}')">● ${escapeHtml(t.title||'')}</div>`).join(''):'')
       +(showCalGTasks?overdueGTasks.map(t=>`<div class="gtask-cal-pill overdue" onclick="event.stopPropagation();openGTaskModal('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">⚠ ${escapeHtml(t.title||'')}</div>`).join(''):'')
       +(showCalLocalTasks?overdueLTasks.map(t=>`<div class="ltask-cal-pill ${t.urgency||''} overdue" onclick="event.stopPropagation();openTaskModal('${escapeAttr(t.id)}')">⚠ ${escapeHtml(t.title||'')}</div>`).join(''):'');
     return `<div class="cal-week-col">
@@ -2217,7 +2244,9 @@ function renderCalWeekGrid(){
       </div>
       <div class="cal-week-col-body">${evHtml}${taskHtml}</div>
     </div>`;
-  }).join('')+'</div>';
+  }).join('');
+
+  return `<div style="display:flex;flex-direction:column;">${stripHtml}<div class="cal-week-grid">${colsHtml}</div></div>`;
 }
 function selectCalDay(dateStr){
   calSelectedDay = calSelectedDay===dateStr ? null : dateStr;
@@ -2285,56 +2314,128 @@ async function loadCalendarMonth(){
   renderCalendarSelector();
   renderCalMonthGrid();
 }
+function _buildSpanBars(items, weekDays){
+  // items: [{start, end, color, label, onClick}]
+  // Returns bars with col, span, lane assigned
+  const weekStart=weekDays[0], weekEnd=weekDays[6];
+  const raw=items.map(item=>{
+    const effS=item.start<weekStart?weekStart:item.start;
+    const effE=item.end>weekEnd?weekEnd:item.end;
+    const col=weekDays.indexOf(effS)+1;
+    const col2=weekDays.indexOf(effE)+1;
+    if(col<1||col2<col) return null;
+    return{...item,col,span:col2-col+1,cBefore:item.start<weekStart,cAfter:item.end>weekEnd};
+  }).filter(Boolean);
+  const lanes=[];
+  return raw.map(b=>{
+    const effEnd=weekDays[b.col+b.span-2];
+    const effStart=weekDays[b.col-1];
+    let li=lanes.findIndex(e=>!e||e<effStart);
+    if(li===-1){lanes.push(effEnd);li=lanes.length-1;} else lanes[li]=effEnd;
+    const cls=b.cBefore&&b.cAfter?'cont-both':b.cBefore?'cont-before':b.cAfter?'cont-after':'';
+    return{...b,lane:li+1,cls};
+  });
+}
+function _gcalAllDaySpans(events){
+  return events.filter(ev=>{
+    if(!ev.start.date||!ev.end?.date) return false;
+    const endExcl=new Date(new Date(ev.end.date+'T12:00:00').getTime()-86400000).toISOString().slice(0,10);
+    return endExcl>ev.start.date;
+  }).map(ev=>({
+    start:ev.start.date,
+    end:new Date(new Date(ev.end.date+'T12:00:00').getTime()-86400000).toISOString().slice(0,10),
+    color:ev._calColor||'#4285F4',label:ev.summary||'',onClick:`openCalEventModal('${escapeAttr(ev.id)}')`
+  }));
+}
+function _ltaskSpans(){
+  return showCalLocalTasks ? state.tasks.filter(t=>t.start&&t.due&&t.start<t.due&&t.status!=='hecha').map(t=>({
+    start:t.start,end:t.due,
+    color:{alta:'#ef4444',media:'#f59e0b',baja:'#22c55e','':'#7c3aed'}[t.urgency||''],
+    label:t.title,onClick:`openTaskModal('${escapeAttr(t.id)}')`
+  })) : [];
+}
+function _renderSpanBars(bars){
+  if(!bars.length) return '';
+  const maxLane=Math.max(...bars.map(b=>b.lane));
+  return `<div class="cal-spans-container"><div class="cal-spans-inner" style="grid-auto-rows:22px;min-height:${maxLane*23}px;">
+    ${bars.map(b=>`<div class="cal-span-bar ${b.cls}" style="grid-column:${b.col}/span ${b.span};grid-row:${b.lane};background:${b.color};" onclick="${b.onClick}" title="${escapeHtml(b.label)}">${b.cBefore?'◀ ':''}${escapeHtml(b.label)}${b.cAfter?' ▶':''}</div>`).join('')}
+  </div></div>`;
+}
+
 function renderCalMonthGrid(){
   const grid=document.getElementById('calMonthGrid'); if(!grid) return;
   const yr=calViewMonth.getFullYear(), mo=calViewMonth.getMonth();
-  const label=calViewMonth.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
-  const lbl=document.getElementById('calMonthLabel'); if(lbl) lbl.textContent=label;
   const today=todayStr();
   const firstDay=new Date(yr,mo,1);
   const lastDay=new Date(yr,mo+1,0);
   let startDow=firstDay.getDay(); if(startDow===0) startDow=7; startDow--;
+
   const byDay={};
-  calMonthEvents.forEach(ev=>{const d=ev.start.dateTime?ev.start.dateTime.slice(0,10):ev.start.date; if(!byDay[d])byDay[d]=[]; byDay[d].push(ev);});
-  const taskByDay={};
+  calMonthEvents.forEach(ev=>{
+    const d=ev.start.dateTime?ev.start.dateTime.slice(0,10):ev.start.date;
+    if(!byDay[d])byDay[d]=[]; byDay[d].push(ev);
+  });
+
+  // Single-day tasks (no start range) for pills inside day cells
+  const singleByDay={};
   if(showCalGTasks) googleTasks.filter(t=>t.due).forEach(t=>{
     const d=t.due.slice(0,10);
-    if(!taskByDay[d])taskByDay[d]=[];
-    taskByDay[d].push({_type:'gtask',...t});
-    if(d<today&&d!==today){if(!taskByDay[today])taskByDay[today]=[]; taskByDay[today].push({_type:'gtask',_overdue:true,...t});}
+    if(!singleByDay[d])singleByDay[d]=[];
+    singleByDay[d].push({_type:'gtask',...t});
+    if(d<today&&d!==today){if(!singleByDay[today])singleByDay[today]=[]; singleByDay[today].push({_type:'gtask',_overdue:true,...t});}
   });
-  if(showCalLocalTasks) state.tasks.filter(t=>t.due&&t.status!=='hecha').forEach(t=>{
-    const s=t.start||t.due;
-    let d=new Date(s+'T12:00:00');
-    const dEnd=new Date(t.due+'T12:00:00');
-    while(d<=dEnd){
-      const ds=d.toISOString().slice(0,10);
-      if(!taskByDay[ds])taskByDay[ds]=[];
-      taskByDay[ds].push({_type:'ltask',...t});
-      d.setDate(d.getDate()+1);
-    }
-    if(t.due<today&&t.due!==today){if(!taskByDay[today])taskByDay[today]=[]; taskByDay[today].push({_type:'ltask',_overdue:true,...t});}
+  if(showCalLocalTasks) state.tasks.filter(t=>t.due&&t.status!=='hecha'&&(!t.start||t.start===t.due)).forEach(t=>{
+    if(!singleByDay[t.due])singleByDay[t.due]=[];
+    singleByDay[t.due].push({_type:'ltask',...t});
+    if(t.due<today&&t.due!==today){if(!singleByDay[today])singleByDay[today]=[]; singleByDay[today].push({_type:'ltask',_overdue:true,...t});}
   });
-  const dowLabels=['Lu','Ma','Mi','Ju','Vi','Sá','Do'];
-  let html=dowLabels.map(d=>`<div class="cal-dow">${d}</div>`).join('');
-  for(let i=0;i<startDow;i++) html+=`<div class="cal-day other-month"></div>`;
+
+  // Build spanning bar sources
+  const gcalSpans=_gcalAllDaySpans(calMonthEvents);
+  const ltSpans=_ltaskSpans();
+  const allSpanItems=[...gcalSpans,...ltSpans];
+
+  // Build weeks
+  const weeks=[];
+  let wk=[];
+  for(let i=0;i<startDow;i++) wk.push(null);
   for(let d=1;d<=lastDay.getDate();d++){
-    const dateStr=`${yr}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const isToday=dateStr===today;
-    const isSel=dateStr===calSelectedDay;
-    const evs=byDay[dateStr]||[];
-    const maxShow=3;
-    const dots=evs.slice(0,maxShow).map(ev=>`<div class="cal-event-pill" style="background:${ev._calColor||'var(--accent)'};cursor:pointer;" onclick="event.stopPropagation();openCalEventModal('${escapeAttr(ev.id)}')">${escapeHtml(ev.summary||'')}</div>`).join('');
-    const more=evs.length>maxShow?`<div class="cal-event-more">+${evs.length-maxShow} más</div>`:'';
-    const dayTasks=(taskByDay[dateStr]||[]);
-    const taskDots=dayTasks.slice(0,3).map(t=>t._type==='gtask'
-      ? `<div class="gtask-cal-pill${t._overdue?' overdue':''}" onclick="event.stopPropagation();openGTaskModal('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">${t._overdue?'⚠ ':'✓ '}${escapeHtml(t.title||'')}</div>`
-      : (()=>{ const pos=taskSpanPos(t,dateStr); const sc=pos&&pos!=='single'?' span-'+pos:''; return `<div class="ltask-cal-pill ${t.urgency||''}${sc}${t._overdue?' overdue':''}" onclick="event.stopPropagation();openTaskModal('${escapeAttr(t.id)}')">${t._overdue?'⚠ ':pos==='mid'||pos==='end'?'━ ':'● '}${escapeHtml(t.title||'')}</div>`; })()
-    ).join('');
-    html+=`<div class="cal-day ${isToday?'today':''} ${isSel?'selected':''}" data-date="${dateStr}" onclick="selectCalDay('${dateStr}')">
-      <div class="cal-day-num">${d}</div>${dots}${more}${taskDots}
-    </div>`;
+    wk.push(`${yr}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
+    if(wk.length===7){weeks.push(wk);wk=[];}
   }
+  while(wk.length>0&&wk.length<7) wk.push(null);
+  if(wk.length) weeks.push(wk);
+
+  const dowLabels=['Lu','Ma','Mi','Ju','Vi','Sá','Do'];
+  let html='<div class="cal-dow-row">'+dowLabels.map(d=>`<div class="cal-dow">${d}</div>`).join('')+'</div>';
+
+  weeks.forEach(weekDays=>{
+    const valid=weekDays.filter(Boolean);
+    if(!valid.length) return;
+    const weekStart=valid[0], weekEnd=valid[valid.length-1];
+    const weekItems=allSpanItems.filter(it=>it.end>=weekStart&&it.start<=weekEnd);
+    const bars=_buildSpanBars(weekItems,weekDays);
+    const spansHtml=_renderSpanBars(bars);
+
+    const daysHtml=weekDays.map(ds=>{
+      if(!ds) return '<div class="cal-day other-month" style="grid-row:2;"></div>';
+      const isToday=ds===today, isSel=ds===calSelectedDay;
+      const evs=(byDay[ds]||[]).filter(ev=>ev.start.dateTime);
+      const dots=evs.slice(0,2).map(ev=>`<div class="cal-event-pill" style="background:${ev._calColor||'var(--accent)'};cursor:pointer;" onclick="event.stopPropagation();openCalEventModal('${escapeAttr(ev.id)}')">${escapeHtml(ev.summary||'')}</div>`).join('');
+      const more=evs.length>2?`<div class="cal-event-more">+${evs.length-2}</div>`:'';
+      const dayTasks=(singleByDay[ds]||[]).slice(0,2).map(t=>
+        t._type==='gtask'
+          ?`<div class="gtask-cal-pill${t._overdue?' overdue':''}" onclick="event.stopPropagation();openGTaskModal('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">${t._overdue?'⚠ ':'✓ '}${escapeHtml(t.title||'')}</div>`
+          :`<div class="ltask-cal-pill ${t.urgency||''}${t._overdue?' overdue':''}" onclick="event.stopPropagation();openTaskModal('${escapeAttr(t.id)}')">${t._overdue?'⚠ ':'● '}${escapeHtml(t.title||'')}</div>`
+      ).join('');
+      return `<div class="cal-day ${isToday?'today':''} ${isSel?'selected':''}" style="grid-row:2;" data-date="${ds}" onclick="selectCalDay('${ds}')">
+        <div class="cal-day-num">${parseInt(ds.slice(8))}</div>${dots}${more}${dayTasks}
+      </div>`;
+    }).join('');
+
+    html+=`<div class="cal-month-week">${spansHtml}${daysHtml}</div>`;
+  });
+
   grid.innerHTML=html;
 }
 async function refreshHeaderEvents(){
