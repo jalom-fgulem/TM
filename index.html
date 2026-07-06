@@ -60,6 +60,8 @@
   .header-event-pill .ep-time{font-weight:700;font-size:11px;}
   .header-event-pill .ep-title{color:var(--text);font-weight:500;}
   .header-event-pill:hover{background:var(--accent-border);}
+  .ep-day-sep{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);padding:2px 7px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;white-space:nowrap;margin-left:6px;align-self:center;}
+  .ep-day-sep:first-child{margin-left:0;}
   .ep-meet-btn{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;background:#1a73e8;color:#fff;border-radius:99px;font-size:10px;font-weight:600;text-decoration:none;margin-left:2px;}
   .ep-meet-btn:hover{background:#1557b0;color:#fff;}
   .ev-meet-link{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#e8f0fe;border:1px solid #c5d8fd;border-radius:8px;color:#1a73e8;font-weight:600;font-size:13px;text-decoration:none;margin-bottom:12px;}
@@ -2489,10 +2491,10 @@ function renderCal3WeekGrid(){
     const spansHtml=_renderSpanBars(bars);
     const daysHtml=weekDays.map(ds=>{
       const isToday=ds===today;
-      const evs=(byDay[ds]||[]).filter(ev=>ev.start.dateTime);
+      const evs=(byDay[ds]||[]).filter(ev=>ev.start.dateTime).sort((a,b)=>(a.start.dateTime<b.start.dateTime?-1:1));
       const tasks=singleByDay[ds]||[];
-      const MAX=5;
-      const evRows=evs.slice(0,MAX).map(ev=>{
+      // No MAX — show all events so cells auto-expand
+      const evRows=evs.map(ev=>{
         const isMissing=_reunionesCal&&ev._calId===_reunionesCal.id&&_reunionesMissingIds.has(ev.id);
         const t=new Date(ev.start.dateTime).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
         return `<div class="cal-ev-row${isMissing?' missing-agenda':''}" onclick="event.stopPropagation();openCalEventModal('${escapeAttr(ev.id)}')">
@@ -2501,17 +2503,15 @@ function renderCal3WeekGrid(){
           <span class="cal-ev-title">${isMissing?'⚠ ':''}${escapeHtml(ev.summary||'')}</span>
         </div>`;
       }).join('');
-      const taskRows=tasks.slice(0,Math.max(0,MAX-evs.length)).map(t=>
+      const taskRows=tasks.map(t=>
         t._type==='gtask'
           ?`<div class="cal-ev-row" onclick="event.stopPropagation();openGTaskModal('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')"><span class="cal-ev-dot" style="background:#1a73e8;"></span><span class="cal-ev-title">✓ ${escapeHtml(t.title||'')}</span></div>`
           :`<div class="cal-ev-row" onclick="event.stopPropagation();openTaskModal('${escapeAttr(t.id)}')"><span class="cal-ev-dot" style="background:#7c3aed;"></span><span class="cal-ev-title">${escapeHtml(t.title||'')}</span></div>`
       ).join('');
-      const extra=(evs.length-MAX)+(tasks.length-Math.max(0,MAX-evs.length));
-      const more=extra>0?`<div class="cal-event-more" onclick="event.stopPropagation();selectCalDay('${ds}')">+${extra} más</div>`:'';
       const mo=new Date(ds+'T12:00:00').toLocaleDateString('es-ES',{month:'short'});
-      return `<div class="cal-day${isToday?' today':''}" style="grid-row:2;" data-date="${ds}" onclick="selectCalDay('${ds}')">
+      return `<div class="cal-day${isToday?' today':''}" style="grid-row:2;min-height:140px;" data-date="${ds}" onclick="selectCalDay('${ds}')">
         <div class="cal-day-num"><span>${parseInt(ds.slice(8))}</span><span style="font-size:9px;color:var(--text-muted);margin-left:2px;">${mo}</span></div>
-        ${evRows}${taskRows}${more}
+        ${evRows}${taskRows}
       </div>`;
     }).join('');
     html+=`<div class="cal-month-week">${spansHtml}${daysHtml}</div>`;
@@ -2818,20 +2818,42 @@ function updateHeaderEvents(){
   const el=document.getElementById('headerEvents'); if(!el) return;
   if(!googleToken || !calHeaderEvents.length){ el.innerHTML=''; return; }
   const now=new Date();
+  const today=todayStr();
+  const tmrw=new Date(now); tmrw.setDate(now.getDate()+1);
+  const tmrwStr=`${tmrw.getFullYear()}-${String(tmrw.getMonth()+1).padStart(2,'0')}-${String(tmrw.getDate()).padStart(2,'0')}`;
+
   const upcoming=calHeaderEvents.filter(ev=>{
     const t=ev.start.dateTime?new Date(ev.start.dateTime):new Date(ev.start.date+'T00:00:00');
     return t>=now;
-  }).slice(0,4);
+  }).slice(0,14);
   if(!upcoming.length){ el.innerHTML=''; return; }
-  el.innerHTML=upcoming.map(ev=>{
-    const t=ev.start.dateTime?new Date(ev.start.dateTime).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'Todo el día';
-    const dot=ev._calColor?`<span class="ep-dot" style="background:${ev._calColor};"></span>`:'';
-    const meetLink=ev.hangoutLink||_extractMeetLink(ev);
-    const meetBtn=meetLink?`<a href="${escapeAttr(meetLink)}" target="_blank" class="ep-meet-btn" onclick="event.stopPropagation();" title="Unirse a la reunión online"><i class="ti ti-video"></i> Unirse</a>`:'';
-    return `<span class="header-event-pill" onclick="openCalEventModal('${escapeAttr(ev.id)}')" style="cursor:pointer;">${dot}<span class="ep-time">${t}</span><span class="ep-title">${escapeHtml(ev.summary||'(sin título)')}</span>${meetBtn}</span>`;
-  }).join('');
-  // Programa notificaciones SW para cada evento próximo
-  upcoming.forEach(ev => scheduleMeetingNotification(ev));
+
+  // Group by day
+  const byDay=new Map();
+  upcoming.forEach(ev=>{
+    const ds=(ev.start.dateTime||ev.start.date).slice(0,10);
+    if(!byDay.has(ds)) byDay.set(ds,[]);
+    byDay.get(ds).push(ev);
+  });
+
+  let html='';
+  byDay.forEach((evs,ds)=>{
+    let lbl;
+    if(ds===today) lbl='Hoy';
+    else if(ds===tmrwStr) lbl='Mañana';
+    else{ const d=new Date(ds+'T12:00:00'); lbl=d.toLocaleDateString('es-ES',{weekday:'short',day:'numeric',month:'short'}); }
+    html+=`<span class="ep-day-sep">${lbl}</span>`;
+    evs.forEach(ev=>{
+      const t=ev.start.dateTime?new Date(ev.start.dateTime).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'Todo el día';
+      const dot=ev._calColor?`<span class="ep-dot" style="background:${ev._calColor};"></span>`:'';
+      const meetLink=ev.hangoutLink||_extractMeetLink(ev);
+      const meetBtn=meetLink?`<a href="${escapeAttr(meetLink)}" target="_blank" class="ep-meet-btn" onclick="event.stopPropagation();" title="Unirse"><i class="ti ti-video"></i></a>`:'';
+      html+=`<span class="header-event-pill" onclick="openCalEventModal('${escapeAttr(ev.id)}')" style="cursor:pointer;">${dot}<span class="ep-time">${t}</span><span class="ep-title">${escapeHtml(ev.summary||'(sin título)')}</span>${meetBtn}</span>`;
+    });
+  });
+
+  el.innerHTML=html;
+  upcoming.forEach(ev=>scheduleMeetingNotification(ev));
   scheduleMeetingAlerts();
 }
 function _extractMeetLink(ev){
