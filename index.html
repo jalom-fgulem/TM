@@ -144,13 +144,16 @@
   .linked-incoming{font-size:11.5px;color:var(--text-soft);margin-bottom:6px;padding:5px 9px;background:var(--accent-bg);border-radius:6px;border-left:3px solid var(--accent);}
 
   /* Kanban */
+  .kanban-wrap{display:flex;gap:14px;align-items:start;}
+  .kanban-main{flex:1;min-width:0;}
   .kanban{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;align-items:start;}
   .kcol{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:12px;min-height:80px;}
   .kcol h3{font-size:11px;text-transform:uppercase;letter-spacing:.07em;margin:0 0 10px;font-weight:700;display:flex;justify-content:space-between;align-items:center;color:var(--text-soft);}
-  .kcol.urgente{border-top:3px solid var(--alta);}
-  .kcol.urgente h3{color:var(--alta);}
   .kcol .count{font-size:10px;background:var(--bg);color:var(--text-soft);border-radius:99px;padding:1px 7px;font-weight:600;border:1px solid var(--border);}
-  .kcol.urgente .count{background:var(--alta-bg);color:var(--alta);border-color:var(--alta-border);}
+  .kcol-urgente-sidebar{width:250px;flex-shrink:0;background:var(--alta-bg);border:2px solid var(--alta-border);border-top:3px solid var(--alta);border-radius:12px;padding:12px;align-self:start;}
+  .kcol-urgente-sidebar h3{font-size:11px;text-transform:uppercase;letter-spacing:.07em;margin:0 0 10px;font-weight:700;display:flex;justify-content:space-between;align-items:center;color:var(--alta);}
+  .kcol-urgente-sidebar .count{font-size:10px;background:#fff;color:var(--alta);border-radius:99px;padding:1px 7px;font-weight:700;border:1px solid var(--alta-border);}
+  .kcol-urgente-sidebar .task{border-left:3px solid var(--alta);}
   .kcol-add{width:100%;padding:6px;border-radius:8px;border:1px dashed var(--border);background:transparent;color:var(--text-muted);font-size:12px;cursor:pointer;text-align:center;margin-top:4px;}
   .kcol-add:hover{background:var(--surface);color:var(--text-soft);}
 
@@ -457,6 +460,8 @@
     .viewtabs button i{font-size:19px;}
 
     /* Kanban: scroll horizontal, columnas fijas */
+    .kanban-wrap{flex-direction:column-reverse;}
+    .kcol-urgente-sidebar{width:100%;border-top:3px solid var(--alta);}
     .kanban{display:flex;flex-wrap:nowrap;overflow-x:auto;gap:10px;padding-bottom:8px;-webkit-overflow-scrolling:touch;}
     .kcol{min-width:270px;flex-shrink:0;}
 
@@ -2066,8 +2071,8 @@ function renderCalendario(){
         <button class="cal-view-tab ${calView==='month'?'active':''}" onclick="setCalView('month')">Mes</button>
       </div>
       <div style="display:flex;gap:4px;margin-left:auto;align-items:center;">
-        <button class="btn-small ${showCalLocalTasks?'active':''}" onclick="showCalLocalTasks=!showCalLocalTasks;render();loadCalendarData();" title="Mostrar/ocultar tareas locales" style="font-size:11px;">● Tareas</button>
-        <button class="btn-small ${showCalGTasks?'active':''}" onclick="showCalGTasks=!showCalGTasks;render();loadCalendarData();" title="Mostrar/ocultar Google Tasks" style="font-size:11px;">✓ G Tasks</button>
+        <span class="cal-chip ${showCalLocalTasks?'on':''}" onclick="showCalLocalTasks=!showCalLocalTasks;render();loadCalendarData();" title="Mostrar/ocultar tareas locales"><span class="cal-chip-dot" style="background:#7c3aed;"></span>Tareas</span>
+        <span class="cal-chip ${showCalGTasks?'on':''}" onclick="showCalGTasks=!showCalGTasks;render();loadCalendarData();" title="Mostrar/ocultar Google Tasks"><span class="cal-chip-dot" style="background:#1a73e8;"></span>G Tasks</span>
         <button class="btn-primary btn-small" onclick="openCalEventModal(null)" style="gap:4px;"><i class="ti ti-plus"></i> Evento</button>
         <button class="btn-ghost btn-small" onclick="loadCalendarData()" title="Actualizar"><i class="ti ti-refresh"></i></button>
       </div>
@@ -2168,7 +2173,7 @@ function renderCalWeekGrid(){
   const names=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
   return '<div class="cal-week-grid">'+Array.from({length:7},(_,i)=>{
     const d=new Date(mon); d.setDate(mon.getDate()+i);
-    const ds=d.toISOString().slice(0,10);
+    const ds=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     const isT=ds===today;
     const evs=byDay[ds]||[];
     const evHtml=evs.map(ev=>{
@@ -3291,16 +3296,22 @@ function renderKanban(taskSet){
   const done=taskSet.filter(t=>t.status==='hecha');
   const order={alta:0,media:1,baja:2};
   const sortFn=(a,b)=>order[a.urgency]-order[b.urgency]||(a.due||'9999').localeCompare(b.due||'9999');
-  const cols=[
-    {title:'Urgente', cls:'urgente', items:open.filter(t=>t.urgency==='alta').sort(sortFn), showTipo:true, prefill:{urgency:'alta'}}
-  ];
-  state.tipos.forEach(tp=>{
-    cols.push({title:tp, cls:'', items:open.filter(t=>t.tipo===tp&&t.urgency!=='alta').sort(sortFn), showTipo:false, prefill:{tipo:tp}});
-  });
-  const sinTipo=open.filter(t=>(!t.tipo || !state.tipos.includes(t.tipo))&&t.urgency!=='alta').sort(sortFn);
-  if(sinTipo.length) cols.push({title:'Sin tipo', cls:'', items:sinTipo, showTipo:false, prefill:{}});
 
-  const toggleBtn = '';
+  const urgent=open.filter(t=>t.urgency==='alta').sort(sortFn);
+
+  const cols=[];
+  state.tipos.forEach(tp=>{
+    cols.push({title:tp, items:open.filter(t=>t.tipo===tp).sort(sortFn), showTipo:false, prefill:{tipo:tp}});
+  });
+  const sinTipo=open.filter(t=>!t.tipo || !state.tipos.includes(t.tipo)).sort(sortFn);
+  if(sinTipo.length) cols.push({title:'Sin tipo', items:sinTipo, showTipo:true, prefill:{}});
+
+  const urgentSidebar = `
+    <div class="kcol-urgente-sidebar">
+      <h3>⚡ Urgente <span class="count">${urgent.length}</span></h3>
+      ${urgent.length ? urgent.map(t=>taskCard(t,true)).join('') : '<p class="empty" style="font-size:12px;">Nada urgente.</p>'}
+      <button class="kcol-add" onclick="openTaskModal(null,JSON.parse(this.dataset.p))" data-p="${escapeAttr(JSON.stringify({urgency:'alta'}))}">+ Añadir urgente</button>
+    </div>`;
 
   const doneSection = showDoneTasks && done.length ? `
     <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px;">
@@ -3316,12 +3327,16 @@ function renderKanban(taskSet){
         </div>`).join('')}</div>
     </div>` : '';
 
-  return toggleBtn + '<div class="kanban">'+cols.map(c=>`
-    <div class="kcol ${c.cls}">
-      <h3>${escapeHtml(c.title)} <span class="count">${c.items.length}</span></h3>
-      ${c.items.length ? c.items.map(t=>taskCard(t,c.showTipo)).join('') : '<p class="empty">Nada aquí.</p>'}
-      <button class="kcol-add" onclick="openTaskModal(null,JSON.parse(this.dataset.p))" data-p="${escapeAttr(JSON.stringify(c.prefill))}">+ Añadir</button>
-    </div>`).join('')+'</div>' + doneSection;
+  const mainKanban = cols.length
+    ? '<div class="kanban">'+cols.map(c=>`
+        <div class="kcol">
+          <h3>${escapeHtml(c.title)} <span class="count">${c.items.length}</span></h3>
+          ${c.items.length ? c.items.map(t=>taskCard(t,c.showTipo)).join('') : '<p class="empty">Nada aquí.</p>'}
+          <button class="kcol-add" onclick="openTaskModal(null,JSON.parse(this.dataset.p))" data-p="${escapeAttr(JSON.stringify(c.prefill))}">+ Añadir</button>
+        </div>`).join('')+'</div>'
+    : '<p class="empty">Sin tipos de tarea configurados.</p>';
+
+  return `<div class="kanban-wrap"><div class="kanban-main">${mainKanban}${doneSection}</div>${urgentSidebar}</div>`;
 }
 
 function renderLista(){
