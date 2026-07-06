@@ -981,7 +981,7 @@ function openTaskModal(taskId, prefill, fromNoteId){
 
         <div class="area-toggles" id="mAreas">
           ${state.areas.map(a=>`
-          <label class="area-toggle ${selectedAreas.includes(a)?'checked':''}" onclick="this.classList.toggle('checked');var ic=this.querySelector('.area-toggle-icon');ic.textContent=this.classList.contains('checked')?'✓':'';">
+          <label class="area-toggle ${selectedAreas.includes(a)?'checked':''}" onclick="event.preventDefault();var cb=this.querySelector('input');cb.checked=!cb.checked;this.classList.toggle('checked',cb.checked);this.querySelector('.area-toggle-icon').textContent=cb.checked?'✓':'';">
             <input type="checkbox" value="${escapeAttr(a)}" ${selectedAreas.includes(a)?'checked':''}>
             <span class="area-toggle-icon">${selectedAreas.includes(a)?'✓':''}</span>
             ${escapeHtml(a)}
