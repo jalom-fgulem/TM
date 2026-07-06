@@ -328,9 +328,39 @@
   .header-event-pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:99px;color:var(--accent);font-size:11px;font-weight:500;white-space:nowrap;}
   .header-event-pill i{font-size:12px;}
 
+  /* Calendar layout with sidebar */
+  .cal-layout{display:flex;gap:0;align-items:flex-start;}
+  .cal-sidebar{width:200px;flex-shrink:0;border-right:1px solid var(--border);padding:10px 8px 20px;display:flex;flex-direction:column;gap:14px;min-height:calc(100vh - 150px);overflow-y:auto;}
+  .cal-main{flex:1;min-width:0;padding-left:14px;overflow-x:auto;}
+  /* Mini calendar */
+  .cal-mini{}
+  .cal-mini-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;}
+  .cal-mini-title{font-size:11.5px;font-weight:600;color:var(--text);text-transform:capitalize;}
+  .cal-mini-arr{background:none;border:none;cursor:pointer;color:var(--text-muted);padding:2px 3px;border-radius:4px;line-height:1;font-size:13px;}
+  .cal-mini-arr:hover{background:var(--surface2);}
+  .cal-mini-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;}
+  .cal-mini-dow{font-size:9px;font-weight:700;color:var(--text-muted);text-align:center;padding:2px 0;text-transform:uppercase;}
+  .cal-mini-day{font-size:10.5px;text-align:center;padding:3px 1px;border-radius:50%;cursor:pointer;color:var(--text);aspect-ratio:1;display:flex;align-items:center;justify-content:center;min-width:22px;}
+  .cal-mini-day:hover:not(.mini-today){background:var(--surface2);}
+  .cal-mini-day.mini-today{background:var(--accent);color:#fff;font-weight:700;}
+  .cal-mini-day.mini-sel:not(.mini-today){outline:2px solid var(--accent);outline-offset:-2px;}
+  .cal-mini-day.other{opacity:0.35;cursor:default;}
+  /* Sidebar calendar list */
+  .cal-list-group{margin-bottom:6px;}
+  .cal-list-group-title{font-size:9.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-muted);padding:0 4px;margin-bottom:4px;}
+  .cal-list-item{display:flex;align-items:center;gap:7px;padding:3px 6px;border-radius:6px;cursor:pointer;font-size:12px;color:var(--text);min-height:26px;}
+  .cal-list-item:hover{background:var(--surface2);}
+  .cal-list-check{width:14px;height:14px;border-radius:3px;border:2px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .1s;}
+  .cal-list-check::after{content:'';display:block;width:7px;height:7px;border-radius:1px;}
+  .cal-list-check.on{border-color:transparent;}
+  .cal-list-check.on::after{content:'✓';font-size:9px;color:#fff;font-weight:800;width:auto;height:auto;}
+  .cal-list-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .cal-list-rename{background:none;border:none;cursor:pointer;color:var(--text-muted);padding:1px 3px;border-radius:3px;opacity:0;font-size:10px;line-height:1;flex-shrink:0;}
+  .cal-list-item:hover .cal-list-rename{opacity:1;}
+  .cal-list-rename:hover{color:var(--text);background:var(--surface2);}
   /* Monthly calendar */
   .cal-month{width:100%;}
-  .cal-nav{display:flex;align-items:center;gap:8px;margin-bottom:14px;}
+  .cal-nav{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;}
   .cal-nav-label{flex:1;text-align:center;font-size:15px;font-weight:600;text-transform:capitalize;}
   .cal-grid{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:10px;overflow:hidden;}
   .cal-dow-row{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));background:var(--surface2);border-bottom:1px solid var(--border);}
@@ -1959,6 +1989,7 @@ let showCalLocalTasks = true;
 let showCalGTasks = true;
 let _meetAlertTimer = null;
 let _alertedEvents = new Set();
+let calMiniMonth = new Date(); // mini calendar display month (independent navigation)
 // Agenda Director sync
 let _agendaDirCal = null, _reunionesCal = null;
 let _reunionesMissingIds = new Set();
@@ -2061,11 +2092,91 @@ async function fetchCalendarList(){
   }catch(e){}
 }
 function isCalEnabled(id){ return (state.calendarSelection||{})[id] !== false; }
+
+function calDisplayName(c){
+  const over=(state.calendarNames||{})[c.id];
+  if(over) return over;
+  if(c.summaryOverride) return c.summaryOverride;
+  const s=c.summary||'';
+  if(/^(webcal|https?):\/\//i.test(s)){
+    try{ return new URL(s.replace(/^webcal:/,'https:')).hostname.replace(/^www\./,''); }
+    catch(e){ return 'Suscripción'; }
+  }
+  return s;
+}
+function renameCalendar(id){
+  const c=googleCalendars.find(x=>x.id===id); if(!c) return;
+  const name=prompt('Nombre para este calendario:',calDisplayName(c));
+  if(name===null) return;
+  if(!state.calendarNames) state.calendarNames={};
+  if(name.trim()) state.calendarNames[id]=name.trim();
+  else delete state.calendarNames[id];
+  saveSettings(); renderCalendarSelector(); renderCalSidebarList();
+}
+
+function renderCalMini(){
+  const yr=calMiniMonth.getFullYear(), mo=calMiniMonth.getMonth();
+  const today=todayStr();
+  const selDay=calView==='day'?`${calViewDate.getFullYear()}-${String(calViewDate.getMonth()+1).padStart(2,'0')}-${String(calViewDate.getDate()).padStart(2,'0')}`:null;
+  const firstDay=new Date(yr,mo,1); const lastDay=new Date(yr,mo+1,0);
+  let startDow=firstDay.getDay(); if(startDow===0) startDow=7; startDow--;
+  const label=new Date(yr,mo,1).toLocaleDateString('es-ES',{month:'long',year:'numeric'});
+  let cells=[];
+  for(let i=0;i<startDow;i++) cells.push(null);
+  for(let d=1;d<=lastDay.getDate();d++) cells.push(`${yr}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
+  while(cells.length%7!==0) cells.push(null);
+  return `<div class="cal-mini">
+    <div class="cal-mini-nav">
+      <button class="cal-mini-arr" onclick="navCalMini(-1)"><i class="ti ti-chevron-left"></i></button>
+      <span class="cal-mini-title">${label}</span>
+      <button class="cal-mini-arr" onclick="navCalMini(1)"><i class="ti ti-chevron-right"></i></button>
+    </div>
+    <div class="cal-mini-grid">
+      ${'LMXJVSD'.split('').map(d=>`<div class="cal-mini-dow">${d}</div>`).join('')}
+      ${cells.map(ds=>{
+        if(!ds) return '<div class="cal-mini-day other"></div>';
+        const isT=ds===today, isSel=ds===selDay;
+        return `<div class="cal-mini-day${isT?' mini-today':''}${isSel?' mini-sel':''}" onclick="selectCalDay('${ds}')">${parseInt(ds.slice(8))}</div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+function navCalMini(delta){
+  calMiniMonth=new Date(calMiniMonth.getFullYear(),calMiniMonth.getMonth()+delta,1);
+  const el=document.getElementById('calMiniWrap'); if(el) el.innerHTML=renderCalMini();
+}
+
+function renderCalSidebarList(){
+  const el=document.getElementById('calSidebarList'); if(!el) return;
+  if(!googleCalendars.length){ el.innerHTML=''; return; }
+  const mine=googleCalendars.filter(c=>c.accessRole==='owner'||c.accessRole==='writer');
+  const others=googleCalendars.filter(c=>c.accessRole!=='owner'&&c.accessRole!=='writer');
+  const renderGroup=(list,title)=>{
+    if(!list.length) return '';
+    return `<div class="cal-list-group">
+      <div class="cal-list-group-title">${title}</div>
+      ${list.map(c=>{
+        const on=isCalEnabled(c.id);
+        const name=calDisplayName(c);
+        const color=c.backgroundColor||'#4285F4';
+        const isUrl=/^(webcal|https?):\/\//i.test(c.summary||'');
+        return `<div class="cal-list-item" onclick="toggleCalendar('${escapeAttr(c.id)}')">
+          <span class="cal-list-check${on?' on':''}" style="background:${on?color:'transparent'};border-color:${color};"></span>
+          <span class="cal-list-name" title="${escapeAttr(c.summary)}">${escapeHtml(name)}</span>
+          ${isUrl?`<button class="cal-list-rename" onclick="event.stopPropagation();renameCalendar('${escapeAttr(c.id)}')" title="Renombrar"><i class="ti ti-pencil"></i></button>`:''}
+        </div>`;
+      }).join('')}
+    </div>`;
+  };
+  el.innerHTML=renderGroup(mine,'Mis calendarios')+renderGroup(others,'Otros calendarios');
+}
+
 function toggleCalendar(id){
   if(!state.calendarSelection) state.calendarSelection={};
   state.calendarSelection[id] = !isCalEnabled(id);
   saveSettings();
   renderCalendarSelector();
+  renderCalSidebarList();
   loadCalendarWidget();
   loadCalendarData();
 }
@@ -2075,7 +2186,7 @@ function renderCalendarSelector(){
     const on=isCalEnabled(c.id);
     return `<span class="cal-chip ${on?'on':''}" onclick="toggleCalendar('${escapeAttr(c.id)}')" title="${escapeAttr(c.summary)}">
       <span class="cal-chip-dot" style="background:${c.backgroundColor||'#4285F4'}"></span>
-      ${escapeHtml(c.summary)}
+      ${escapeHtml(calDisplayName(c))}
     </span>`;
   }).join('');
 }
@@ -2086,6 +2197,17 @@ function getWeekRange(d){
   const sun=new Date(mon); sun.setDate(mon.getDate()+6); sun.setHours(23,59,59,999);
   return{mon,sun};
 }
+function get3WeekStart(d){
+  const day=d.getDay();
+  const mon=new Date(d); mon.setDate(d.getDate()-(day===0?6:day-1)); mon.setHours(0,0,0,0);
+  return mon;
+}
+function change3Week(delta){
+  if(delta===0){ calViewDate=new Date(); }
+  else{ const d=new Date(calViewDate); d.setDate(d.getDate()+delta*7); calViewDate=d; }
+  render(); loadCalendarData();
+}
+
 function renderCalendario(){
   if(!googleToken) return `<div class="agenda-connect">
     <p>Conecta tu cuenta de Google en ⚙️ Configuración para ver tu calendario.</p>
@@ -2095,7 +2217,7 @@ function renderCalendario(){
   if(calView==='month'){
     const lbl=calViewMonth.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
     navMid=`<button class="btn-ghost btn-small" onclick="changeCalMonth(-1)"><i class="ti ti-chevron-left"></i></button>
-      <span class="cal-nav-label" id="calNavLabel">${lbl}</span>
+      <span class="cal-nav-label" id="calNavLabel" style="text-transform:capitalize;">${lbl}</span>
       <button class="btn-ghost btn-small" onclick="changeCalMonth(0)">Hoy</button>
       <button class="btn-ghost btn-small" onclick="changeCalMonth(1)"><i class="ti ti-chevron-right"></i></button>`;
   } else if(calView==='day'){
@@ -2104,6 +2226,14 @@ function renderCalendario(){
       <span class="cal-nav-label" id="calNavLabel" style="text-transform:capitalize;">${lbl}</span>
       <button class="btn-ghost btn-small" onclick="changeCalDay(0)">Hoy</button>
       <button class="btn-ghost btn-small" onclick="changeCalDay(1)"><i class="ti ti-chevron-right"></i></button>`;
+  } else if(calView==='3week'){
+    const s=get3WeekStart(calViewDate);
+    const e=new Date(s); e.setDate(s.getDate()+20);
+    const lbl=s.toLocaleDateString('es-ES',{day:'numeric',month:'short'})+' – '+e.toLocaleDateString('es-ES',{day:'numeric',month:'short',year:'numeric'});
+    navMid=`<button class="btn-ghost btn-small" onclick="change3Week(-1)"><i class="ti ti-chevron-left"></i></button>
+      <span class="cal-nav-label" id="calNavLabel">${lbl}</span>
+      <button class="btn-ghost btn-small" onclick="change3Week(0)">Hoy</button>
+      <button class="btn-ghost btn-small" onclick="change3Week(1)"><i class="ti ti-chevron-right"></i></button>`;
   } else {
     const {mon,sun}=getWeekRange(calViewDate);
     const lbl=mon.toLocaleDateString('es-ES',{day:'numeric',month:'short'})+' – '+sun.toLocaleDateString('es-ES',{day:'numeric',month:'short',year:'numeric'});
@@ -2113,32 +2243,52 @@ function renderCalendario(){
       <button class="btn-ghost btn-small" onclick="changeCalWeek(1)"><i class="ti ti-chevron-right"></i></button>`;
   }
   const content = calView==='month'
-    ? `<div class="cal-grid" id="calMonthGrid"><div class="empty" style="grid-column:span 7;padding:16px;">Cargando...</div></div>
-       <div class="cal-day-detail" id="calDayDetail" style="display:none;"></div>`
+    ? `<div class="cal-grid" id="calMonthGrid"><div class="empty" style="grid-column:span 7;padding:16px;">Cargando...</div></div>`
     : `<div id="calViewContent"><p class="empty" style="padding:16px;">Cargando...</p></div>`;
-  return `<div class="cal-month">
-    <div class="cal-nav">
-      ${navMid}
-      <div class="cal-view-tabs">
-        <button class="cal-view-tab ${calView==='day'?'active':''}" onclick="setCalView('day')">Día</button>
-        <button class="cal-view-tab ${calView==='week'?'active':''}" onclick="setCalView('week')">Semana</button>
-        <button class="cal-view-tab ${calView==='month'?'active':''}" onclick="setCalView('month')">Mes</button>
+
+  const sidebar=`<div class="cal-sidebar">
+    <div id="calMiniWrap">${renderCalMini()}</div>
+    <div>
+      <div class="cal-list-group">
+        <div class="cal-list-group-title">Mostrar en calendario</div>
+        <div class="cal-list-item" onclick="showCalLocalTasks=!showCalLocalTasks;render();loadCalendarData();">
+          <span class="cal-list-check${showCalLocalTasks?' on':''}" style="background:${showCalLocalTasks?'#7c3aed':'transparent'};border-color:#7c3aed;"></span>
+          <span class="cal-list-name">Tareas</span>
+        </div>
+        <div class="cal-list-item" onclick="showCalGTasks=!showCalGTasks;render();loadCalendarData();">
+          <span class="cal-list-check${showCalGTasks?' on':''}" style="background:${showCalGTasks?'#1a73e8':'transparent'};border-color:#1a73e8;"></span>
+          <span class="cal-list-name">G Tasks</span>
+        </div>
       </div>
-      <div style="display:flex;gap:4px;margin-left:auto;align-items:center;">
-        <span class="cal-chip ${showCalLocalTasks?'on':''}" onclick="showCalLocalTasks=!showCalLocalTasks;render();loadCalendarData();" title="Mostrar/ocultar tareas locales"><span class="cal-chip-dot" style="background:#7c3aed;"></span>Tareas</span>
-        <span class="cal-chip ${showCalGTasks?'on':''}" onclick="showCalGTasks=!showCalGTasks;render();loadCalendarData();" title="Mostrar/ocultar Google Tasks"><span class="cal-chip-dot" style="background:#1a73e8;"></span>G Tasks</span>
-        <button class="btn-primary btn-small" onclick="openCalEventModal(null)" style="gap:4px;"><i class="ti ti-plus"></i> Evento</button>
-        <button class="btn-ghost btn-small" onclick="loadCalendarData()" title="Actualizar"><i class="ti ti-refresh"></i></button>
-      </div>
+      <div id="calSidebarList"></div>
     </div>
-    <div class="cal-selector" id="calSelector"></div>
-    <div id="agendaSyncBar" class="agenda-sync-bar" style="display:none;"></div>
-    ${content}
+  </div>`;
+
+  return `<div class="cal-layout">
+    ${sidebar}
+    <div class="cal-main">
+      <div class="cal-nav">
+        ${navMid}
+        <div class="cal-view-tabs" style="margin-left:auto;">
+          <button class="cal-view-tab ${calView==='day'?'active':''}" onclick="setCalView('day')">Día</button>
+          <button class="cal-view-tab ${calView==='week'?'active':''}" onclick="setCalView('week')">Semana</button>
+          <button class="cal-view-tab ${calView==='3week'?'active':''}" onclick="setCalView('3week')">3 Semanas</button>
+          <button class="cal-view-tab ${calView==='month'?'active':''}" onclick="setCalView('month')">Mes</button>
+        </div>
+        <div style="display:flex;gap:4px;margin-left:8px;align-items:center;">
+          <button class="btn-primary btn-small" onclick="openCalEventModal(null)" style="gap:4px;"><i class="ti ti-plus"></i> Evento</button>
+          <button class="btn-ghost btn-small" onclick="loadCalendarData()" title="Actualizar"><i class="ti ti-refresh"></i></button>
+        </div>
+      </div>
+      <div id="agendaSyncBar" class="agenda-sync-bar" style="display:none;"></div>
+      ${content}
+    </div>
   </div>`;
 }
 function setCalView(v){ calView=v; calSelectedDay=null; if(v!=='month') calViewDate=new Date(); render(); loadCalendarData(); }
 function changeCalMonth(delta){
-  if(delta===0){ calViewMonth=new Date(); } else { calViewMonth=new Date(calViewMonth.getFullYear(),calViewMonth.getMonth()+delta,1); }
+  if(delta===0){ calViewMonth=new Date(); calMiniMonth=new Date(); }
+  else{ calViewMonth=new Date(calViewMonth.getFullYear(),calViewMonth.getMonth()+delta,1); calMiniMonth=new Date(calViewMonth); }
   calSelectedDay=null; render(); loadCalendarMonth();
 }
 function changeCalDay(delta){
@@ -2157,14 +2307,21 @@ async function loadCalendarData(){
     tMin=d.toISOString();
     const end=new Date(d); end.setDate(d.getDate()+1);
     tMax=end.toISOString();
+  } else if(calView==='3week'){
+    const s=get3WeekStart(calViewDate);
+    const e=new Date(s); e.setDate(s.getDate()+21); e.setHours(23,59,59,999);
+    tMin=s.toISOString(); tMax=e.toISOString();
   } else {
     const {mon,sun}=getWeekRange(calViewDate);
     tMin=mon.toISOString(); tMax=sun.toISOString();
   }
   calMonthEvents=await fetchCalendarEvents(tMin,tMax);
   renderCalendarSelector();
+  renderCalSidebarList();
   const el=document.getElementById('calViewContent'); if(!el) return;
-  el.innerHTML = calView==='day' ? renderCalDayGrid() : renderCalWeekGrid();
+  if(calView==='day') el.innerHTML=renderCalDayGrid();
+  else if(calView==='3week') renderCal3WeekGrid();
+  else el.innerHTML=renderCalWeekGrid();
 }
 function renderCalDayGrid(){
   const dateStr=calViewDate.toISOString().slice(0,10);
@@ -2268,15 +2425,81 @@ function renderCalWeekGrid(){
 
   return `<div style="display:flex;flex-direction:column;">${stripHtml}<div class="cal-week-grid">${colsHtml}</div></div>`;
 }
-function selectCalDay(dateStr){
-  calSelectedDay = calSelectedDay===dateStr ? null : dateStr;
-  const dayEls = document.querySelectorAll('.cal-day');
-  dayEls.forEach(el=>el.classList.remove('selected'));
-  if(calSelectedDay){
-    const el=document.querySelector(`.cal-day[data-date="${dateStr}"]`);
-    if(el) el.classList.add('selected');
+
+function renderCal3WeekGrid(){
+  const el=document.getElementById('calViewContent'); if(!el) return;
+  const today=todayStr();
+  const start=get3WeekStart(calViewDate);
+
+  const byDay={};
+  calMonthEvents.forEach(ev=>{
+    const d=ev.start.dateTime?ev.start.dateTime.slice(0,10):ev.start.date;
+    if(!byDay[d])byDay[d]=[]; byDay[d].push(ev);
+  });
+  const singleByDay={};
+  if(showCalGTasks) googleTasks.filter(t=>t.due).forEach(t=>{
+    const d=t.due.slice(0,10); if(!singleByDay[d])singleByDay[d]=[]; singleByDay[d].push({_type:'gtask',...t});
+  });
+  if(showCalLocalTasks) state.tasks.filter(t=>t.due&&t.status!=='hecha'&&(!t.start||t.start===t.due)).forEach(t=>{
+    if(!singleByDay[t.due])singleByDay[t.due]=[]; singleByDay[t.due].push({_type:'ltask',...t});
+  });
+
+  const gcalSpans=_gcalAllDaySpans(calMonthEvents);
+  const ltSpans=_ltaskSpans();
+  const allSpanItems=[...gcalSpans,...ltSpans];
+
+  const dowLabels=['Lu','Ma','Mi','Ju','Vi','Sá','Do'];
+  let html=`<div class="cal-grid">
+    <div class="cal-dow-row">${dowLabels.map(d=>`<div class="cal-dow">${d}</div>`).join('')}</div>`;
+
+  for(let w=0;w<3;w++){
+    const weekDays=[];
+    for(let d=0;d<7;d++){
+      const dt=new Date(start); dt.setDate(start.getDate()+w*7+d);
+      weekDays.push(`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`);
+    }
+    const bars=_buildSpanBars(allSpanItems,weekDays);
+    const spansHtml=_renderSpanBars(bars);
+    const daysHtml=weekDays.map(ds=>{
+      const isToday=ds===today;
+      const evs=(byDay[ds]||[]).filter(ev=>ev.start.dateTime);
+      const tasks=singleByDay[ds]||[];
+      const MAX=5;
+      const evRows=evs.slice(0,MAX).map(ev=>{
+        const isMissing=_reunionesCal&&ev._calId===_reunionesCal.id&&_reunionesMissingIds.has(ev.id);
+        const t=new Date(ev.start.dateTime).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+        return `<div class="cal-ev-row${isMissing?' missing-agenda':''}" onclick="event.stopPropagation();openCalEventModal('${escapeAttr(ev.id)}')">
+          <span class="cal-ev-dot" style="background:${ev._calColor||'var(--accent)'};"></span>
+          <span class="cal-ev-time">${t}</span>
+          <span class="cal-ev-title">${isMissing?'⚠ ':''}${escapeHtml(ev.summary||'')}</span>
+        </div>`;
+      }).join('');
+      const taskRows=tasks.slice(0,Math.max(0,MAX-evs.length)).map(t=>
+        t._type==='gtask'
+          ?`<div class="cal-ev-row" onclick="event.stopPropagation();openGTaskModal('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')"><span class="cal-ev-dot" style="background:#1a73e8;"></span><span class="cal-ev-title">✓ ${escapeHtml(t.title||'')}</span></div>`
+          :`<div class="cal-ev-row" onclick="event.stopPropagation();openTaskModal('${escapeAttr(t.id)}')"><span class="cal-ev-dot" style="background:#7c3aed;"></span><span class="cal-ev-title">${escapeHtml(t.title||'')}</span></div>`
+      ).join('');
+      const extra=(evs.length-MAX)+(tasks.length-Math.max(0,MAX-evs.length));
+      const more=extra>0?`<div class="cal-event-more" onclick="event.stopPropagation();selectCalDay('${ds}')">+${extra} más</div>`:'';
+      const mo=new Date(ds+'T12:00:00').toLocaleDateString('es-ES',{month:'short'});
+      return `<div class="cal-day${isToday?' today':''}" style="grid-row:2;" data-date="${ds}" onclick="selectCalDay('${ds}')">
+        <div class="cal-day-num"><span>${parseInt(ds.slice(8))}</span><span style="font-size:9px;color:var(--text-muted);margin-left:2px;">${mo}</span></div>
+        ${evRows}${taskRows}${more}
+      </div>`;
+    }).join('');
+    html+=`<div class="cal-month-week">${spansHtml}${daysHtml}</div>`;
   }
-  renderCalDayDetail();
+  html+='</div>';
+  el.innerHTML=html;
+}
+
+function selectCalDay(dateStr){
+  // Navigate to day view for that date
+  calViewDate=new Date(dateStr+'T12:00:00');
+  calMiniMonth=new Date(calViewDate.getFullYear(),calViewDate.getMonth(),1);
+  calView='day';
+  render();
+  loadCalendarData();
 }
 function renderCalDayDetail(){
   const det=document.getElementById('calDayDetail'); if(!det) return;
@@ -2332,6 +2555,7 @@ async function loadCalendarMonth(){
   const tMax=new Date(yr,mo+1,0,23,59,59).toISOString();
   calMonthEvents = await fetchCalendarEvents(tMin, tMax);
   renderCalendarSelector();
+  renderCalSidebarList();
   renderCalMonthGrid();
   checkAgendaDirectorSync(); // async, non-blocking
 }
