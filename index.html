@@ -386,6 +386,11 @@
   .ltask-day-row.alta{border-left-color:#ef4444;background:rgba(239,68,68,.06);border-color:rgba(239,68,68,.2);}
   .ltask-day-row.media{border-left-color:#f59e0b;background:rgba(245,158,11,.06);border-color:rgba(245,158,11,.2);}
   .ltask-day-row.baja{border-left-color:#22c55e;background:rgba(34,197,94,.06);border-color:rgba(34,197,94,.2);}
+  .ltask-cal-pill.span-start{border-radius:4px 0 0 4px;border-right:none;margin-right:-1px;}
+  .ltask-cal-pill.span-mid{border-radius:0;border-left:none;border-right:none;margin:0 -1px;opacity:.85;}
+  .ltask-cal-pill.span-end{border-radius:0 4px 4px 0;border-left:none;margin-left:-1px;}
+  .ltask-day-row.span-mid{opacity:.8;border-left-style:dashed;}
+  .ltask-day-row.span-end{border-left-style:dashed;}
   .ltask-cal-pill.overdue,.gtask-cal-pill.overdue{border-left-color:#ef4444;background:rgba(239,68,68,.18);color:#b91c1c;font-weight:700;animation:overdue-pulse 2s ease-in-out infinite;}
   .ltask-day-row.overdue,.gtask-day-row.overdue{border-left-color:#ef4444;background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);animation:overdue-pulse 2s ease-in-out infinite;}
   @keyframes overdue-pulse{0%,100%{opacity:1;}50%{opacity:.65;}}
@@ -739,6 +744,16 @@ const monthsEs = ['enero','febrero','marzo','abril','mayo','junio','julio','agos
 function fmtDate(d){ const dt=new Date(d+'T00:00:00'); return dt.getDate()+' de '+monthsEs[dt.getMonth()]+' de '+dt.getFullYear(); }
 function fmtDateShort(d){ const dt=new Date(d+'T00:00:00'); return dt.getDate()+' de '+monthsEs[dt.getMonth()]; }
 function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+// Returns 'single'|'start'|'mid'|'end'|false for a task on a given dateStr
+function taskSpanPos(t, dateStr){
+  if(!t.due) return false;
+  const s = t.start || t.due;
+  if(dateStr < s || dateStr > t.due) return false;
+  if(s === t.due || !t.start) return 'single';
+  if(dateStr === s) return 'start';
+  if(dateStr === t.due) return 'end';
+  return 'mid';
+}
 document.getElementById('datebar').textContent = new Date().toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 
 function setStatus(msg){
@@ -995,8 +1010,12 @@ function openTaskModal(taskId, prefill, fromNoteId){
             </select>
           </div>
           <div class="field" style="margin-bottom:0;">
+            <label>Fecha inicio (opcional)</label>
+            <input type="date" id="mStart" value="${data.start||''}" onchange="const due=document.getElementById('mDue');if(due.value&&due.value<this.value)due.value=this.value;">
+          </div>
+          <div class="field" style="margin-bottom:0;">
             <label>Fecha límite (opcional)</label>
-            <input type="date" id="mDue" value="${data.due||''}">
+            <input type="date" id="mDue" value="${data.due||''}" onchange="const st=document.getElementById('mStart');if(st.value&&st.value>this.value)st.value=this.value;">
           </div>
         </div>
 
@@ -1171,6 +1190,7 @@ function saveTask(taskId, fromNoteId){
   const tipo=document.getElementById('mTipo').value;
   const urgency=document.getElementById('mUrgency').value;
   const due=document.getElementById('mDue').value;
+  const start=document.getElementById('mStart')?.value||'';
   const context=document.getElementById('mContext').value.trim();
   const subtasks=JSON.parse(JSON.stringify(tempSubtasks));
   const expectedParticipants=tempExpectedParticipants.slice();
@@ -1180,9 +1200,9 @@ function saveTask(taskId, fromNoteId){
   let t;
   if(taskId){
     t=state.tasks.find(x=>x.id===taskId);
-    Object.assign(t,{title,areas,projectId,tipo,urgency,due,context,subtasks,expectedParticipants,callWith,linkedTaskIds});
+    Object.assign(t,{title,areas,projectId,tipo,urgency,due,start,context,subtasks,expectedParticipants,callWith,linkedTaskIds});
   } else {
-    t={id:uid(),title,areas,projectId,tipo,urgency,due,context,subtasks,expectedParticipants,callWith,linkedTaskIds,status:'pendiente',created:todayStr(),...(tempSourceEmailId?{sourceEmailId:tempSourceEmailId}:{})};
+    t={id:uid(),title,areas,projectId,tipo,urgency,due,start,context,subtasks,expectedParticipants,callWith,linkedTaskIds,status:'pendiente',created:todayStr(),...(tempSourceEmailId?{sourceEmailId:tempSourceEmailId}:{})};
     state.tasks.unshift(t);
   }
   if(fromNoteId){ state.notes=state.notes.filter(n=>n.id!==fromNoteId); deleteNoteRow(fromNoteId); }
@@ -2117,7 +2137,7 @@ function renderCalDayGrid(){
   const today2=todayStr();
   const isToday3=dateStr===today2;
   const dayGTasks=showCalGTasks?googleTasks.filter(t=>t.due&&t.due.slice(0,10)===dateStr):[];
-  const dayLTasks=showCalLocalTasks?state.tasks.filter(t=>t.due===dateStr&&t.status!=='hecha'):[];
+  const dayLTasks=showCalLocalTasks?state.tasks.filter(t=>t.status!=='hecha'&&taskSpanPos(t,dateStr)):[];
   const overdueGTasks=isToday3&&showCalGTasks?googleTasks.filter(t=>t.due&&t.due.slice(0,10)<today2):[];
   const overdueLTasks=isToday3&&showCalLocalTasks?state.tasks.filter(t=>t.due&&t.due<today2&&t.status!=='hecha'):[];
   const taskHtml=dayGTasks.map(t=>`<div class="gtask-day-row" onclick="openGTaskModal('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">
@@ -2182,12 +2202,12 @@ function renderCalWeekGrid(){
       return `<div class="cal-week-event" style="background:${ev._calColor||'var(--accent)'};cursor:pointer;" onclick="event.stopPropagation();openCalEventModal('${escapeAttr(ev.id)}')">${t?t+' ':''}${escapeHtml(ev.summary||'')}</div>`;
     }).join('');
     const colGTasks=googleTasks.filter(t=>t.due&&t.due.slice(0,10)===ds);
-    const colLTasks=state.tasks.filter(t=>t.due===ds&&t.status!=='hecha');
+    const colLTasks=state.tasks.filter(t=>t.status!=='hecha'&&taskSpanPos(t,ds));
     const isToday2=ds===today;
     const overdueGTasks=isToday2?googleTasks.filter(t=>t.due&&t.due.slice(0,10)<today):[];
     const overdueLTasks=isToday2?state.tasks.filter(t=>t.due&&t.due<today&&t.status!=='hecha'):[];
     const taskHtml=(showCalGTasks?colGTasks.map(t=>`<div class="gtask-cal-pill" onclick="event.stopPropagation();openGTaskModal('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">✓ ${escapeHtml(t.title||'')}</div>`).join(''):'')
-      +(showCalLocalTasks?colLTasks.map(t=>`<div class="ltask-cal-pill ${t.urgency||''}" onclick="event.stopPropagation();openTaskModal('${escapeAttr(t.id)}')">● ${escapeHtml(t.title||'')}</div>`).join(''):'')
+      +(showCalLocalTasks?colLTasks.map(t=>{const pos=taskSpanPos(t,ds);const sc=pos&&pos!=='single'?' span-'+pos:'';return `<div class="ltask-cal-pill ${t.urgency||''}${sc}" onclick="event.stopPropagation();openTaskModal('${escapeAttr(t.id)}')">${pos==='mid'||pos==='end'?'━ ':'● '}${escapeHtml(t.title||'')}</div>`;}).join(''):'')
       +(showCalGTasks?overdueGTasks.map(t=>`<div class="gtask-cal-pill overdue" onclick="event.stopPropagation();openGTaskModal('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">⚠ ${escapeHtml(t.title||'')}</div>`).join(''):'')
       +(showCalLocalTasks?overdueLTasks.map(t=>`<div class="ltask-cal-pill ${t.urgency||''} overdue" onclick="event.stopPropagation();openTaskModal('${escapeAttr(t.id)}')">⚠ ${escapeHtml(t.title||'')}</div>`).join(''):'');
     return `<div class="cal-week-col">
@@ -2221,7 +2241,7 @@ function renderCalDayDetail(){
   det.style.display='block';
   const isSelectedToday = calSelectedDay===todayStr();
   const dayGTasks=googleTasks.filter(t=>t.due&&t.due.slice(0,10)===calSelectedDay);
-  const dayLTasks=state.tasks.filter(t=>t.due===calSelectedDay&&t.status!=='hecha');
+  const dayLTasks=state.tasks.filter(t=>t.status!=='hecha'&&taskSpanPos(t,calSelectedDay));
   const overdueGDet=isSelectedToday?googleTasks.filter(t=>t.due&&t.due.slice(0,10)<calSelectedDay):[];
   const overdueLDet=isSelectedToday?state.tasks.filter(t=>t.due&&t.due<calSelectedDay&&t.status!=='hecha'):[];
   const overdueSection=(overdueGDet.length||overdueLDet.length)?
@@ -2284,8 +2304,15 @@ function renderCalMonthGrid(){
     if(d<today&&d!==today){if(!taskByDay[today])taskByDay[today]=[]; taskByDay[today].push({_type:'gtask',_overdue:true,...t});}
   });
   if(showCalLocalTasks) state.tasks.filter(t=>t.due&&t.status!=='hecha').forEach(t=>{
-    if(!taskByDay[t.due])taskByDay[t.due]=[];
-    taskByDay[t.due].push({_type:'ltask',...t});
+    const s=t.start||t.due;
+    let d=new Date(s+'T12:00:00');
+    const dEnd=new Date(t.due+'T12:00:00');
+    while(d<=dEnd){
+      const ds=d.toISOString().slice(0,10);
+      if(!taskByDay[ds])taskByDay[ds]=[];
+      taskByDay[ds].push({_type:'ltask',...t});
+      d.setDate(d.getDate()+1);
+    }
     if(t.due<today&&t.due!==today){if(!taskByDay[today])taskByDay[today]=[]; taskByDay[today].push({_type:'ltask',_overdue:true,...t});}
   });
   const dowLabels=['Lu','Ma','Mi','Ju','Vi','Sá','Do'];
@@ -2302,7 +2329,7 @@ function renderCalMonthGrid(){
     const dayTasks=(taskByDay[dateStr]||[]);
     const taskDots=dayTasks.slice(0,3).map(t=>t._type==='gtask'
       ? `<div class="gtask-cal-pill${t._overdue?' overdue':''}" onclick="event.stopPropagation();openGTaskModal('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">${t._overdue?'⚠ ':'✓ '}${escapeHtml(t.title||'')}</div>`
-      : `<div class="ltask-cal-pill ${t.urgency||''}${t._overdue?' overdue':''}" onclick="event.stopPropagation();openTaskModal('${escapeAttr(t.id)}')">${t._overdue?'⚠ ':'● '}${escapeHtml(t.title||'')}</div>`
+      : (()=>{ const pos=taskSpanPos(t,dateStr); const sc=pos&&pos!=='single'?' span-'+pos:''; return `<div class="ltask-cal-pill ${t.urgency||''}${sc}${t._overdue?' overdue':''}" onclick="event.stopPropagation();openTaskModal('${escapeAttr(t.id)}')">${t._overdue?'⚠ ':pos==='mid'||pos==='end'?'━ ':'● '}${escapeHtml(t.title||'')}</div>`; })()
     ).join('');
     html+=`<div class="cal-day ${isToday?'today':''} ${isSel?'selected':''}" data-date="${dateStr}" onclick="selectCalDay('${dateStr}')">
       <div class="cal-day-num">${d}</div>${dots}${more}${taskDots}
