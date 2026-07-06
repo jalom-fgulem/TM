@@ -156,7 +156,7 @@
   .kcol-urgente-sidebar .task{border-left:3px solid var(--alta);}
   .kcol-add{width:100%;padding:6px;border-radius:8px;border:1px dashed var(--border);background:transparent;color:var(--text-muted);font-size:12px;cursor:pointer;text-align:center;margin-top:4px;}
   .kcol-add:hover{background:var(--surface);color:var(--text-soft);}
-  /* Drag & drop — kanban */
+  /* Drag & drop — kanban cards */
   .task[draggable=true]{cursor:grab;}
   .task.k-dragging{opacity:0.3;pointer-events:none;}
   .kcol.k-drag-over,.kcol-urgente-sidebar.k-drag-over{background:var(--accent-bg);outline:2px solid var(--accent-border);outline-offset:-2px;}
@@ -164,6 +164,13 @@
   .task.k-drop-below{box-shadow:0 3px 0 var(--accent);}
   .task-drag-handle{cursor:grab;color:var(--text-muted);font-size:12px;opacity:0;flex-shrink:0;padding:1px 4px 0 0;line-height:1;display:inline-flex;}
   .task:hover .task-drag-handle{opacity:0.5;}
+  /* Drag & drop — kanban columns */
+  .kcol.col-dragging{opacity:0.35;outline:2px dashed var(--border);}
+  .kcol.col-drop-left{box-shadow:-4px 0 0 var(--accent);}
+  .kcol.col-drop-right{box-shadow:4px 0 0 var(--accent);}
+  .col-drag-handle{cursor:grab;color:var(--text-muted);font-size:13px;opacity:0;margin-right:5px;line-height:1;flex-shrink:0;}
+  .kcol h3:hover .col-drag-handle{opacity:0.6;}
+  .col-drag-handle:hover{opacity:1!important;color:var(--text);}
   /* Drag & drop — subtareas */
   .sub-drag-handle{cursor:grab;color:var(--text-muted);font-size:11px;opacity:0;padding:0 4px 0 0;user-select:none;flex-shrink:0;}
   li:hover .sub-drag-handle,.sub-item.s-dragging .sub-drag-handle{opacity:0.5;}
@@ -3717,22 +3724,30 @@ function saveProfile(){
   saveSettings(); updateAppTitle(); setStatus('Perfil guardado.');
 }
 
-// ── Kanban drag & drop ──────────────────────────────────────────────────────
+// ── Kanban drag & drop (cards) ───────────────────────────────────────────────
 let _kDragId=null;
 function _kDragStart(e,id){
-  _kDragId=id;
+  _kDragId=id; _colDragTipo=null;
   e.dataTransfer.effectAllowed='move';
   e.dataTransfer.setData('text/plain',id);
   setTimeout(()=>{ const el=document.querySelector(`.task[data-task-id="${id}"]`); if(el) el.classList.add('k-dragging'); },0);
 }
 function _kDragEnd(e){
   document.querySelectorAll('.task.k-dragging').forEach(el=>el.classList.remove('k-dragging'));
-  document.querySelectorAll('.kcol.k-drag-over,.kcol-urgente-sidebar.k-drag-over').forEach(el=>el.classList.remove('k-drag-over'));
+  document.querySelectorAll('.kcol.k-drag-over').forEach(el=>el.classList.remove('k-drag-over'));
   document.querySelectorAll('.task.k-drop-above,.task.k-drop-below').forEach(el=>el.classList.remove('k-drop-above','k-drop-below'));
   _kDragId=null;
 }
 function _kColDragOver(e,colEl){
   e.preventDefault(); e.dataTransfer.dropEffect='move';
+  if(_colDragTipo!==null){
+    document.querySelectorAll('.kcol.col-drop-left,.kcol.col-drop-right').forEach(el=>el.classList.remove('col-drop-left','col-drop-right'));
+    if(_colDragTipo!==colEl.dataset.tipo){
+      const r=colEl.getBoundingClientRect();
+      colEl.classList.add(e.clientX<r.left+r.width/2?'col-drop-left':'col-drop-right');
+    }
+    return;
+  }
   colEl.classList.add('k-drag-over');
   document.querySelectorAll('.task.k-drop-above,.task.k-drop-below').forEach(el=>el.classList.remove('k-drop-above','k-drop-below'));
   const card=e.target.closest('[data-task-id]');
@@ -3742,10 +3757,13 @@ function _kColDragOver(e,colEl){
   }
 }
 function _kColDragLeave(e,colEl){
-  if(!colEl.contains(e.relatedTarget)) colEl.classList.remove('k-drag-over');
+  if(!colEl.contains(e.relatedTarget)){
+    colEl.classList.remove('k-drag-over','col-drop-left','col-drop-right');
+  }
 }
 function _kDrop(e,tipo){
   e.preventDefault();
+  if(_colDragTipo!==null){ _doColDrop(e,tipo); return; }
   if(!_kDragId) return;
   const task=state.tasks.find(t=>t.id===_kDragId); if(!task) return;
   const srcTipo=task.tipo;
@@ -3768,6 +3786,37 @@ function _kDrop(e,tipo){
   state.kanbanOrder[tipo]=ord;
   _kDragId=null;
   if(task.tipo!==srcTipo) saveTaskRow(task);
+  saveSettings(); render();
+}
+
+// ── Kanban drag & drop (columns) ─────────────────────────────────────────────
+let _colDragTipo=null;
+function _colDragStart(e,tipo){
+  e.stopPropagation();
+  _colDragTipo=tipo; _kDragId=null;
+  e.dataTransfer.effectAllowed='move';
+  e.dataTransfer.setData('text/plain','col:'+tipo);
+  setTimeout(()=>{
+    document.querySelectorAll('.kcol').forEach(el=>{ if(el.dataset.tipo===tipo) el.classList.add('col-dragging'); });
+  },0);
+}
+function _colDragEnd(e){
+  document.querySelectorAll('.kcol.col-dragging,.kcol.col-drop-left,.kcol.col-drop-right').forEach(el=>el.classList.remove('col-dragging','col-drop-left','col-drop-right'));
+  _colDragTipo=null;
+}
+function _doColDrop(e,targetTipo){
+  if(!_colDragTipo||_colDragTipo===targetTipo){ _colDragTipo=null; return; }
+  const tipos=[...state.tipos];
+  const srcIdx=tipos.indexOf(_colDragTipo);
+  const tgtIdx=tipos.indexOf(targetTipo);
+  if(srcIdx===-1||tgtIdx===-1){ _colDragTipo=null; return; }
+  tipos.splice(srcIdx,1);
+  const newTgt=tipos.indexOf(targetTipo);
+  const colEl=e.currentTarget||e.target.closest('.kcol');
+  const before=colEl ? e.clientX<colEl.getBoundingClientRect().left+colEl.getBoundingClientRect().width/2 : true;
+  tipos.splice(before?newTgt:newTgt+1,0,_colDragTipo);
+  state.tipos=tipos;
+  _colDragTipo=null;
   saveSettings(); render();
 }
 
@@ -3895,11 +3944,11 @@ function renderKanban(taskSet){
 
   const mainKanban = cols.length
     ? '<div class="kanban">'+cols.map(c=>`
-        <div class="kcol"
+        <div class="kcol" data-tipo="${escapeAttr(c.title)}"
           ondragover="_kColDragOver(event,this)"
           ondragleave="_kColDragLeave(event,this)"
           ondrop="_kDrop(event,'${escapeAttr(c.title)}')">
-          <h3>${escapeHtml(c.title)} <span class="count">${c.items.length}</span></h3>
+          <h3><span class="col-drag-handle" draggable="true" ondragstart="_colDragStart(event,'${escapeAttr(c.title)}')" ondragend="_colDragEnd(event)"><i class="ti ti-grip-horizontal"></i></span>${escapeHtml(c.title)} <span class="count">${c.items.length}</span></h3>
           ${c.items.length ? c.items.map(t=>taskCard(t,c.showTipo)).join('') : '<p class="empty">Nada aquí.</p>'}
           <button class="kcol-add" onclick="openTaskModal(null,JSON.parse(this.dataset.p))" data-p="${escapeAttr(JSON.stringify(c.prefill))}">+ Añadir</button>
         </div>`).join('')+'</div>'
