@@ -3355,9 +3355,12 @@ function renderGmailLabelBtns(){
 function formatEmailDate(dateStr){
   try{
     const d=new Date(dateStr), now=new Date();
-    if(d.toDateString()===now.toDateString()) return d.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
-    if(now-d < 7*86400000) return d.toLocaleDateString('es-ES',{weekday:'short',day:'numeric'});
-    return d.toLocaleDateString('es-ES',{day:'numeric',month:'short'});
+    const t=d.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+    const yd=new Date(now); yd.setDate(yd.getDate()-1);
+    if(d.toDateString()===now.toDateString()) return `Hoy ${t}`;
+    if(d.toDateString()===yd.toDateString()) return `Ayer ${t}`;
+    if(now-d < 7*86400000) return d.toLocaleDateString('es-ES',{weekday:'short',day:'numeric'})+` ${t}`;
+    return d.toLocaleDateString('es-ES',{day:'numeric',month:'short'})+` ${t}`;
   }catch(e){return'';}
 }
 async function selectEmail(msgId, threadId){
@@ -3377,8 +3380,36 @@ async function selectEmail(msgId, threadId){
     let threadMsgs=[];
     if(threadRes&&threadRes.ok){ const td=await threadRes.json(); threadMsgs=(td.messages||[]).filter(m=>m.id!==msgId); }
     renderEmailPreviewPanel(msg, threadMsgs);
+    // Auto-load thread message bodies
+    threadMsgs.forEach(tm=>loadThreadMsgContent(tm.id));
+    // Mark as read if unread
+    if((msg.labelIds||[]).includes('UNREAD')) markEmailAsRead(msgId);
   }catch(e){
     if(col) col.innerHTML='<div class="gmail-preview-empty">Error al cargar el mensaje.</div>';
+  }
+}
+async function markEmailAsRead(msgId){
+  if(!googleToken) return;
+  try{
+    await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}/modify`,{
+      method:'POST',
+      headers:{Authorization:`Bearer ${googleToken}`,'Content-Type':'application/json'},
+      body:JSON.stringify({removeLabelIds:['UNREAD']})
+    });
+    // Update list item UI
+    const el=document.querySelector(`.gmail-list-item[data-id="${msgId}"]`);
+    if(el){ el.querySelector('.gli-from')?.classList.remove('bold'); el.querySelector('.gli-subject')?.classList.remove('bold'); }
+  }catch(e){}
+}
+function selectNextEmail(removedMsgId){
+  const items=[...document.querySelectorAll('.gmail-list-item')];
+  const idx=items.findIndex(el=>el.dataset.id===removedMsgId);
+  const next=items[idx+1]||items[idx-1];
+  if(next){ selectEmail(next.dataset.id, next.dataset.tid||''); }
+  else{
+    selectedEmailId=null;
+    const col=document.getElementById('gmailPreviewCol');
+    if(col) col.innerHTML='<div class="gmail-preview-empty"><i class="ti ti-mail" style="font-size:32px;opacity:.3;" aria-hidden="true"></i><span>Bandeja vacía</span></div>';
   }
 }
 function renderEmailPreviewPanel(msg, threadMsgs){
@@ -3438,15 +3469,15 @@ function renderThreadSection(threadMsgs, currentMsgId){
     const date=hdrs.find(h=>h.name==='Date')?.value||'';
     const tmAtts=extractAttachments(tm.payload);
     return `<div class="thread-msg-item" id="thread-${tm.id}">
-      <div class="thread-msg-head" onclick="expandThreadMsg('${tm.id}')">
+      <div class="thread-msg-head" onclick="toggleThreadMsg('${tm.id}')">
         <div class="thread-msg-from">${escapeHtml(from)}</div>
         <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
           ${tmAtts.length?`<i class="ti ti-paperclip" style="font-size:11px;color:var(--text-soft);" aria-hidden="true"></i>`:''}
           <span class="thread-msg-date">${escapeHtml(formatEmailDate(date))}</span>
-          <i class="ti ti-chevron-down thread-msg-chevron" aria-hidden="true"></i>
+          <i class="ti ti-chevron-up thread-msg-chevron" aria-hidden="true"></i>
         </div>
       </div>
-      <div class="thread-msg-body" id="thread-body-${tm.id}" style="display:none;">
+      <div class="thread-msg-body" id="thread-body-${tm.id}" style="display:block;">
         <div class="thread-msg-loading">Cargando…</div>
       </div>
     </div>`;
@@ -3456,7 +3487,7 @@ function renderThreadSection(threadMsgs, currentMsgId){
     ${items}
   </div>`;
 }
-async function expandThreadMsg(msgId){
+function toggleThreadMsg(msgId){
   const bodyEl=document.getElementById(`thread-body-${msgId}`);
   const item=document.getElementById(`thread-${msgId}`);
   if(!bodyEl||!item) return;
@@ -3464,7 +3495,11 @@ async function expandThreadMsg(msgId){
   bodyEl.style.display=isOpen?'none':'block';
   item.querySelector('.thread-msg-chevron')?.classList.toggle('ti-chevron-up',!isOpen);
   item.querySelector('.thread-msg-chevron')?.classList.toggle('ti-chevron-down',isOpen);
-  if(isOpen||bodyEl.dataset.loaded) return;
+  if(!isOpen) loadThreadMsgContent(msgId);
+}
+async function loadThreadMsgContent(msgId){
+  const bodyEl=document.getElementById(`thread-body-${msgId}`);
+  if(!bodyEl||bodyEl.dataset.loaded) return;
   bodyEl.dataset.loaded='1';
   try{
     const r=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}?format=full`,{headers:{Authorization:`Bearer ${googleToken}`}});
@@ -3472,7 +3507,7 @@ async function expandThreadMsg(msgId){
     const m=await r.json();
     const atts=extractAttachments(m.payload);
     const body=extractEmailBody(m.payload);
-    let html=atts.length?`<div class="email-attach-list" style="margin-bottom:8px;">
+    let html=atts.length?`<div class="email-attach-list" style="margin:8px 0;">
       ${atts.map(a=>`<div class="email-attach-item" onclick="openEmailAttachment('${escapeAttr(m.id)}','${escapeAttr(a.attachmentId||'')}','${escapeAttr(a.filename)}','${escapeAttr(a.mimeType)}')" title="${escapeAttr(a.filename)}">
         <i class="ti ${attachmentIcon(a.mimeType)}" aria-hidden="true"></i><span>${escapeHtml(a.filename)}</span>
       </div>`).join('')}
@@ -3917,12 +3952,8 @@ async function archiveEmail(msgId){
     });
     if(res.status===401){handleGoogleExpired();return;}
     if(res.ok){
+      if(selectedEmailId===msgId) selectNextEmail(msgId);
       if(el) el.remove();
-      if(selectedEmailId===msgId){
-        selectedEmailId=null;
-        const col=document.getElementById('gmailPreviewCol');
-        if(col) col.innerHTML='<div class="gmail-preview-empty"><i class="ti ti-mail" style="font-size:32px;opacity:.3;" aria-hidden="true"></i><span>Selecciona un correo</span></div>';
-      }
       setStatus('Email archivado.');
     }
     else{ if(el){el.style.opacity='';el.style.pointerEvents='';} setStatus('Error al archivar el email.'); }
@@ -3942,12 +3973,8 @@ async function deleteEmail(msgId){
     });
     if(res.status===401){handleGoogleExpired();return;}
     if(res.ok){
+      if(selectedEmailId===msgId) selectNextEmail(msgId);
       if(el) el.remove();
-      if(selectedEmailId===msgId){
-        selectedEmailId=null;
-        const col=document.getElementById('gmailPreviewCol');
-        if(col) col.innerHTML='<div class="gmail-preview-empty"><i class="ti ti-mail" style="font-size:32px;opacity:.3;" aria-hidden="true"></i><span>Selecciona un correo</span></div>';
-      }
       setStatus('Email movido a papelera.');
     }
     else{ if(el){el.style.opacity='';el.style.pointerEvents='';} setStatus('Error al borrar el email.'); }
