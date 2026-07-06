@@ -59,6 +59,22 @@
   .header-event-pill .ep-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
   .header-event-pill .ep-time{font-weight:700;font-size:11px;}
   .header-event-pill .ep-title{color:var(--text);font-weight:500;}
+  .header-event-pill:hover{background:var(--accent-border);}
+  .ep-meet-btn{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;background:#1a73e8;color:#fff;border-radius:99px;font-size:10px;font-weight:600;text-decoration:none;margin-left:2px;}
+  .ep-meet-btn:hover{background:#1557b0;color:#fff;}
+  .ev-meet-link{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#e8f0fe;border:1px solid #c5d8fd;border-radius:8px;color:#1a73e8;font-weight:600;font-size:13px;text-decoration:none;margin-bottom:12px;}
+  .ev-meet-link:hover{background:#d2e3fc;}
+  .ev-attendees{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}
+  .ev-attendee{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:99px;font-size:12px;border:1px solid var(--border);}
+  .ev-attendee.accepted{background:#dcfce7;border-color:#86efac;color:#166534;}
+  .ev-attendee.declined{background:#fee2e2;border-color:#fca5a5;color:#991b1b;text-decoration:line-through;}
+  .ev-attendee.tentative{background:#fef9c3;border-color:#fde047;color:#854d0e;}
+  .ev-attendee.needsAction{background:var(--surface);color:var(--text-soft);}
+  .rsvp-row{display:flex;gap:8px;margin-top:8px;margin-bottom:4px;}
+  .rsvp-btn{padding:5px 14px;border-radius:6px;font-size:12px;font-weight:600;border:1px solid var(--border);cursor:pointer;background:var(--surface);}
+  .rsvp-btn.accepted{background:#dcfce7;border-color:#86efac;color:#166534;}
+  .rsvp-btn.declined{background:#fee2e2;border-color:#fca5a5;color:#991b1b;}
+  .rsvp-btn.tentative{background:#fef9c3;border-color:#fde047;color:#854d0e;}
 
   /* Space after sticky header */
   .viewtabs{margin-top:14px;}
@@ -549,6 +565,7 @@
     <button id="tab-calendario" onclick="setView('calendario')"><i class="ti ti-calendar" aria-hidden="true"></i> Calendario</button>
     <button id="tab-correo" onclick="setView('correo')"><i class="ti ti-mail" aria-hidden="true"></i> Correo</button>
     <button id="tab-gtasks" onclick="setView('gtasks')"><i class="ti ti-checkbox" aria-hidden="true"></i> G Tasks</button>
+    <button id="btnToggleDone" style="margin-left:auto;display:none;" onclick="showDoneTasks=!showDoneTasks;render();">Mostrar cerradas</button>
   </div>
 
   <div id="viewRoot"></div>
@@ -1516,6 +1533,7 @@ function deleteMeeting(id,ev){
 
 function renderReuniones(){
   const pending = state.tasks.filter(t=>t.tipo==='Reunión por montar' && t.status!=='hecha');
+  const doneReu = state.tasks.filter(t=>t.tipo==='Reunión por montar' && t.status==='hecha');
   const pendingBox = `
     <div class="panel-box" style="margin-bottom:14px;">
       <h2>Reuniones por montar (${pending.length})</h2>
@@ -1533,6 +1551,19 @@ function renderReuniones(){
           </div>
         </div>`;
       }).join('') : '<p class="empty">No hay reuniones pendientes de montar.</p>'}
+      ${showDoneTasks && doneReu.length ? `
+        <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px;">
+          <p class="help" style="margin-bottom:6px;">Cerradas</p>
+          ${doneReu.map(t=>`
+          <div class="note-item" style="opacity:0.7;">
+            <p style="font-weight:600;">${escapeHtml(t.title)}</p>
+            <div class="note-meta">${t.due?fmtDateShort(t.due):''}</div>
+            <div class="note-actions">
+              <button class="btn-ghost btn-small" onclick="reopenTask('${t.id}',event)">↺ Reabrir</button>
+              <button class="btn-ghost btn-small" onclick="openTaskModal('${t.id}')">Ver tarea</button>
+            </div>
+          </div>`).join('')}
+        </div>` : ''}
     </div>`;
 
   const procBox=`
@@ -1835,6 +1866,14 @@ function render(){
   ['panel','lista','proyectos','reuniones','crm','desarrollo','calendario','correo','gtasks'].forEach(v=>{
     const el=document.getElementById('tab-'+v); if(el) el.classList.toggle('active', currentView===v);
   });
+  const btnDone = document.getElementById('btnToggleDone');
+  if(btnDone){
+    const showViews = ['panel','lista','proyectos','reuniones'];
+    const inView = showViews.includes(currentView) || !!currentProjectId;
+    btnDone.style.display = inView ? '' : 'none';
+    btnDone.textContent = showDoneTasks ? 'Ocultar cerradas' : 'Mostrar cerradas';
+    btnDone.classList.toggle('active', showDoneTasks);
+  }
   const root=document.getElementById('viewRoot');
   if(currentView==='panel') root.innerHTML=renderKanban(state.tasks);
   else if(currentView==='lista') root.innerHTML=renderLista();
@@ -1862,6 +1901,10 @@ let calView = 'month';
 let calSelectedDay = null;
 let calMonthEvents = [];
 let calHeaderEvents = [];
+let showCalLocalTasks = true;
+let showCalGTasks = true;
+let _meetAlertTimer = null;
+let _alertedEvents = new Set();
 let googleTaskLists = [];
 let googleTasks = [];
 let currentGTaskList = null;
@@ -2022,8 +2065,12 @@ function renderCalendario(){
         <button class="cal-view-tab ${calView==='week'?'active':''}" onclick="setCalView('week')">Semana</button>
         <button class="cal-view-tab ${calView==='month'?'active':''}" onclick="setCalView('month')">Mes</button>
       </div>
-      <button class="btn-primary btn-small" onclick="openCalEventModal(null)" style="gap:4px;"><i class="ti ti-plus"></i> Evento</button>
-      <button class="btn-ghost btn-small" onclick="loadCalendarData()" title="Actualizar"><i class="ti ti-refresh"></i></button>
+      <div style="display:flex;gap:4px;margin-left:auto;align-items:center;">
+        <button class="btn-small ${showCalLocalTasks?'active':''}" onclick="showCalLocalTasks=!showCalLocalTasks;render();loadCalendarData();" title="Mostrar/ocultar tareas locales" style="font-size:11px;">● Tareas</button>
+        <button class="btn-small ${showCalGTasks?'active':''}" onclick="showCalGTasks=!showCalGTasks;render();loadCalendarData();" title="Mostrar/ocultar Google Tasks" style="font-size:11px;">✓ G Tasks</button>
+        <button class="btn-primary btn-small" onclick="openCalEventModal(null)" style="gap:4px;"><i class="ti ti-plus"></i> Evento</button>
+        <button class="btn-ghost btn-small" onclick="loadCalendarData()" title="Actualizar"><i class="ti ti-refresh"></i></button>
+      </div>
     </div>
     <div class="cal-selector" id="calSelector"></div>
     ${content}
@@ -2063,10 +2110,10 @@ function renderCalDayGrid(){
   const dateStr=calViewDate.toISOString().slice(0,10);
   const today2=todayStr();
   const isToday3=dateStr===today2;
-  const dayGTasks=googleTasks.filter(t=>t.due&&t.due.slice(0,10)===dateStr);
-  const dayLTasks=state.tasks.filter(t=>t.due===dateStr&&t.status!=='hecha');
-  const overdueGTasks=isToday3?googleTasks.filter(t=>t.due&&t.due.slice(0,10)<today2):[];
-  const overdueLTasks=isToday3?state.tasks.filter(t=>t.due&&t.due<today2&&t.status!=='hecha'):[];
+  const dayGTasks=showCalGTasks?googleTasks.filter(t=>t.due&&t.due.slice(0,10)===dateStr):[];
+  const dayLTasks=showCalLocalTasks?state.tasks.filter(t=>t.due===dateStr&&t.status!=='hecha'):[];
+  const overdueGTasks=isToday3&&showCalGTasks?googleTasks.filter(t=>t.due&&t.due.slice(0,10)<today2):[];
+  const overdueLTasks=isToday3&&showCalLocalTasks?state.tasks.filter(t=>t.due&&t.due<today2&&t.status!=='hecha'):[];
   const taskHtml=dayGTasks.map(t=>`<div class="gtask-day-row" onclick="openGTaskModal('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">
     <div class="gtask-day-row-info">
       <div class="gtask-day-row-label">✓ Google Tasks · ${escapeHtml(t._listTitle||'')}</div>
@@ -2133,10 +2180,10 @@ function renderCalWeekGrid(){
     const isToday2=ds===today;
     const overdueGTasks=isToday2?googleTasks.filter(t=>t.due&&t.due.slice(0,10)<today):[];
     const overdueLTasks=isToday2?state.tasks.filter(t=>t.due&&t.due<today&&t.status!=='hecha'):[];
-    const taskHtml=colGTasks.map(t=>`<div class="gtask-cal-pill" onclick="event.stopPropagation();openGTaskModal('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">✓ ${escapeHtml(t.title||'')}</div>`).join('')
-      +colLTasks.map(t=>`<div class="ltask-cal-pill ${t.urgency||''}" onclick="event.stopPropagation();openTaskModal('${escapeAttr(t.id)}')">● ${escapeHtml(t.title||'')}</div>`).join('')
-      +overdueGTasks.map(t=>`<div class="gtask-cal-pill overdue" onclick="event.stopPropagation();openGTaskModal('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">⚠ ${escapeHtml(t.title||'')}</div>`).join('')
-      +overdueLTasks.map(t=>`<div class="ltask-cal-pill ${t.urgency||''} overdue" onclick="event.stopPropagation();openTaskModal('${escapeAttr(t.id)}')">⚠ ${escapeHtml(t.title||'')}</div>`).join('');
+    const taskHtml=(showCalGTasks?colGTasks.map(t=>`<div class="gtask-cal-pill" onclick="event.stopPropagation();openGTaskModal('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">✓ ${escapeHtml(t.title||'')}</div>`).join(''):'')
+      +(showCalLocalTasks?colLTasks.map(t=>`<div class="ltask-cal-pill ${t.urgency||''}" onclick="event.stopPropagation();openTaskModal('${escapeAttr(t.id)}')">● ${escapeHtml(t.title||'')}</div>`).join(''):'')
+      +(showCalGTasks?overdueGTasks.map(t=>`<div class="gtask-cal-pill overdue" onclick="event.stopPropagation();openGTaskModal('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">⚠ ${escapeHtml(t.title||'')}</div>`).join(''):'')
+      +(showCalLocalTasks?overdueLTasks.map(t=>`<div class="ltask-cal-pill ${t.urgency||''} overdue" onclick="event.stopPropagation();openTaskModal('${escapeAttr(t.id)}')">⚠ ${escapeHtml(t.title||'')}</div>`).join(''):'');
     return `<div class="cal-week-col">
       <div class="cal-week-col-head ${isT?'today-col':''}">
         <div class="cal-week-col-head-name">${names[i]}</div>
@@ -2224,13 +2271,13 @@ function renderCalMonthGrid(){
   const byDay={};
   calMonthEvents.forEach(ev=>{const d=ev.start.dateTime?ev.start.dateTime.slice(0,10):ev.start.date; if(!byDay[d])byDay[d]=[]; byDay[d].push(ev);});
   const taskByDay={};
-  googleTasks.filter(t=>t.due).forEach(t=>{
+  if(showCalGTasks) googleTasks.filter(t=>t.due).forEach(t=>{
     const d=t.due.slice(0,10);
     if(!taskByDay[d])taskByDay[d]=[];
     taskByDay[d].push({_type:'gtask',...t});
     if(d<today&&d!==today){if(!taskByDay[today])taskByDay[today]=[]; taskByDay[today].push({_type:'gtask',_overdue:true,...t});}
   });
-  state.tasks.filter(t=>t.due&&t.status!=='hecha').forEach(t=>{
+  if(showCalLocalTasks) state.tasks.filter(t=>t.due&&t.status!=='hecha').forEach(t=>{
     if(!taskByDay[t.due])taskByDay[t.due]=[];
     taskByDay[t.due].push({_type:'ltask',...t});
     if(t.due<today&&t.due!==today){if(!taskByDay[today])taskByDay[today]=[]; taskByDay[today].push({_type:'ltask',_overdue:true,...t});}
@@ -2291,8 +2338,47 @@ function updateHeaderEvents(){
   el.innerHTML=upcoming.map(ev=>{
     const t=ev.start.dateTime?new Date(ev.start.dateTime).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'Todo el día';
     const dot=ev._calColor?`<span class="ep-dot" style="background:${ev._calColor};"></span>`:'';
-    return `<span class="header-event-pill">${dot}<span class="ep-time">${t}</span><span class="ep-title">${escapeHtml(ev.summary||'(sin título)')}</span></span>`;
+    const meetLink=ev.hangoutLink||_extractMeetLink(ev);
+    const meetBtn=meetLink?`<a href="${escapeAttr(meetLink)}" target="_blank" class="ep-meet-btn" onclick="event.stopPropagation();" title="Unirse a la reunión online"><i class="ti ti-video"></i> Unirse</a>`:'';
+    return `<span class="header-event-pill" onclick="openCalEventModal('${escapeAttr(ev.id)}')" style="cursor:pointer;">${dot}<span class="ep-time">${t}</span><span class="ep-title">${escapeHtml(ev.summary||'(sin título)')}</span>${meetBtn}</span>`;
   }).join('');
+  scheduleMeetingAlerts();
+}
+function _extractMeetLink(ev){
+  const entries=ev.conferenceData?.entryPoints||[];
+  const video=entries.find(e=>e.entryPointType==='video');
+  if(video) return video.uri;
+  const loc=ev.location||'';
+  const desc=ev.description||'';
+  const meetRe=/https:\/\/meet\.google\.com\/[a-z0-9-]+/i;
+  return (loc.match(meetRe)||desc.match(meetRe)||[null])[0];
+}
+function scheduleMeetingAlerts(){
+  if(_meetAlertTimer) return;
+  if(Notification.permission==='default') Notification.requestPermission();
+  _meetAlertTimer=setInterval(checkMeetingAlerts, 60000);
+  checkMeetingAlerts();
+}
+function checkMeetingAlerts(){
+  if(!calHeaderEvents.length) return;
+  const now=Date.now();
+  calHeaderEvents.forEach(ev=>{
+    if(!ev.start?.dateTime) return;
+    const start=new Date(ev.start.dateTime).getTime();
+    const diff=start-now;
+    if(diff>0 && diff<=5*60*1000){
+      if(_alertedEvents.has(ev.id)) return;
+      _alertedEvents.add(ev.id);
+      const title=ev.summary||'Reunión';
+      const hh=new Date(ev.start.dateTime).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+      const meetLink=ev.hangoutLink||_extractMeetLink(ev);
+      if(Notification.permission==='granted'){
+        const n=new Notification('📅 '+title,{body:'Comienza a las '+hh+(meetLink?' · Reunión online':''),icon:''});
+        if(meetLink) n.onclick=()=>{window.open(meetLink,'_blank');n.close();};
+        setTimeout(()=>n.close(),15000);
+      }
+    }
+  });
 }
 function saveCfgCalendars(){
   if(!state.calendarConfig) state.calendarConfig={};
@@ -2424,13 +2510,55 @@ function openCalEventModal(eventId, defaultDate){
   const endTime = endDt ? endDt.toTimeString().slice(0,5) : '10:00';
   const calId = ev?._calId || googleCalendars[0]?.id || 'primary';
   const root = document.getElementById('modalRoot');
+  // Meet / conference link
+  const meetLink = ev ? (ev.hangoutLink || _extractMeetLink(ev)) : null;
+  // Attendees
+  const attendees = ev?.attendees || [];
+  const selfAttendee = attendees.find(a=>a.self);
+  const rsvpStatus = selfAttendee?.responseStatus || null;
+  const organizer = ev?.organizer;
+  const isRecurring = !!(ev?.recurringEventId || ev?.recurrence?.length);
+  const statusColors = {accepted:'accepted',declined:'declined',tentative:'tentative',needsAction:'needsAction'};
+
+  const meetSection = meetLink ? `
+    <a href="${escapeAttr(meetLink)}" target="_blank" class="ev-meet-link">
+      <i class="ti ti-video"></i> Unirse a la reunión online
+    </a>` : '';
+
+  const rsvpSection = selfAttendee ? `
+    <div class="field" style="margin-bottom:10px;">
+      <label>Tu respuesta</label>
+      <div class="rsvp-row">
+        <button class="rsvp-btn ${rsvpStatus==='accepted'?'accepted':''}" onclick="rsvpEvent('${escapeAttr(ev.id)}','${escapeAttr(ev._calId||'')}','accepted')">✓ Acepto</button>
+        <button class="rsvp-btn ${rsvpStatus==='tentative'?'tentative':''}" onclick="rsvpEvent('${escapeAttr(ev.id)}','${escapeAttr(ev._calId||'')}','tentative')">? Tal vez</button>
+        <button class="rsvp-btn ${rsvpStatus==='declined'?'declined':''}" onclick="rsvpEvent('${escapeAttr(ev.id)}','${escapeAttr(ev._calId||'')}','declined')">✕ Rechazo</button>
+      </div>
+    </div>` : '';
+
+  const attendeesSection = attendees.length ? `
+    <div class="field" style="margin-bottom:12px;">
+      <label>Asistentes (${attendees.length})</label>
+      <div class="ev-attendees">
+        ${attendees.map(a=>`<span class="ev-attendee ${statusColors[a.responseStatus]||'needsAction'}" title="${escapeAttr(a.email||'')}">
+          ${a.self?'<strong>Tú</strong>':escapeHtml(a.displayName||a.email||'')}
+          ${a.organizer?' 👑':''}
+        </span>`).join('')}
+      </div>
+    </div>` : '';
+
   root.innerHTML = `
     <div class="modal-bg" onclick="if(event.target===this) closeModal()">
-      <div class="modal modal-wide">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-          <h3 style="margin:0;">${ev ? 'Editar evento' : 'Nuevo evento'}</h3>
-          ${ev?._calName ? `<span style="font-size:12px;color:var(--text-soft);">${escapeHtml(ev._calName)}</span>` : ''}
+      <div class="modal modal-wide" style="max-height:90vh;overflow-y:auto;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <h3 style="margin:0;">${ev ? 'Evento' : 'Nuevo evento'}</h3>
+          <div style="display:flex;align-items:center;gap:8px;">
+            ${isRecurring?`<span style="font-size:11px;padding:2px 7px;border-radius:99px;background:var(--accent-bg);color:var(--accent);">↻ Recurrente</span>`:''}
+            ${ev?._calName ? `<span style="font-size:12px;color:var(--text-soft);">${escapeHtml(ev._calName)}</span>` : ''}
+            ${organizer&&!organizer.self?`<span style="font-size:11px;color:var(--text-soft);">Org: ${escapeHtml(organizer.displayName||organizer.email||'')}</span>`:''}
+          </div>
         </div>
+        ${meetSection}
+        ${rsvpSection}
         <div class="field">
           <label>Título</label>
           <input type="text" id="cevTitle" value="${escapeAttr(ev?.summary||'')}" placeholder="Título del evento">
@@ -2465,13 +2593,14 @@ function openCalEventModal(eventId, defaultDate){
           </div>
         </div>
         <div class="field" style="margin-top:12px;">
-          <label>Descripción (opcional)</label>
-          <textarea id="cevDesc" placeholder="Notas, enlace de videoconferencia…">${escapeHtml(ev?.description||'')}</textarea>
+          <label>Descripción</label>
+          <textarea id="cevDesc" placeholder="Notas, enlace de videoconferencia…" style="min-height:80px;">${escapeHtml(ev?.description||'')}</textarea>
         </div>
         <div class="field">
-          <label>Ubicación (opcional)</label>
+          <label>Ubicación</label>
           <input type="text" id="cevLocation" value="${escapeAttr(ev?.location||'')}" placeholder="Dirección, sala, enlace…">
         </div>
+        ${attendeesSection}
         <div class="modal-actions">
           <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
           ${ev ? `<button class="btn-ghost" style="color:var(--alta);" onclick="deleteCalEvent('${escapeAttr(ev.id)}','${escapeAttr(ev._calId||'')}')">Eliminar</button>` : ''}
@@ -2551,6 +2680,32 @@ async function deleteCalEvent(eventId, calId){
       refreshHeaderEvents();
     } else { setStatus('Error al eliminar el evento.'); }
   }catch(e){ setStatus('Error al eliminar el evento.'); }
+}
+
+async function rsvpEvent(eventId, calId, response){
+  if(!googleToken || !eventId || !calId) return;
+  const ev = _findCalEvent(eventId);
+  if(!ev) return;
+  const attendees = (ev.attendees||[]).map(a=>
+    a.self ? {...a, responseStatus: response} : a
+  );
+  try{
+    const r = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events/${encodeURIComponent(eventId)}`,
+      { method:'PATCH', headers:{Authorization:`Bearer ${googleToken}`,'Content-Type':'application/json'},
+        body: JSON.stringify({attendees}) });
+    if(r.status===401){ handleGoogleExpired(); return; }
+    if(r.ok){
+      const updated = await r.json();
+      // update local cache
+      const idx = calMonthEvents.findIndex(x=>x.id===eventId);
+      if(idx>=0) calMonthEvents[idx]={...calMonthEvents[idx],...updated};
+      const idx2 = calHeaderEvents.findIndex(x=>x.id===eventId);
+      if(idx2>=0) calHeaderEvents[idx2]={...calHeaderEvents[idx2],...updated};
+      const labels={accepted:'Aceptado',declined:'Rechazado',tentative:'Tal vez'};
+      setStatus(labels[response]||'Respuesta enviada.');
+      openCalEventModal(eventId);
+    } else { setStatus('Error al enviar respuesta.'); }
+  }catch(e){ setStatus('Error al enviar respuesta.'); }
 }
 
 async function fetchCalendarEvents(timeMin, timeMax){
@@ -3133,6 +3288,7 @@ function taskCard(t, showTipo){
 
 function renderKanban(taskSet){
   const open=taskSet.filter(t=>t.status!=='hecha');
+  const done=taskSet.filter(t=>t.status==='hecha');
   const order={alta:0,media:1,baja:2};
   const sortFn=(a,b)=>order[a.urgency]-order[b.urgency]||(a.due||'9999').localeCompare(b.due||'9999');
   const cols=[
@@ -3143,12 +3299,29 @@ function renderKanban(taskSet){
   });
   const sinTipo=open.filter(t=>(!t.tipo || !state.tipos.includes(t.tipo))&&t.urgency!=='alta').sort(sortFn);
   if(sinTipo.length) cols.push({title:'Sin tipo', cls:'', items:sinTipo, showTipo:false, prefill:{}});
-  return '<div class="kanban">'+cols.map(c=>`
+
+  const toggleBtn = '';
+
+  const doneSection = showDoneTasks && done.length ? `
+    <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px;">
+      <p class="sect-h" style="margin-bottom:8px;">Tareas cerradas</p>
+      <div class="card-grid">${done.sort((a,b)=>(b.created||'').localeCompare(a.created||'')).map(t=>`
+        <div class="task" style="opacity:0.72;border-left:3px solid var(--border);">
+          <p class="task-title">${escapeHtml(t.title)}</p>
+          <div class="badges-row">${t.urgency?`<span class="badge ${t.urgency}">${t.urgency}</span>`:''} ${t.tipo?`<span class="badge">${escapeHtml(t.tipo)}</span>`:''}</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+            <span class="task-meta">${t.due?fmtDateShort(t.due):''}</span>
+            <button class="btn-ghost btn-small" onclick="reopenTask('${t.id}',event)">↺ Reabrir</button>
+          </div>
+        </div>`).join('')}</div>
+    </div>` : '';
+
+  return toggleBtn + '<div class="kanban">'+cols.map(c=>`
     <div class="kcol ${c.cls}">
       <h3>${escapeHtml(c.title)} <span class="count">${c.items.length}</span></h3>
       ${c.items.length ? c.items.map(t=>taskCard(t,c.showTipo)).join('') : '<p class="empty">Nada aquí.</p>'}
       <button class="kcol-add" onclick="openTaskModal(null,JSON.parse(this.dataset.p))" data-p="${escapeAttr(JSON.stringify(c.prefill))}">+ Añadir</button>
-    </div>`).join('')+'</div>';
+    </div>`).join('')+'</div>' + doneSection;
 }
 
 function renderLista(){
@@ -3175,6 +3348,17 @@ function renderLista(){
 
 let showArchivedProjects = false;
 function toggleShowArchived(){ showArchivedProjects = !showArchivedProjects; render(); }
+
+let showDoneTasks = true;
+
+function reopenTask(id, event){
+  if(event) event.stopPropagation();
+  const t = state.tasks.find(x=>x.id===id);
+  if(!t) return;
+  t.status = 'pendiente';
+  saveTaskRow(t);
+  render();
+}
 
 const DEV_AREA = 'Desarrollo digital';
 function renderProyectosList(filterArea){
