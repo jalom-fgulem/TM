@@ -3551,6 +3551,10 @@ function driveFileIcon(mimeType){
   return 'ti-file';
 }
 let _driveSearchTimer=null;
+function reauthorizeForDrive(){
+  if(!gTokenClient) return;
+  gTokenClient.requestAccessToken({prompt:'consent'});
+}
 function searchDriveFiles(query){
   const res=document.getElementById('mDriveResults'); if(!res) return;
   if(_driveSearchTimer) clearTimeout(_driveSearchTimer);
@@ -3560,11 +3564,22 @@ function searchDriveFiles(query){
     res.classList.add('open');
     res.innerHTML='<div class="drive-result-item" style="color:var(--text-soft);cursor:default;">Buscando…</div>';
     try{
-      const q=encodeURIComponent(`name contains '${query.replace(/'/g,"\\'")}' and trashed=false`);
-      const r=await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,mimeType,webViewLink)&pageSize=10&orderBy=viewedByMeTime+desc`,{headers:{Authorization:`Bearer ${googleToken}`}});
+      const safeQuery=query.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      const url=new URL('https://www.googleapis.com/drive/v3/files');
+      url.searchParams.set('q',`name contains '${safeQuery}' and trashed=false`);
+      url.searchParams.set('fields','files(id,name,mimeType,webViewLink)');
+      url.searchParams.set('pageSize','10');
+      const r=await fetch(url.toString(),{headers:{Authorization:`Bearer ${googleToken}`}});
       if(r.status===401){handleGoogleExpired();return;}
-      if(r.status===403){res.innerHTML='<div class="drive-result-item" style="color:var(--text-soft);cursor:default;">Sin acceso a Drive. Reconecta Google.</div>';return;}
-      if(!r.ok){res.innerHTML='<div class="drive-result-item" style="color:var(--text-soft);cursor:default;">Error al buscar.</div>';return;}
+      if(r.status===403){
+        res.innerHTML='<div class="drive-result-item" style="cursor:default;gap:8px;"><span style="color:var(--text-soft);flex:1;">Drive necesita permiso adicional.</span><button class="btn-ghost btn-small" onclick="reauthorizeForDrive()">Reconectar Google</button></div>';
+        return;
+      }
+      if(!r.ok){
+        const err=await r.json().catch(()=>({}));
+        res.innerHTML=`<div class="drive-result-item" style="color:var(--text-soft);cursor:default;">Error ${r.status}: ${escapeHtml(err?.error?.message||'al buscar en Drive.')}</div>`;
+        return;
+      }
       const data=await r.json();
       const files=data.files||[];
       if(!files.length){res.innerHTML='<div class="drive-result-item" style="color:var(--text-soft);cursor:default;">Sin resultados.</div>';return;}
@@ -3573,7 +3588,7 @@ function searchDriveFiles(query){
           <i class="ti ${driveFileIcon(f.mimeType)}" style="color:#1a73e8;flex-shrink:0;" aria-hidden="true"></i>
           <span class="drive-result-name">${escapeHtml(f.name)}</span>
         </div>`).join('');
-    }catch(e){res.innerHTML='<div class="drive-result-item" style="color:var(--text-soft);cursor:default;">Error al buscar.</div>';}
+    }catch(e){res.innerHTML='<div class="drive-result-item" style="color:var(--text-soft);cursor:default;">Error de red al buscar en Drive.</div>';}
   },400);
 }
 function attachDriveFile(jsonStr){
