@@ -278,9 +278,11 @@
   .gmail-list-col{overflow-y:auto;border-right:1px solid var(--border);display:flex;flex-direction:column;}
   .gmail-list-head{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);z-index:1;flex-shrink:0;}
   .gmail-list-head-title{font-size:12px;font-weight:600;}
-  .gmail-list-item{padding:9px 12px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s;}
+  .gmail-list-item{padding:9px 12px 9px 10px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s;border-left:3px solid transparent;}
   .gmail-list-item:hover{background:var(--bg);}
   .gmail-list-item.selected{background:var(--accent-bg);}
+  .gmail-list-item.has-task{border-left-color:#1a73e8;}
+  .gli-task-badge{display:inline-flex;align-items:center;gap:3px;font-size:10px;color:#1a73e8;background:#e8f0fe;border:1px solid #c5d8fd;border-radius:3px;padding:1px 5px;margin-top:3px;}
   .gli-row1{display:flex;align-items:baseline;justify-content:space-between;gap:4px;margin-bottom:2px;}
   .gli-from{font-size:12.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;}
   .gli-from.bold{font-weight:700;}
@@ -3248,6 +3250,7 @@ async function loadGmailWidget(){
   el.innerHTML='<p class="empty" style="padding:16px 12px;">Cargando...</p>';
   const msgs=await fetchGmailUnread();
   if(!msgs.length){ el.innerHTML='<p class="empty" style="padding:16px 12px;">No hay emails con este filtro.</p>'; return; }
+  const linkedEmailIds=new Set((state.tasks||[]).filter(t=>t.sourceEmailId).map(t=>t.sourceEmailId));
   el.innerHTML=msgs.map(msg=>{
     const hdrs=msg.payload?.headers||[];
     const subject=hdrs.find(h=>h.name==='Subject')?.value||'(sin asunto)';
@@ -3255,13 +3258,15 @@ async function loadGmailWidget(){
     const date=hdrs.find(h=>h.name==='Date')?.value||'';
     const unread=(msg.labelIds||[]).includes('UNREAD');
     const sel=selectedEmailId===msg.id;
-    return `<div class="gmail-list-item${sel?' selected':''}" data-id="${msg.id}" onclick="selectEmail('${msg.id}')">
+    const hasTask=linkedEmailIds.has(msg.id);
+    return `<div class="gmail-list-item${sel?' selected':''}${hasTask?' has-task':''}" data-id="${msg.id}" onclick="selectEmail('${msg.id}')">
       <div class="gli-row1">
         <div class="gli-from${unread?' bold':''}">${escapeHtml(from)}</div>
         <div class="gli-date">${escapeHtml(formatEmailDate(date))}</div>
       </div>
       <div class="gli-subject${unread?' bold':''}">${escapeHtml(subject)}</div>
       <div class="gli-snippet">${escapeHtml(msg.snippet||'')}</div>
+      ${hasTask?`<span class="gli-task-badge"><i class="ti ti-checkbox" aria-hidden="true"></i> Tarea vinculada</span>`:''}
     </div>`;
   }).join('');
 }
