@@ -571,6 +571,7 @@
     <button id="tab-correo" onclick="setView('correo')"><i class="ti ti-mail" aria-hidden="true"></i> Correo</button>
     <button id="tab-gtasks" onclick="setView('gtasks')"><i class="ti ti-checkbox" aria-hidden="true"></i> G Tasks</button>
     <button id="btnToggleDone" style="margin-left:auto;display:none;" onclick="showDoneTasks=!showDoneTasks;render();">Mostrar cerradas</button>
+    <button id="btnInstallApp" style="display:none;margin-left:6px;" class="btn-primary btn-small" onclick="installApp()" title="Instalar como aplicación"><i class="ti ti-device-mobile-down"></i> Instalar app</button>
   </div>
 
   <div id="viewRoot"></div>
@@ -2347,6 +2348,8 @@ function updateHeaderEvents(){
     const meetBtn=meetLink?`<a href="${escapeAttr(meetLink)}" target="_blank" class="ep-meet-btn" onclick="event.stopPropagation();" title="Unirse a la reunión online"><i class="ti ti-video"></i> Unirse</a>`:'';
     return `<span class="header-event-pill" onclick="openCalEventModal('${escapeAttr(ev.id)}')" style="cursor:pointer;">${dot}<span class="ep-time">${t}</span><span class="ep-title">${escapeHtml(ev.summary||'(sin título)')}</span>${meetBtn}</span>`;
   }).join('');
+  // Programa notificaciones SW para cada evento próximo
+  upcoming.forEach(ev => scheduleMeetingNotification(ev));
   scheduleMeetingAlerts();
 }
 function _extractMeetLink(ev){
@@ -3446,11 +3449,124 @@ function renderProjectDetail(){
     </div>`;
 }
 
-loadState();
+// ---- PWA: instalación y notificaciones ----
+let _swReg = null;
+let _installPrompt = null;
 
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('/TM/sw.js').catch(()=>{});
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  _installPrompt = e;
+  const btn = document.getElementById('btnInstallApp');
+  if (btn) btn.style.display = '';
+});
+window.addEventListener('appinstalled', () => {
+  _installPrompt = null;
+  const btn = document.getElementById('btnInstallApp');
+  if (btn) btn.style.display = 'none';
+});
+
+function installApp(){
+  if (!_installPrompt) return;
+  _installPrompt.prompt();
+  _installPrompt.userChoice.then(() => { _installPrompt = null; });
 }
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/TM/sw.js')
+    .then(reg => { _swReg = reg; })
+    .catch(() => {});
+}
+
+function _swNotify(title, body, opts = {}) {
+  if (Notification.permission !== 'granted') return;
+  if (_swReg) {
+    _swReg.showNotification(title, {
+      body,
+      icon: '/TM/icon-192.png',
+      badge: '/TM/icon-192.png',
+      tag: opts.tag || ('tm-' + Date.now()),
+      requireInteraction: opts.requireInteraction || false,
+      data: { url: opts.url || location.href },
+      actions: opts.actions || []
+    });
+  } else {
+    new Notification(title, { body, icon: '/TM/icon-192.png', tag: opts.tag });
+  }
+}
+
+function _swSchedule(id, delayMs, title, body, opts = {}) {
+  if (Notification.permission !== 'granted') return;
+  const msg = { type: 'SCHEDULE_NOTIFICATION', id, delay: delayMs, title, body, tag: id, ...opts };
+  if (navigator.serviceWorker.controller) {
+    navigator.serviceWorker.controller.postMessage(msg);
+  } else {
+    setTimeout(() => _swNotify(title, body, { tag: id, ...opts }), delayMs);
+  }
+}
+
+async function initNotifications() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') {
+    await Notification.requestPermission();
+  }
+  if (Notification.permission !== 'granted') return;
+  scheduleTaskNotifications();
+}
+
+function scheduleTaskNotifications() {
+  const today = todayStr();
+
+  // Tareas vencidas
+  const overdue = state.tasks.filter(t => t.due && t.due < today && t.status !== 'hecha');
+  if (overdue.length) {
+    _swNotify(
+      `⚠️ ${overdue.length} tarea${overdue.length > 1 ? 's vencidas' : ' vencida'}`,
+      overdue.slice(0, 3).map(t => '· ' + t.title).join('\n') + (overdue.length > 3 ? `\n· y ${overdue.length - 3} más…` : ''),
+      { tag: 'tm-overdue', requireInteraction: false }
+    );
+  }
+
+  // Tareas para hoy
+  const dueToday = state.tasks.filter(t => t.due === today && t.status !== 'hecha');
+  if (dueToday.length) {
+    setTimeout(() => {
+      _swNotify(
+        `📋 ${dueToday.length} tarea${dueToday.length > 1 ? 's para hoy' : ' para hoy'}`,
+        dueToday.slice(0, 3).map(t => '· ' + t.title).join('\n') + (dueToday.length > 3 ? `\n· y ${dueToday.length - 3} más…` : ''),
+        { tag: 'tm-today', requireInteraction: false }
+      );
+    }, overdue.length ? 4000 : 1500);
+  }
+}
+
+function scheduleMeetingNotification(ev) {
+  if (!ev.start?.dateTime) return;
+  const start = new Date(ev.start.dateTime).getTime();
+  const now = Date.now();
+  const fiveMin = 5 * 60 * 1000;
+  const delay5 = start - fiveMin - now;
+  const delay0 = start - now;
+  const hh = new Date(ev.start.dateTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  const meetLink = ev.hangoutLink || _extractMeetLink(ev);
+  const title = ev.summary || 'Reunión';
+
+  if (delay5 > 0) {
+    _swSchedule('meet-5-' + ev.id, delay5,
+      `📅 En 5 min: ${title}`,
+      `Empieza a las ${hh}` + (meetLink ? ' · Reunión online' : ''),
+      { requireInteraction: !!meetLink, url: meetLink || location.href }
+    );
+  }
+  if (delay0 > 0 && delay0 < 24 * 60 * 60 * 1000) {
+    _swSchedule('meet-0-' + ev.id, delay0,
+      `🔴 Ahora: ${title}`,
+      `Ha comenzado a las ${hh}` + (meetLink ? ' · Entra ya' : ''),
+      { requireInteraction: !!meetLink, url: meetLink || location.href }
+    );
+  }
+}
+
+loadState().then(() => initNotifications()).catch(() => initNotifications());
 </script>
 </body>
 </html>
