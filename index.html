@@ -3136,18 +3136,18 @@ function renderKanban(taskSet){
   const order={alta:0,media:1,baja:2};
   const sortFn=(a,b)=>order[a.urgency]-order[b.urgency]||(a.due||'9999').localeCompare(b.due||'9999');
   const cols=[
-    {title:'Urgente', cls:'urgente', items:open.filter(t=>t.urgency==='alta').sort(sortFn), showTipo:true}
+    {title:'Urgente', cls:'urgente', items:open.filter(t=>t.urgency==='alta').sort(sortFn), showTipo:true, prefill:{urgency:'alta'}}
   ];
   state.tipos.forEach(tp=>{
-    cols.push({title:tp, cls:'', items:open.filter(t=>t.tipo===tp&&t.urgency!=='alta').sort(sortFn), showTipo:false});
+    cols.push({title:tp, cls:'', items:open.filter(t=>t.tipo===tp&&t.urgency!=='alta').sort(sortFn), showTipo:false, prefill:{tipo:tp}});
   });
   const sinTipo=open.filter(t=>(!t.tipo || !state.tipos.includes(t.tipo))&&t.urgency!=='alta').sort(sortFn);
-  if(sinTipo.length) cols.push({title:'Sin tipo', cls:'', items:sinTipo, showTipo:false});
+  if(sinTipo.length) cols.push({title:'Sin tipo', cls:'', items:sinTipo, showTipo:false, prefill:{}});
   return '<div class="kanban">'+cols.map(c=>`
     <div class="kcol ${c.cls}">
       <h3>${escapeHtml(c.title)} <span class="count">${c.items.length}</span></h3>
       ${c.items.length ? c.items.map(t=>taskCard(t,c.showTipo)).join('') : '<p class="empty">Nada aquí.</p>'}
-      <button class="kcol-add" onclick="openTaskModal(null)">+ Añadir</button>
+      <button class="kcol-add" onclick="openTaskModal(null,JSON.parse(this.dataset.p))" data-p="${escapeAttr(JSON.stringify(c.prefill))}">+ Añadir</button>
     </div>`).join('')+'</div>';
 }
 
