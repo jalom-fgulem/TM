@@ -454,6 +454,12 @@
   .gsync-sub select,.gsync-sub input[type=date],.gsync-sub input[type=time]{font-size:12px;border:1px solid var(--border);border-radius:6px;padding:4px 8px;background:var(--surface);color:var(--text);}
 
   @media(max-width:600px){.cal-week-grid{grid-template-columns:repeat(7,1fr);} .cal-week-col-head-day{font-size:13px;} .cal-week-event{display:none;} }
+  /* Agenda Director sync */
+  .agenda-sync-bar{display:flex;align-items:center;gap:10px;padding:9px 14px;background:#fef9c3;border:1px solid #fde68a;border-radius:8px;margin-bottom:8px;font-size:13px;color:#92400e;flex-wrap:wrap;}
+  .agenda-sync-bar b{color:#78350f;}
+  .cal-event-pill.missing-agenda{opacity:0.38;outline:2px dashed currentColor;outline-offset:-2px;}
+  .cal-week-event.missing-agenda{opacity:0.38;outline:2px dashed currentColor;outline-offset:-2px;}
+  .cal-span-bar.missing-agenda{opacity:0.38;outline:2px dashed #fff;outline-offset:-2px;}
 
   /* Email labels / query switcher */
   .email-filters{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none;}
@@ -1945,6 +1951,10 @@ let showCalLocalTasks = true;
 let showCalGTasks = true;
 let _meetAlertTimer = null;
 let _alertedEvents = new Set();
+// Agenda Director sync
+let _agendaDirCal = null, _reunionesCal = null;
+let _reunionesMissingIds = new Set();
+let _reunionesEvents15 = [], _agendaDirEvents15 = [];
 let googleTaskLists = [];
 let googleTasks = [];
 let currentGTaskList = null;
@@ -2113,6 +2123,7 @@ function renderCalendario(){
       </div>
     </div>
     <div class="cal-selector" id="calSelector"></div>
+    <div id="agendaSyncBar" class="agenda-sync-bar" style="display:none;"></div>
     ${content}
   </div>`;
 }
@@ -2313,7 +2324,73 @@ async function loadCalendarMonth(){
   calMonthEvents = await fetchCalendarEvents(tMin, tMax);
   renderCalendarSelector();
   renderCalMonthGrid();
+  checkAgendaDirectorSync(); // async, non-blocking
 }
+
+async function checkAgendaDirectorSync(){
+  if(!googleToken || !googleCalendars.length) return;
+  _reunionesCal  = googleCalendars.find(c=>c.summary?.toLowerCase().includes('reuniones'));
+  _agendaDirCal  = googleCalendars.find(c=>c.summary?.toLowerCase().includes('agenda director'));
+  if(!_reunionesCal || !_agendaDirCal){ _reunionesMissingIds=new Set(); updateAgendaSyncBar(); return; }
+
+  const now=new Date();
+  const tMin=now.toISOString();
+  const tMax=new Date(now.getTime()+15*24*60*60*1000).toISOString();
+  const fetchCal=async calId=>{
+    try{
+      const r=await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events?timeMin=${encodeURIComponent(tMin)}&timeMax=${encodeURIComponent(tMax)}&singleEvents=true&orderBy=startTime&maxResults=200`,
+        {headers:{Authorization:`Bearer ${googleToken}`}});
+      if(!r.ok) return [];
+      return (await r.json()).items||[];
+    }catch(){ return []; }
+  };
+  [_reunionesEvents15, _agendaDirEvents15] = await Promise.all([fetchCal(_reunionesCal.id), fetchCal(_agendaDirCal.id)]);
+
+  // Match by título normalizado + inicio (hasta minuto)
+  const agendaKeys=new Set(_agendaDirEvents15.map(ev=>{
+    const s=ev.start?.dateTime?.slice(0,16)||ev.start?.date||'';
+    return (ev.summary||'').trim().toLowerCase()+'|'+s;
+  }));
+  _reunionesMissingIds=new Set();
+  _reunionesEvents15.forEach(ev=>{
+    const s=ev.start?.dateTime?.slice(0,16)||ev.start?.date||'';
+    const key=(ev.summary||'').trim().toLowerCase()+'|'+s;
+    if(!agendaKeys.has(key)) _reunionesMissingIds.add(ev.id);
+  });
+  updateAgendaSyncBar();
+  renderCalMonthGrid(); // re-render para aplicar difuminado
+}
+
+function updateAgendaSyncBar(){
+  const el=document.getElementById('agendaSyncBar'); if(!el) return;
+  if(!_agendaDirCal||!_reunionesCal||_reunionesMissingIds.size===0){ el.style.display='none'; return; }
+  const n=_reunionesMissingIds.size;
+  el.style.display='flex';
+  el.innerHTML=`<i class="ti ti-alert-triangle" style="color:#d97706;flex-shrink:0;"></i>
+    <span><b>${n}</b> evento${n!==1?'s':''} de <b>Reuniones</b> no ${n!==1?'están':'está'} en <b>Agenda Director</b> (próximos 15 días)</span>
+    <button class="btn-primary btn-small" style="margin-left:auto;white-space:nowrap;" onclick="syncAgendaDirector()"><i class="ti ti-copy"></i> Copiar a Agenda Director</button>`;
+}
+
+async function syncAgendaDirector(){
+  if(!googleToken||!_agendaDirCal||!_reunionesCal) return;
+  const missing=_reunionesEvents15.filter(ev=>_reunionesMissingIds.has(ev.id));
+  if(!missing.length) return;
+  const btn=document.querySelector('#agendaSyncBar button');
+  if(btn){ btn.disabled=true; btn.textContent='Copiando...'; }
+  let ok=0, fail=0;
+  for(const ev of missing){
+    const body={summary:ev.summary,description:ev.description,location:ev.location,start:ev.start,end:ev.end};
+    if(ev.conferenceData) body.conferenceData=ev.conferenceData;
+    try{
+      const r=await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(_agendaDirCal.id)}/events`,{
+        method:'POST',headers:{Authorization:`Bearer ${googleToken}`,'Content-Type':'application/json'},body:JSON.stringify(body)});
+      r.ok?ok++:fail++;
+    }catch(){ fail++; }
+  }
+  alert(`✓ ${ok} evento${ok!==1?'s':''} copiado${ok!==1?'s':''} a Agenda Director${fail?` · ${fail} error${fail!==1?'es':''}`:''}.`);
+  await checkAgendaDirectorSync();
+}
+
 function _buildSpanBars(items, weekDays){
   // items: [{start, end, color, label, onClick}]
   // Returns bars with col, span, lane assigned
@@ -2421,7 +2498,10 @@ function renderCalMonthGrid(){
       if(!ds) return '<div class="cal-day other-month" style="grid-row:2;"></div>';
       const isToday=ds===today, isSel=ds===calSelectedDay;
       const evs=(byDay[ds]||[]).filter(ev=>ev.start.dateTime);
-      const dots=evs.slice(0,2).map(ev=>`<div class="cal-event-pill" style="background:${ev._calColor||'var(--accent)'};cursor:pointer;" onclick="event.stopPropagation();openCalEventModal('${escapeAttr(ev.id)}')">${escapeHtml(ev.summary||'')}</div>`).join('');
+      const dots=evs.slice(0,2).map(ev=>{
+        const isMissing=_reunionesCal&&ev._calId===_reunionesCal.id&&_reunionesMissingIds.has(ev.id);
+        return `<div class="cal-event-pill${isMissing?' missing-agenda':''}" style="background:${ev._calColor||'var(--accent)'};cursor:pointer;" onclick="event.stopPropagation();openCalEventModal('${escapeAttr(ev.id)}')" title="${isMissing?'⚠ Falta en Agenda Director · ':''} ${escapeAttr(ev.summary||'')}">${isMissing?'⚠ ':''}${escapeHtml(ev.summary||'')}</div>`;
+      }).join('');
       const more=evs.length>2?`<div class="cal-event-more">+${evs.length-2}</div>`:'';
       const dayTasks=(singleByDay[ds]||[]).slice(0,2).map(t=>
         t._type==='gtask'
