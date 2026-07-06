@@ -156,6 +156,20 @@
   .kcol-urgente-sidebar .task{border-left:3px solid var(--alta);}
   .kcol-add{width:100%;padding:6px;border-radius:8px;border:1px dashed var(--border);background:transparent;color:var(--text-muted);font-size:12px;cursor:pointer;text-align:center;margin-top:4px;}
   .kcol-add:hover{background:var(--surface);color:var(--text-soft);}
+  /* Drag & drop — kanban */
+  .task[draggable=true]{cursor:grab;}
+  .task.k-dragging{opacity:0.3;pointer-events:none;}
+  .kcol.k-drag-over,.kcol-urgente-sidebar.k-drag-over{background:var(--accent-bg);outline:2px solid var(--accent-border);outline-offset:-2px;}
+  .task.k-drop-above{box-shadow:0 -3px 0 var(--accent);}
+  .task.k-drop-below{box-shadow:0 3px 0 var(--accent);}
+  .task-drag-handle{cursor:grab;color:var(--text-muted);font-size:12px;opacity:0;flex-shrink:0;padding:1px 4px 0 0;line-height:1;display:inline-flex;}
+  .task:hover .task-drag-handle{opacity:0.5;}
+  /* Drag & drop — subtareas */
+  .sub-drag-handle{cursor:grab;color:var(--text-muted);font-size:11px;opacity:0;padding:0 4px 0 0;user-select:none;flex-shrink:0;}
+  li:hover .sub-drag-handle,.sub-item.s-dragging .sub-drag-handle{opacity:0.5;}
+  li.s-dragging{opacity:0.3;}
+  li.s-drop-above{box-shadow:0 -2px 0 var(--accent);}
+  li.s-drop-below{box-shadow:0 2px 0 var(--accent);}
 
   /* Filters */
   .filters{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;align-items:center;}
@@ -1176,7 +1190,12 @@ function renderSubList(){
         <button class="btn-ghost btn-small" onclick="tempSubtasks[${i}].children.splice(${j},1); renderSubList();">×</button>
       </li>`).join('');
     return `
-    <li>
+    <li draggable="true"
+      ondragstart="_sDragStart(event,${i})"
+      ondragend="_sDragEnd(event)"
+      ondragover="_sDragOver(event,${i})"
+      ondrop="_sDrop(event,${i})">
+      <span class="sub-drag-handle"><i class="ti ti-grip-vertical"></i></span>
       <input type="checkbox" ${s.done?'checked':''} onchange="tempSubtasks[${i}].done=this.checked; renderSubList();">
       <span class="${s.done?'done':''}">${escapeHtml(s.text)}</span>
       <button class="btn-ghost btn-small" onclick="tempSubtasks.splice(${i},1); renderSubList();">×</button>
@@ -3697,6 +3716,86 @@ function saveProfile(){
   saveSettings(); updateAppTitle(); setStatus('Perfil guardado.');
 }
 
+// ── Kanban drag & drop ──────────────────────────────────────────────────────
+let _kDragId=null;
+function _kDragStart(e,id){
+  _kDragId=id;
+  e.dataTransfer.effectAllowed='move';
+  e.dataTransfer.setData('text/plain',id);
+  setTimeout(()=>{ const el=document.querySelector(`.task[data-task-id="${id}"]`); if(el) el.classList.add('k-dragging'); },0);
+}
+function _kDragEnd(e){
+  document.querySelectorAll('.task.k-dragging').forEach(el=>el.classList.remove('k-dragging'));
+  document.querySelectorAll('.kcol.k-drag-over,.kcol-urgente-sidebar.k-drag-over').forEach(el=>el.classList.remove('k-drag-over'));
+  document.querySelectorAll('.task.k-drop-above,.task.k-drop-below').forEach(el=>el.classList.remove('k-drop-above','k-drop-below'));
+  _kDragId=null;
+}
+function _kColDragOver(e,colEl){
+  e.preventDefault(); e.dataTransfer.dropEffect='move';
+  colEl.classList.add('k-drag-over');
+  document.querySelectorAll('.task.k-drop-above,.task.k-drop-below').forEach(el=>el.classList.remove('k-drop-above','k-drop-below'));
+  const card=e.target.closest('[data-task-id]');
+  if(card&&card.dataset.taskId!==_kDragId){
+    const r=card.getBoundingClientRect();
+    card.classList.add(e.clientY<r.top+r.height/2?'k-drop-above':'k-drop-below');
+  }
+}
+function _kColDragLeave(e,colEl){
+  if(!colEl.contains(e.relatedTarget)) colEl.classList.remove('k-drag-over');
+}
+function _kDrop(e,tipo){
+  e.preventDefault();
+  if(!_kDragId) return;
+  const task=state.tasks.find(t=>t.id===_kDragId); if(!task) return;
+  const srcTipo=task.tipo;
+  if(!state.kanbanOrder) state.kanbanOrder={};
+  if(srcTipo!==tipo && state.kanbanOrder[srcTipo])
+    state.kanbanOrder[srcTipo]=state.kanbanOrder[srcTipo].filter(id=>id!==_kDragId);
+  task.tipo=tipo;
+  const tipoIds=state.tasks.filter(t=>t.status!=='hecha'&&t.tipo===tipo).map(t=>t.id);
+  let ord=[...(state.kanbanOrder[tipo]||[])].filter(id=>tipoIds.includes(id));
+  tipoIds.forEach(id=>{ if(!ord.includes(id)) ord.push(id); });
+  ord=ord.filter(id=>id!==_kDragId);
+  const card=e.target.closest('[data-task-id]');
+  const tid=card?.dataset.taskId;
+  if(tid&&tid!==_kDragId){
+    const r=card.getBoundingClientRect();
+    const before=e.clientY<r.top+r.height/2;
+    const idx=ord.indexOf(tid);
+    idx!==-1?ord.splice(before?idx:idx+1,0,_kDragId):ord.push(_kDragId);
+  } else { ord.push(_kDragId); }
+  state.kanbanOrder[tipo]=ord;
+  _kDragId=null;
+  saveTasks(); saveSettings(); render();
+}
+
+// ── Subtask drag & drop ──────────────────────────────────────────────────────
+let _sDragIdx=null;
+function _sDragStart(e,i){
+  _sDragIdx=i;
+  e.dataTransfer.effectAllowed='move';
+  setTimeout(()=>e.currentTarget.classList.add('s-dragging'),0);
+}
+function _sDragEnd(e){ e.currentTarget.classList.remove('s-dragging'); _sDragIdx=null; }
+function _sDragOver(e,i){
+  if(_sDragIdx===null) return;
+  e.preventDefault();
+  document.querySelectorAll('li.s-drop-above,li.s-drop-below').forEach(el=>el.classList.remove('s-drop-above','s-drop-below'));
+  const r=e.currentTarget.getBoundingClientRect();
+  e.currentTarget.classList.add(e.clientY<r.top+r.height/2?'s-drop-above':'s-drop-below');
+}
+function _sDrop(e,targetIdx){
+  e.preventDefault();
+  if(_sDragIdx===null||_sDragIdx===targetIdx){ _sDragIdx=null; return; }
+  const r=e.currentTarget.getBoundingClientRect();
+  const before=e.clientY<r.top+r.height/2;
+  const moved=tempSubtasks.splice(_sDragIdx,1)[0];
+  const dest=_sDragIdx<targetIdx?(before?targetIdx-1:targetIdx):(before?targetIdx:targetIdx+1);
+  tempSubtasks.splice(dest,0,moved);
+  _sDragIdx=null;
+  renderSubList();
+}
+
 function taskCard(t, showTipo){
   const today=todayStr();
   const overdue=t.due && t.due<today && t.status!=='hecha';
@@ -3726,8 +3825,10 @@ function taskCard(t, showTipo){
     </ul>` : ''}` : '';
   const urgLabel={alta:'🔴 Alta',media:'🟡 Media',baja:'🟢 Baja'}[t.urgency]||t.urgency;
   return `
-  <div class="task ${t.urgency} ${t.status==='hecha'?'done':''}" onclick="openTaskModal('${t.id}')">
-    <p class="task-title ${t.status==='hecha'?'done':''}">${escapeHtml(t.title)}</p>
+  <div class="task ${t.urgency} ${t.status==='hecha'?'done':''}" data-task-id="${t.id}"
+    draggable="true" ondragstart="_kDragStart(event,'${t.id}')" ondragend="_kDragEnd(event)"
+    onclick="openTaskModal('${t.id}')">
+    <p class="task-title ${t.status==='hecha'?'done':''}"><span class="task-drag-handle"><i class="ti ti-grip-vertical"></i></span>${escapeHtml(t.title)}</p>
     <div class="badges-row">
       <span class="badge ${t.urgency}" onclick="cycleUrgency('${t.id}',event)" title="Clic para cambiar urgencia" style="cursor:pointer;">${urgLabel}</span>
       ${showTipo && t.tipo?`<span class="badge tipo">${escapeHtml(t.tipo)}</span>`:''}
@@ -3752,14 +3853,19 @@ function taskCard(t, showTipo){
 function renderKanban(taskSet){
   const open=taskSet.filter(t=>t.status!=='hecha');
   const done=taskSet.filter(t=>t.status==='hecha');
-  const order={alta:0,media:1,baja:2};
-  const sortFn=(a,b)=>order[a.urgency]-order[b.urgency]||(a.due||'9999').localeCompare(b.due||'9999');
+  const urgOrd={alta:0,media:1,baja:2};
+  const sortFn=(a,b)=>urgOrd[a.urgency]-urgOrd[b.urgency]||(a.due||'9999').localeCompare(b.due||'9999');
+  const kanbanSort=(items,tipo)=>{
+    const ord=(state.kanbanOrder||{})[tipo]||[];
+    if(!ord.length) return [...items].sort(sortFn);
+    return [...items].sort((a,b)=>{ const ia=ord.indexOf(a.id),ib=ord.indexOf(b.id); if(ia<0&&ib<0)return sortFn(a,b); if(ia<0)return 1; if(ib<0)return -1; return ia-ib; });
+  };
 
   const urgent=open.filter(t=>t.urgency==='alta').sort(sortFn);
 
   const cols=[];
   state.tipos.forEach(tp=>{
-    cols.push({title:tp, items:open.filter(t=>t.tipo===tp).sort(sortFn), showTipo:false, prefill:{tipo:tp}});
+    cols.push({title:tp, items:kanbanSort(open.filter(t=>t.tipo===tp),tp), showTipo:false, prefill:{tipo:tp}});
   });
   const sinTipo=open.filter(t=>!t.tipo || !state.tipos.includes(t.tipo)).sort(sortFn);
   if(sinTipo.length) cols.push({title:'Sin tipo', items:sinTipo, showTipo:true, prefill:{}});
@@ -3787,7 +3893,10 @@ function renderKanban(taskSet){
 
   const mainKanban = cols.length
     ? '<div class="kanban">'+cols.map(c=>`
-        <div class="kcol">
+        <div class="kcol"
+          ondragover="_kColDragOver(event,this)"
+          ondragleave="_kColDragLeave(event,this)"
+          ondrop="_kDrop(event,'${escapeAttr(c.title)}')">
           <h3>${escapeHtml(c.title)} <span class="count">${c.items.length}</span></h3>
           ${c.items.length ? c.items.map(t=>taskCard(t,c.showTipo)).join('') : '<p class="empty">Nada aquí.</p>'}
           <button class="kcol-add" onclick="openTaskModal(null,JSON.parse(this.dataset.p))" data-p="${escapeAttr(JSON.stringify(c.prefill))}">+ Añadir</button>
