@@ -2342,7 +2342,7 @@ async function checkAgendaDirectorSync(){
         {headers:{Authorization:`Bearer ${googleToken}`}});
       if(!r.ok) return [];
       return (await r.json()).items||[];
-    }catch(){ return []; }
+    }catch(e){ return []; }
   };
   [_reunionesEvents15, _agendaDirEvents15] = await Promise.all([fetchCal(_reunionesCal.id), fetchCal(_agendaDirCal.id)]);
 
@@ -2385,7 +2385,7 @@ async function syncAgendaDirector(){
       const r=await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(_agendaDirCal.id)}/events`,{
         method:'POST',headers:{Authorization:`Bearer ${googleToken}`,'Content-Type':'application/json'},body:JSON.stringify(body)});
       r.ok?ok++:fail++;
-    }catch(){ fail++; }
+    }catch(e){ fail++; }
   }
   alert(`✓ ${ok} evento${ok!==1?'s':''} copiado${ok!==1?'s':''} a Agenda Director${fail?` · ${fail} error${fail!==1?'es':''}`:''}.`);
   await checkAgendaDirectorSync();
