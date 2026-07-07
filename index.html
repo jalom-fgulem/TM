@@ -2154,8 +2154,15 @@ function updateGoogleUI(){
   updateGoogleCalendarConfigUI();
 }
 function handleGoogleExpired(){
-  googleToken=null; sessionStorage.removeItem('g_tok'); googleCalendars=[]; updateGoogleUI();
-  setStatus('Sesión de Google expirada — vuelve a conectar.');
+  googleToken=null;
+  localStorage.removeItem('g_tok');
+  // Intentar refresco silencioso antes de mostrar error
+  if(gTokenClient && localStorage.getItem('g_authorized')==='1'){
+    gTokenClient.requestAccessToken({prompt:''});
+  } else {
+    googleCalendars=[]; updateGoogleUI();
+    setStatus('Sesión de Google expirada — vuelve a conectar.');
+  }
 }
 async function fetchCalendarList(){
   if(!googleToken) return;
