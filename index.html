@@ -2081,7 +2081,8 @@ function scheduleTokenRefresh(expiresIn){
   // Refrescar 5 minutos antes de que expire (el token dura 1h)
   const delay = Math.max((expiresIn - 300) * 1000, 10000);
   _tokenRefreshTimer = setTimeout(()=>{
-    if(gTokenClient) gTokenClient.requestAccessToken({prompt:''});
+    // prompt:'none' = nunca abrir ventana emergente; si falla, el callback lo gestiona
+    if(gTokenClient) gTokenClient.requestAccessToken({prompt:'none'});
   }, delay);
 }
 
@@ -2098,9 +2099,15 @@ function initGoogleTokenClient(){
     scope: GOOGLE_SCOPES,
     callback: async (resp) => {
       if(resp.error){
-        // Si el refresco silencioso falla, no molestamos al usuario; simplemente desconectamos
         if(resp.error === 'interaction_required' || resp.error === 'access_denied'){
-          googleToken=null; googleTokenExpiry=0; updateGoogleUI(); return;
+          // Refresco silencioso fallido: si el token actual sigue vigente, no interrumpimos al usuario
+          if(googleToken && googleTokenExpiry > Date.now()){
+            scheduleTokenRefresh(Math.round((googleTokenExpiry - Date.now())/1000));
+            return;
+          }
+          // Token caducado de verdad → mostrar botón de reconexión
+          googleToken=null; googleTokenExpiry=0; localStorage.removeItem('g_tok');
+          updateGoogleUI(); return;
         }
         setStatus('Error Google: '+resp.error); return;
       }
@@ -2124,8 +2131,8 @@ function initGoogleTokenClient(){
       scheduleTokenRefresh(Math.round((s.e - Date.now())/1000));
       fetchCalendarList().then(()=>{ updateGoogleUI(); fetchGmailLabels(); refreshHeaderEvents(); fetchGoogleTasks(); if(currentView==='calendario'||currentView==='correo'){ render(); loadAgendaData(); } });
     } else if(localStorage.getItem('g_authorized')==='1'){
-      // Token expirado pero el usuario ya autorizó antes → refresco silencioso
-      gTokenClient.requestAccessToken({prompt:''});
+      // Token expirado pero el usuario ya autorizó antes → refresco silencioso sin popup
+      gTokenClient.requestAccessToken({prompt:'none'});
     }
   }catch(e){}
 }
@@ -2156,9 +2163,9 @@ function updateGoogleUI(){
 function handleGoogleExpired(){
   googleToken=null;
   localStorage.removeItem('g_tok');
-  // Intentar refresco silencioso antes de mostrar error
+  // Intentar refresco silencioso (sin popup) antes de mostrar error
   if(gTokenClient && localStorage.getItem('g_authorized')==='1'){
-    gTokenClient.requestAccessToken({prompt:''});
+    gTokenClient.requestAccessToken({prompt:'none'});
   } else {
     googleCalendars=[]; updateGoogleUI();
     setStatus('Sesión de Google expirada — vuelve a conectar.');
@@ -2411,9 +2418,9 @@ function renderCalDayGrid(){
   const today2=todayStr();
   const isToday3=dateStr===today2;
   const dayGTasks=showCalGTasks?googleTasks.filter(t=>t.due&&t.due.slice(0,10)===dateStr):[];
-  const dayLTasks=showCalLocalTasks?state.tasks.filter(t=>t.status!=='hecha'&&taskSpanPos(t,dateStr)):[];
+  const dayLTasks=showCalLocalTasks?state.tasks.filter(t=>t.status!=='hecha'&&!t.gTaskId&&taskSpanPos(t,dateStr)):[];
   const overdueGTasks=isToday3&&showCalGTasks?googleTasks.filter(t=>t.due&&t.due.slice(0,10)<today2):[];
-  const overdueLTasks=isToday3&&showCalLocalTasks?state.tasks.filter(t=>t.due&&t.due<today2&&t.status!=='hecha'):[];
+  const overdueLTasks=isToday3&&showCalLocalTasks?state.tasks.filter(t=>t.due&&t.due<today2&&t.status!=='hecha'&&!t.gTaskId):[];
   const taskHtml=dayGTasks.map(t=>`<div class="gtask-day-row" onclick="openGTaskModal('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">
     <div class="gtask-day-row-info">
       <div class="gtask-day-row-label">✓ Google Tasks · ${escapeHtml(t._listTitle||'')}</div>
@@ -2489,9 +2496,9 @@ function renderCalWeekGrid(){
     }).join('');
     // Only single-day tasks in column cells (multi-day ones are in the strip above)
     const colGTasks=showCalGTasks?googleTasks.filter(t=>t.due&&t.due.slice(0,10)===ds):[];
-    const colLTasks=showCalLocalTasks?state.tasks.filter(t=>t.status!=='hecha'&&(!t.start||t.start===t.due)&&t.due===ds):[];
+    const colLTasks=showCalLocalTasks?state.tasks.filter(t=>t.status!=='hecha'&&!t.gTaskId&&(!t.start||t.start===t.due)&&t.due===ds):[];
     const overdueGTasks=isT&&showCalGTasks?googleTasks.filter(t=>t.due&&t.due.slice(0,10)<today):[];
-    const overdueLTasks=isT&&showCalLocalTasks?state.tasks.filter(t=>t.due&&t.due<today&&t.status!=='hecha'&&(!t.start||t.start===t.due)):[];
+    const overdueLTasks=isT&&showCalLocalTasks?state.tasks.filter(t=>t.due&&t.due<today&&t.status!=='hecha'&&!t.gTaskId&&(!t.start||t.start===t.due)):[];
     const taskHtml=
        (showCalGTasks?colGTasks.map(t=>`<div class="gtask-cal-pill" onclick="event.stopPropagation();openGTaskModal('${escapeAttr(t._listId)}','${escapeAttr(t.id)}')">✓ ${escapeHtml(t.title||'')}</div>`).join(''):'')
       +(showCalLocalTasks?colLTasks.map(t=>`<div class="ltask-cal-pill ${t.urgency||''}" onclick="event.stopPropagation();openTaskModal('${escapeAttr(t.id)}')">● ${escapeHtml(t.title||'')}</div>`).join(''):'')
@@ -2523,7 +2530,7 @@ function renderCal3WeekGrid(){
   if(showCalGTasks) googleTasks.filter(t=>t.due).forEach(t=>{
     const d=t.due.slice(0,10); if(!singleByDay[d])singleByDay[d]=[]; singleByDay[d].push({_type:'gtask',...t});
   });
-  if(showCalLocalTasks) state.tasks.filter(t=>t.due&&t.status!=='hecha'&&(!t.start||t.start===t.due)).forEach(t=>{
+  if(showCalLocalTasks) state.tasks.filter(t=>t.due&&t.status!=='hecha'&&!t.gTaskId&&(!t.start||t.start===t.due)).forEach(t=>{
     if(!singleByDay[t.due])singleByDay[t.due]=[]; singleByDay[t.due].push({_type:'ltask',...t});
   });
 
@@ -2739,7 +2746,7 @@ function _gcalAllDaySpans(events){
   }));
 }
 function _ltaskSpans(){
-  return showCalLocalTasks ? state.tasks.filter(t=>t.start&&t.due&&t.start<t.due&&t.status!=='hecha').map(t=>({
+  return showCalLocalTasks ? state.tasks.filter(t=>t.start&&t.due&&t.start<t.due&&t.status!=='hecha'&&!t.gTaskId).map(t=>({
     start:t.start,end:t.due,
     color:{alta:'#ef4444',media:'#f59e0b',baja:'#22c55e','':'#7c3aed'}[t.urgency||''],
     label:t.title,onClick:`openTaskModal('${escapeAttr(t.id)}')`
