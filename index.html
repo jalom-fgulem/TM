@@ -581,8 +581,8 @@
     /* Kanban: scroll horizontal, columnas fijas */
     .kanban-wrap{flex-direction:column-reverse;}
     .kcol-urgente-sidebar{width:100%;border-top:3px solid var(--alta);}
-    .kanban{display:flex;flex-wrap:nowrap;overflow-x:auto;gap:10px;padding-bottom:8px;-webkit-overflow-scrolling:touch;}
-    .kcol{min-width:270px;flex-shrink:0;}
+    .kanban{display:flex;flex-direction:column;overflow-x:visible;gap:10px;padding-bottom:8px;}
+    .kcol{width:100%;min-width:0;flex-shrink:1;}
 
     /* Modal: bottom sheet */
     .modal-bg{align-items:flex-end;padding:0;}
@@ -4451,7 +4451,7 @@ function renderLista(){
 let showArchivedProjects = false;
 function toggleShowArchived(){ showArchivedProjects = !showArchivedProjects; render(); }
 
-let showDoneTasks = true;
+let showDoneTasks = false;
 
 function reopenTask(id, event){
   if(event) event.stopPropagation();
