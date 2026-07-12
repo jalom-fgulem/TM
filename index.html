@@ -628,7 +628,110 @@
     .cal-ev-row,.cal-event-more{display:none;}
     .cal-day-num{font-size:11px;}
     .cal-nav-label{font-size:13px;}
+
+    /* ===== MOBILE MODE ===== */
+
+    /* Tabs superiores: ocultos en móvil (reemplazados por nav inferior) */
+    .viewtabs{display:none;}
+
+    /* Bottom nav visible */
+    .mobile-nav{display:flex;}
+
+    /* Padding inferior para el nav fijo */
+    .wrap{padding-bottom:calc(68px + env(safe-area-inset-bottom,0px));}
+
+    /* Calendario: ocultar sidebar lateral */
+    .cal-sidebar{display:none;}
+    .cal-main{padding-left:0;}
+
+    /* Cabecera calendario más compacta */
+    .cal-nav{gap:6px;}
+    .cal-view-controls{gap:4px;}
+    .cal-view-controls button{padding:5px 8px;font-size:11px;}
+
+    /* Gmail: lista ocupa todo; altura ajustada al nav */
+    .gmail-layout{height:calc(100dvh - 108px - 60px);}
+    .gmail-list-col{max-height:none!important;flex:1;}
+
+    /* Botón volver del correo: visible en móvil */
+    .mobile-back-btn{display:flex!important;}
+
+    /* Flip a vista de detalle de correo */
+    .gmail-layout.email-open .gmail-list-col{display:none;}
+    .gmail-layout.email-open .gmail-preview-col{
+      display:flex!important;
+      height:100%;
+    }
   }
+
+  /* ===== MOBILE NAV — estilos base (hidden en desktop) ===== */
+  .mobile-nav{
+    display:none;
+    position:fixed;
+    bottom:0;left:0;right:0;
+    height:calc(56px + env(safe-area-inset-bottom,0px));
+    padding-bottom:env(safe-area-inset-bottom,0px);
+    background:var(--surface);
+    border-top:1px solid var(--border);
+    z-index:50;
+    align-items:center;
+    box-shadow:0 -2px 12px rgba(0,0,0,.07);
+  }
+  .mnav-btn{
+    flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:2px;border:none;background:none;color:var(--text-soft);
+    font-size:10px;padding:6px 0;cursor:pointer;height:100%;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .mnav-btn i{font-size:21px;}
+  .mnav-btn.active{color:var(--accent);}
+  .mnav-btn.active i{font-weight:700;}
+  .mnav-fab{
+    width:52px;height:52px;border-radius:50%;
+    background:var(--accent);color:#fff;border:none;
+    display:flex;align-items:center;justify-content:center;
+    font-size:26px;cursor:pointer;
+    box-shadow:0 3px 14px rgba(37,99,235,.40);
+    flex-shrink:0;margin:0 6px;
+    -webkit-tap-highlight-color:transparent;
+  }
+
+  /* "Más" sheet */
+  .mobile-more-sheet{
+    position:fixed;bottom:0;left:0;right:0;
+    background:var(--surface);border-radius:18px 18px 0 0;
+    z-index:60;
+    padding:10px 12px calc(68px + env(safe-area-inset-bottom,0px));
+    transform:translateY(100%);
+    transition:transform .22s cubic-bezier(.4,0,.2,1);
+    border-top:1px solid var(--border);
+  }
+  .mobile-more-sheet.open{transform:translateY(0);}
+  .mobile-more-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 14px;}
+  .mobile-more-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+  .mobile-more-grid button{
+    display:flex;align-items:center;gap:9px;
+    padding:14px 12px;border:none;background:var(--bg);
+    border-radius:10px;color:var(--text);font-size:14px;
+    cursor:pointer;text-align:left;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .mobile-more-grid button i{font-size:18px;color:var(--accent);}
+  .mobile-more-overlay{
+    display:none;position:fixed;inset:0;
+    background:rgba(0,0,0,.30);z-index:55;
+  }
+  .mobile-more-overlay.open{display:block;}
+
+  /* Botón volver en correo móvil */
+  .mobile-back-btn{
+    display:none;align-items:center;gap:6px;
+    border:none;background:none;color:var(--accent);
+    font-size:14px;font-weight:600;
+    padding:0 0 10px;cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .mobile-back-btn i{font-size:18px;}
 </style>
 <script src="https://accounts.google.com/gsi/client" async onload="initGoogleTokenClient()"></script>
 </head>
@@ -702,6 +805,43 @@
 
 <!-- Overlay compartido -->
 <div class="drawer-overlay" id="drawerOverlay" onclick="closeAllDrawers()"></div>
+
+<!-- ===== MOBILE BOTTOM NAV ===== -->
+<nav id="mobileNav" class="mobile-nav" role="navigation" aria-label="Navegación principal">
+  <button class="mnav-btn active" id="mnav-panel" onclick="setView('panel')">
+    <i class="ti ti-layout-kanban" aria-hidden="true"></i>
+    <span>Panel</span>
+  </button>
+  <button class="mnav-btn" id="mnav-calendario" onclick="setView('calendario')">
+    <i class="ti ti-calendar" aria-hidden="true"></i>
+    <span>Calendario</span>
+  </button>
+  <button class="mnav-fab" onclick="openTaskModal(null)" aria-label="Nueva tarea">
+    <i class="ti ti-plus" aria-hidden="true"></i>
+  </button>
+  <button class="mnav-btn" id="mnav-correo" onclick="setView('correo')">
+    <i class="ti ti-mail" aria-hidden="true"></i>
+    <span>Correo</span>
+  </button>
+  <button class="mnav-btn" id="mnav-more" onclick="toggleMobileMore()">
+    <i class="ti ti-dots" aria-hidden="true"></i>
+    <span>Más</span>
+  </button>
+</nav>
+
+<!-- Hoja "Más" -->
+<div id="mobileMoreSheet" class="mobile-more-sheet">
+  <div class="mobile-more-handle"></div>
+  <div class="mobile-more-grid">
+    <button onclick="setView('lista');closeMobileMore()"><i class="ti ti-list" aria-hidden="true"></i><span>Lista</span></button>
+    <button onclick="setView('gtasks');closeMobileMore()"><i class="ti ti-checkbox" aria-hidden="true"></i><span>G Tasks</span></button>
+    <button onclick="setView('proyectos');closeMobileMore()"><i class="ti ti-folder" aria-hidden="true"></i><span>Proyectos</span></button>
+    <button onclick="setView('reuniones');closeMobileMore()"><i class="ti ti-users" aria-hidden="true"></i><span>Reuniones</span></button>
+    <button onclick="setView('crm');closeMobileMore()"><i class="ti ti-address-book" aria-hidden="true"></i><span>CRM</span></button>
+    <button onclick="setView('desarrollo');closeMobileMore()"><i class="ti ti-code" aria-hidden="true"></i><span>Desarrollo</span></button>
+  </div>
+</div>
+<div id="mobileMoreOverlay" class="mobile-more-overlay" onclick="closeMobileMore()"></div>
 
 <!-- Drawer de notas -->
 <div class="drawer" id="notesDrawer">
@@ -2015,7 +2155,7 @@ function closeAllDrawers(){
   document.getElementById('drawerOverlay').classList.remove('open');
 }
 
-function setView(v){ currentView=v; if(v!=='proyectos' && v!=='desarrollo') currentProjectId=null; if(v!=='reuniones' && v!=='crm') currentPersonFilter=null; if(v!=='crm') currentContactId=null; render(); if(v==='calendario'){ loadCalendarMonth(); } else if(v==='correo') loadGmailWidget(); else if(v==='gtasks'){ if(googleToken) fetchGoogleTasks(); } }
+function setView(v){ currentView=v; if(v!=='proyectos' && v!=='desarrollo') currentProjectId=null; if(v!=='reuniones' && v!=='crm') currentPersonFilter=null; if(v!=='crm') currentContactId=null; closeMobileMore(); render(); updateMobileNav(); if(v==='calendario'){ loadCalendarMonth(); } else if(v==='correo') loadGmailWidget(); else if(v==='gtasks'){ if(googleToken) fetchGoogleTasks(); } }
 function setUrgFilter(f){ currentUrgFilter=f; render(); }
 function setAreaFilter(f){ currentAreaFilter=f; render(); }
 function setTipoFilter(f){ currentTipoFilter=f; render(); }
@@ -3439,6 +3579,7 @@ async function selectEmail(msgId, threadId){
     if(!r.ok) throw new Error();
     const msg=await r.json();
     renderEmailPreviewPanel(msg);
+    if(isMobile()) document.querySelector('.gmail-layout')?.classList.add('email-open');
     if((msg.labelIds||[]).includes('UNREAD')) markEmailAsRead(msgId);
   }catch(e){
     if(col) col.innerHTML='<div class="gmail-preview-empty">Error al cargar el mensaje.</div>';
@@ -3477,6 +3618,7 @@ function renderEmailPreviewPanel(msg){
   const fromClean=from.replace(/<[^>]+>/,'').trim();
   const atts=extractAttachments(msg.payload);
   col.innerHTML=`<div class="gmail-preview-head">
+    <button class="mobile-back-btn" onclick="closeMobileEmailDetail()"><i class="ti ti-arrow-left" aria-hidden="true"></i> Volver</button>
     <div class="gmail-preview-subject">${escapeHtml(subject)}</div>
     <div class="gmail-preview-meta"><strong>De:</strong> ${escapeHtml(from)}<br><strong>Fecha:</strong> ${escapeHtml(formatEmailDate(date))}</div>
     <div class="gmail-preview-actions">
@@ -4509,6 +4651,35 @@ function scheduleMeetingNotification(ev) {
 }
 
 loadState().then(() => initNotifications()).catch(() => initNotifications());
+
+// ===== MOBILE NAV =====
+function isMobile(){ return window.innerWidth <= 600; }
+
+function updateMobileNav(){
+  if(!isMobile()) return;
+  const mainViews = ['panel','calendario','correo'];
+  document.querySelectorAll('.mnav-btn').forEach(btn => btn.classList.remove('active'));
+  const targetId = mainViews.includes(currentView) ? `mnav-${currentView}` : 'mnav-more';
+  document.getElementById(targetId)?.classList.add('active');
+}
+
+function toggleMobileMore(){
+  const sheet = document.getElementById('mobileMoreSheet');
+  const overlay = document.getElementById('mobileMoreOverlay');
+  if(!sheet) return;
+  const open = sheet.classList.contains('open');
+  sheet.classList.toggle('open', !open);
+  overlay?.classList.toggle('open', !open);
+}
+
+function closeMobileMore(){
+  document.getElementById('mobileMoreSheet')?.classList.remove('open');
+  document.getElementById('mobileMoreOverlay')?.classList.remove('open');
+}
+
+function closeMobileEmailDetail(){
+  document.querySelector('.gmail-layout')?.classList.remove('email-open');
+}
 </script>
 </body>
 </html>
