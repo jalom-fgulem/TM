@@ -4370,9 +4370,33 @@ function taskCard(t, showTipo){
   </div>`;
 }
 
+function gTaskOrphanCard(gt){
+  const dueStr=gt.due?gt.due.slice(0,10):null;
+  const today=todayStr();
+  const overdue=dueStr&&dueStr<today;
+  return `
+  <div class="task" style="cursor:pointer;border-left:3px solid #1a73e8;" onclick="openGTaskModal('${escapeAttr(gt._listId)}','${escapeAttr(gt.id)}')">
+    <p class="task-title">${escapeHtml(gt.title||'')}</p>
+    <div class="badges-row">
+      ${gt._listTitle?`<span class="badge" style="background:#e8f0fe;color:#1a73e8;border:1px solid #c5d8fd;">${escapeHtml(gt._listTitle)}</span>`:''}
+    </div>
+    ${gt.notes?`<p class="task-ctx" style="font-size:12px;color:var(--text-soft);margin-top:4px;">${escapeHtml(gt.notes.slice(0,80))}</p>`:''}
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;">
+      <div class="task-meta">${dueStr?`<span class="${overdue?'overdue':''}">${overdue?'⚠ Vencida — ':''}${fmtDateShort(dueStr)}</span>`:'<span style="color:var(--text-muted)">Sin fecha</span>'}</div>
+      <div onclick="event.stopPropagation()">
+        <button class="btn-ghost btn-small" onclick="completeGoogleTask('${escapeAttr(gt._listId)}','${escapeAttr(gt.id)}')">✓ Hecha</button>
+      </div>
+    </div>
+  </div>`;
+}
+
 function renderKanban(taskSet){
   const open=taskSet.filter(t=>t.status!=='hecha');
   const done=taskSet.filter(t=>t.status==='hecha');
+
+  // Google Tasks huérfanas: no tienen ninguna tarea interna que las referencie
+  const linkedGTaskIds=new Set(taskSet.map(t=>t.gTaskId).filter(Boolean));
+  const orphanGTasks=googleTasks.filter(gt=>gt.status!=='completed'&&!linkedGTaskIds.has(gt.id));
   const urgOrd={alta:0,media:1,baja:2};
   const sortFn=(a,b)=>urgOrd[a.urgency]-urgOrd[b.urgency]||(a.due||'9999').localeCompare(b.due||'9999');
   const kanbanSort=(items,tipo)=>{
@@ -4411,6 +4435,12 @@ function renderKanban(taskSet){
         </div>`).join('')}</div>
     </div>` : '';
 
+  const orphanCol=orphanGTasks.length?`
+    <div class="kcol" style="border-top:3px solid #1a73e8;">
+      <h3><i class="ti ti-checkbox" style="color:#1a73e8;font-size:13px;" aria-hidden="true"></i> Google Tasks <span class="count">${orphanGTasks.length}</span></h3>
+      ${orphanGTasks.map(gt=>gTaskOrphanCard(gt)).join('')}
+    </div>`:'';
+
   const mainKanban = cols.length
     ? '<div class="kanban">'+cols.map(c=>`
         <div class="kcol" data-tipo="${escapeAttr(c.title)}"
@@ -4420,8 +4450,8 @@ function renderKanban(taskSet){
           <h3><span class="col-drag-handle" draggable="true" ondragstart="_colDragStart(event,'${escapeAttr(c.title)}')" ondragend="_colDragEnd(event)"><i class="ti ti-grip-horizontal"></i></span>${escapeHtml(c.title)} <span class="count">${c.items.length}</span></h3>
           ${c.items.length ? c.items.map(t=>taskCard(t,c.showTipo)).join('') : '<p class="empty">Nada aquí.</p>'}
           <button class="kcol-add" onclick="openTaskModal(null,JSON.parse(this.dataset.p))" data-p="${escapeAttr(JSON.stringify(c.prefill))}">+ Añadir</button>
-        </div>`).join('')+'</div>'
-    : '<p class="empty">Sin tipos de tarea configurados.</p>';
+        </div>`).join('')+orphanCol+'</div>'
+    : orphanCol||'<p class="empty">Sin tipos de tarea configurados.</p>';
 
   return `<div class="kanban-wrap"><div class="kanban-main">${mainKanban}${doneSection}</div>${urgentSidebar}</div>`;
 }
