@@ -1321,12 +1321,17 @@ function openTaskModal(taskId, prefill, fromNoteId){
 
         <p class="modal-sect">Contexto</p>
 
-        <div class="field" style="margin-bottom:0;">
+        <div class="field">
           <label>Notas de contexto</label>
           <div class="row-flex">
             <textarea id="mContext" placeholder="Detalle, enlaces, con quién depende...">${escapeHtml(data.context||'')}</textarea>
             <button type="button" class="btn-mic" id="micContext" onclick="startDictation('mContext','micContext')" title="Dictar">🎙️</button>
           </div>
+        </div>
+
+        <div class="field" style="margin-bottom:0;">
+          <label>Documento interno <span style="font-size:11px;color:var(--text-muted);font-weight:400;">— notas largas, instrucciones, borradores</span></label>
+          <textarea id="mDoc" placeholder="Escribe aquí documentación, instrucciones detalladas, borradores de texto..." style="min-height:160px;font-family:ui-monospace,monospace;font-size:12px;line-height:1.6;">${escapeHtml(data.taskDoc||'')}</textarea>
         </div>
 
         ${googleToken ? `
@@ -1467,6 +1472,7 @@ function saveTask(taskId, fromNoteId){
   const due=document.getElementById('mDue').value;
   const start=document.getElementById('mStart')?.value||'';
   const context=document.getElementById('mContext').value.trim();
+  const taskDoc=document.getElementById('mDoc')?.value.trim()||'';
   const subtasks=JSON.parse(JSON.stringify(tempSubtasks));
   const expectedParticipants=tempExpectedParticipants.slice();
   const callWith=document.getElementById('mCallWith').value.trim();
@@ -1476,9 +1482,9 @@ function saveTask(taskId, fromNoteId){
   let t;
   if(taskId){
     t=state.tasks.find(x=>x.id===taskId);
-    Object.assign(t,{title,areas,projectId,tipo,urgency,due,start,context,subtasks,expectedParticipants,callWith,linkedTaskIds,driveFiles});
+    Object.assign(t,{title,areas,projectId,tipo,urgency,due,start,context,taskDoc,subtasks,expectedParticipants,callWith,linkedTaskIds,driveFiles});
   } else {
-    t={id:uid(),title,areas,projectId,tipo,urgency,due,start,context,subtasks,expectedParticipants,callWith,linkedTaskIds,driveFiles,status:'pendiente',created:todayStr(),...(tempSourceEmailId?{sourceEmailId:tempSourceEmailId}:{})};
+    t={id:uid(),title,areas,projectId,tipo,urgency,due,start,context,taskDoc,subtasks,expectedParticipants,callWith,linkedTaskIds,driveFiles,status:'pendiente',created:todayStr(),...(tempSourceEmailId?{sourceEmailId:tempSourceEmailId}:{})};
     state.tasks.unshift(t);
   }
   if(fromNoteId){ state.notes=state.notes.filter(n=>n.id!==fromNoteId); deleteNoteRow(fromNoteId); }
@@ -1758,6 +1764,7 @@ function openMeetingModal(meetingId, prefill){
           <label>Acuerdos y decisiones</label>
           <textarea id="rAcuerdos">${escapeHtml(data.acuerdos||'')}</textarea>
         </div>
+        <input type="hidden" id="rCalEventId" value="${escapeAttr(data.calEventId||'')}">
         <div class="modal-actions">
           <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
           <button class="btn-primary" onclick="saveMeeting('${editing?editing.id:''}')">Guardar ficha</button>
@@ -1810,13 +1817,14 @@ function saveMeeting(meetingId){
   const summary=document.getElementById('rSummary').value.trim();
   const acuerdos=document.getElementById('rAcuerdos').value.trim();
   const participants=tempParticipants.slice();
+  const calEventId=document.getElementById('rCalEventId')?.value || null;
 
   let m;
   if(meetingId){
     m=state.meetings.find(x=>x.id===meetingId);
-    Object.assign(m,{title,date,importance,projectId,summary,acuerdos,participants});
+    Object.assign(m,{title,date,importance,projectId,summary,acuerdos,participants,calEventId});
   } else {
-    m={id:uid(),title,date,importance,projectId,summary,acuerdos,participants};
+    m={id:uid(),title,date,importance,projectId,summary,acuerdos,participants,calEventId};
     state.meetings.unshift(m);
   }
   tempParticipants=[];
@@ -3227,6 +3235,8 @@ function openCalEventModal(eventId, defaultDate){
   const root = document.getElementById('modalRoot');
   // Meet / conference link
   const meetLink = ev ? (ev.hangoutLink || _extractMeetLink(ev)) : null;
+  // Ficha vinculada
+  const linkedFicha = ev ? state.meetings.find(m=>m.calEventId===ev.id) : null;
   // Attendees
   const attendees = ev?.attendees || [];
   const selfAttendee = attendees.find(a=>a.self);
@@ -3316,6 +3326,19 @@ function openCalEventModal(eventId, defaultDate){
           <input type="text" id="cevLocation" value="${escapeAttr(ev?.location||'')}" placeholder="Dirección, sala, enlace…">
         </div>
         ${attendeesSection}
+        ${ev ? `
+        <div class="field" style="margin-top:4px;">
+          <label>Ficha de reunión</label>
+          ${linkedFicha
+            ? `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--accent-bg);border-radius:7px;font-size:13px;">
+                <i class="ti ti-notes" style="color:var(--accent);"></i>
+                <span style="flex:1;font-weight:500;">${escapeHtml(linkedFicha.title)}</span>
+                <button class="btn-ghost btn-small" onclick="closeModal();openMeetingModal('${linkedFicha.id}')">Abrir ficha</button>
+                <button class="btn-ghost btn-small" onclick="unlinkCalEventFicha('${linkedFicha.id}','${escapeAttr(ev.id)}')">Desvincular</button>
+              </div>`
+            : `<button class="btn-ghost btn-small" onclick="createFichaFromCalEvent('${escapeAttr(ev.id)}')"><i class="ti ti-notes"></i> Crear ficha de reunión</button>`
+          }
+        </div>` : ''}
         <div class="modal-actions">
           <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
           ${ev ? `<button class="btn-ghost" style="color:var(--alta);" onclick="deleteCalEvent('${escapeAttr(ev.id)}','${escapeAttr(ev._calId||'')}')">Eliminar</button>` : ''}
@@ -3324,6 +3347,20 @@ function openCalEventModal(eventId, defaultDate){
       </div>
     </div>`;
   toggleCalEventAllDay(isAllDay);
+}
+
+function createFichaFromCalEvent(eventId){
+  const ev=_findCalEvent(eventId);
+  if(!ev) return;
+  const date=(ev.start?.date||ev.start?.dateTime?.slice(0,10))||todayStr();
+  const attendees=(ev.attendees||[]).filter(a=>!a.self).map(a=>a.displayName||a.email||'').filter(Boolean);
+  closeModal();
+  openMeetingModal(null,{title:ev.summary||'',date,participants:attendees,calEventId:eventId});
+}
+function unlinkCalEventFicha(meetingId,eventId){
+  const m=state.meetings.find(x=>x.id===meetingId);
+  if(m){ m.calEventId=null; saveMeetingRow(m); saveState(); }
+  openCalEventModal(eventId);
 }
 
 function toggleCalEventAllDay(allDay){
@@ -4370,6 +4407,7 @@ function taskCard(t, showTipo){
       <span class="badge ${t.urgency}" onclick="cycleUrgency('${t.id}',event)" title="Clic para cambiar urgencia" style="cursor:pointer;">${urgLabel}</span>
       ${showTipo && t.tipo?`<span class="badge tipo">${escapeHtml(t.tipo)}</span>`:''}
       ${t.meetingId?`<span class="badge proj">📋 Ficha</span>`:''}
+      ${t.taskDoc?`<span class="badge" style="background:#f3f0ff;color:#6d28d9;border:1px solid #ddd6fe;" title="Tiene documento interno"><i class="ti ti-file-text" aria-hidden="true"></i> Doc</span>`:''}
       ${t.callWith?`<span class="badge area">📞 ${escapeHtml(t.callWith)}</span>`:''}
       ${pn?`<span class="badge proj">${escapeHtml(pn)}</span>`:''}
       ${linkBadge}
@@ -4552,6 +4590,16 @@ function renderProjectDetail(){
       <div class="log-text">${escapeHtml(e.text)}</div>
     </div>`).join('') : '<p class="empty">El diario está vacío. Los apuntes que hagas quedan aquí con fecha.</p>';
 
+  const projMeetings = state.meetings.filter(m=>m.projectId===p.id).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const meetingsHtml = projMeetings.length
+    ? projMeetings.map(m=>`
+      <div class="task ${m.importance}" onclick="openMeetingModal('${m.id}')" style="cursor:pointer;margin-bottom:8px;">
+        <p class="task-title">${escapeHtml(m.title)}</p>
+        <div class="task-meta">${fmtDate(m.date)}${(m.participants||[]).length?` · ${m.participants.length} participante${m.participants.length!==1?'s':''}`:''}</div>
+        ${m.summary?`<p class="task-ctx" style="font-size:12px;color:var(--text-soft);margin-top:4px;">${escapeHtml(m.summary.slice(0,100))}${m.summary.length>100?'…':''}</p>`:''}
+      </div>`).join('')
+    : '<p class="empty">Sin reuniones asociadas a este proyecto. Crea una ficha desde el módulo de Reuniones o desde un evento del calendario.</p>';
+
   return `
     <div class="proj-head">
       <h3>${escapeHtml(p.name)}
@@ -4568,6 +4616,14 @@ function renderProjectDetail(){
 
     <p class="sect-h">Panel del proyecto</p>
     ${tasks.length ? renderKanban(tasks) : '<p class="empty">Sin tareas asignadas. Usa "+ Añadir tarea" (se asignará a este proyecto automáticamente).</p>'}
+
+    <div class="panel-box" style="margin-top:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <h2 style="margin:0;">Reuniones del proyecto</h2>
+        <button class="btn-ghost btn-small" onclick="openMeetingModal(null,{projectId:'${p.id}'})"><i class="ti ti-plus"></i> Nueva ficha</button>
+      </div>
+      ${meetingsHtml}
+    </div>
 
     <div class="panel-box" style="margin-top:16px;">
       <h2>Diario del proyecto</h2>
