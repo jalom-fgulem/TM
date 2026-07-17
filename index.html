@@ -120,6 +120,8 @@
   .task.alta{border-left-color:var(--alta);background:linear-gradient(90deg,rgba(220,38,38,.05) 0%,var(--surface) 70%);}
   .task.media{border-left-color:var(--media);}
   .task.baja{border-left-color:var(--baja);}
+  .task.due-today{border-left-color:#16a34a!important;background:linear-gradient(90deg,rgba(22,163,74,.07) 0%,var(--surface) 70%)!important;}
+  .due-today-label{color:#16a34a;font-weight:600;}
   .task.done{opacity:0.45;}
   .task-title{font-size:13.5px;font-weight:500;margin:0 0 5px;line-height:1.35;color:var(--text);}
   .task-title.done{text-decoration:line-through;}
@@ -3807,6 +3809,21 @@ async function fetchGoogleTasks(){
       .catch(()=>[])
     ));
     googleTasks=results.flat();
+
+    // Sincronizar cambios de Google Tasks → tareas locales
+    let syncChanged=false;
+    googleTasks.forEach(gt=>{
+      const local=state.tasks.find(t=>t.gTaskId===gt.id);
+      if(!local) return;
+      const gtDue=gt.due?gt.due.slice(0,10):'';
+      const gtTitle=(gt.title||'').trim();
+      const gtNotes=(gt.notes||'').trim();
+      if(gtTitle&&gtTitle!==local.title){ local.title=gtTitle; syncChanged=true; }
+      if(gtNotes!==(local.context||'').trim()){ local.context=gtNotes; syncChanged=true; }
+      if(gtDue!==(local.due||'')){ local.due=gtDue||null; syncChanged=true; }
+    });
+    if(syncChanged){ await saveState(); setStatus('Tareas actualizadas desde Google Tasks.'); }
+
     if(currentView==='lista'||currentView==='panel'||currentView==='gtasks') render();
     if(currentView==='calendario'){ if(calView==='month') renderCalMonthGrid(); else loadCalendarData(); }
   }catch(e){}
@@ -4342,9 +4359,10 @@ function taskCard(t, showTipo){
           <span class="${c.done?'done':''}">${escapeHtml(c.text)}</span>
         </li>`).join('')}`).join('')}
     </ul>` : ''}` : '';
+  const isToday=t.due&&t.due===today&&t.status!=='hecha';
   const urgLabel={alta:'🔴 Alta',media:'🟡 Media',baja:'🟢 Baja'}[t.urgency]||t.urgency;
   return `
-  <div class="task ${t.urgency} ${t.status==='hecha'?'done':''}" data-task-id="${t.id}"
+  <div class="task ${t.urgency} ${t.status==='hecha'?'done':''} ${isToday?'due-today':''}" data-task-id="${t.id}"
     draggable="true" ondragstart="_kDragStart(event,'${t.id}')" ondragend="_kDragEnd(event)"
     onclick="openTaskModal('${t.id}')">
     <p class="task-title ${t.status==='hecha'?'done':''}"><span class="task-drag-handle"><i class="ti ti-grip-vertical"></i></span>${escapeHtml(t.title)}</p>
@@ -4361,7 +4379,7 @@ function taskCard(t, showTipo){
     </div>
     ${sub}
     <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;">
-      <div class="task-meta">${t.due?`<span class="${overdue?'overdue':''}">${overdue?'⚠ Vencida — ':''}${fmtDateShort(t.due)}</span>`:'<span style="color:var(--text-muted)">Sin fecha</span>'}</div>
+      <div class="task-meta">${t.due?`<span class="${overdue?'overdue':isToday?'due-today-label':''}">${overdue?'⚠ Vencida — '+fmtDateShort(t.due):isToday?'📅 Hoy':fmtDateShort(t.due)}</span>`:'<span style="color:var(--text-muted)">Sin fecha</span>'}</div>
       <div style="display:flex;gap:4px;" onclick="event.stopPropagation()">
         <button class="btn-ghost btn-small" onclick="toggleDone('${t.id}',event)">${t.status==='hecha'?'Reabrir':'✓ Hecha'}</button>
         <button class="btn-ghost btn-small" onclick="deleteTask('${t.id}',event)" style="color:var(--alta);">✕</button>
