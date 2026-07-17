@@ -2205,6 +2205,7 @@ let googleTokenExpiry = 0;
 let gTokenClient = null;
 let googleCalendars = []; // [{id, summary, backgroundColor, selected}]
 let _tokenRefreshTimer = null;
+let _tokenHardExpired = false; // true cuando una API devuelve 401 (el token está muerto de verdad)
 let calViewMonth = new Date();
 let calViewDate = new Date();
 let calView = 'month';
@@ -2250,17 +2251,20 @@ function initGoogleTokenClient(){
     callback: async (resp) => {
       if(resp.error){
         if(resp.error === 'interaction_required' || resp.error === 'access_denied'){
-          // Refresco silencioso fallido: si el token actual sigue vigente, no interrumpimos al usuario
-          if(googleToken && googleTokenExpiry > Date.now()){
-            scheduleTokenRefresh(Math.round((googleTokenExpiry - Date.now())/1000));
+          // Si fue un 401 real (_tokenHardExpired) o el token ya expiró → pedir reconexión
+          if(_tokenHardExpired || !googleToken || googleTokenExpiry <= Date.now()){
+            googleToken=null; googleTokenExpiry=0; localStorage.removeItem('g_tok');
+            _tokenHardExpired=false;
+            googleCalendars=[]; updateGoogleUI();
             return;
           }
-          // Token caducado de verdad → mostrar botón de reconexión
-          googleToken=null; googleTokenExpiry=0; localStorage.removeItem('g_tok');
-          updateGoogleUI(); return;
+          // Refresco silencioso fallido pero el token local sigue vigente → reintentamos más tarde
+          scheduleTokenRefresh(Math.round((googleTokenExpiry - Date.now())/1000));
+          return;
         }
         setStatus('Error Google: '+resp.error); return;
       }
+      _tokenHardExpired=false;
       _saveGoogleToken(resp.access_token, Date.now() + (resp.expires_in - 60)*1000);
       scheduleTokenRefresh(resp.expires_in);
       await fetchCalendarList();
@@ -2311,12 +2315,14 @@ function updateGoogleUI(){
   updateGoogleCalendarConfigUI();
 }
 function handleGoogleExpired(){
-  googleToken=null;
-  localStorage.removeItem('g_tok');
-  // Intentar refresco silencioso (sin popup) antes de mostrar error
+  // Marcamos que la API rechazó el token (401) y lanzamos refresco silencioso.
+  // NO borramos el token aquí: si el refresco falla, el callback decidirá qué mostrar.
+  _tokenHardExpired=true;
   if(gTokenClient && localStorage.getItem('g_authorized')==='1'){
     gTokenClient.requestAccessToken({prompt:'none'});
   } else {
+    googleToken=null; googleTokenExpiry=0; localStorage.removeItem('g_tok');
+    _tokenHardExpired=false;
     googleCalendars=[]; updateGoogleUI();
     setStatus('Sesión de Google expirada — vuelve a conectar.');
   }
@@ -4453,12 +4459,19 @@ function renderKanban(taskSet){
   // Google Tasks huérfanas: no tienen ninguna tarea interna que las referencie
   const linkedGTaskIds=new Set(taskSet.map(t=>t.gTaskId).filter(Boolean));
   const orphanGTasks=googleTasks.filter(gt=>gt.status!=='completed'&&!linkedGTaskIds.has(gt.id));
+  const today=todayStr();
   const urgOrd={alta:0,media:1,baja:2};
-  const sortFn=(a,b)=>urgOrd[a.urgency]-urgOrd[b.urgency]||(a.due||'9999').localeCompare(b.due||'9999');
+  const sortFn=(a,b)=>{
+    const at=a.due===today?0:1, bt=b.due===today?0:1;
+    if(at!==bt) return at-bt;
+    return urgOrd[a.urgency]-urgOrd[b.urgency]||(a.due||'9999').localeCompare(b.due||'9999');
+  };
   const kanbanSort=(items,tipo)=>{
+    const todayItems=items.filter(t=>t.due===today);
+    const restItems=items.filter(t=>t.due!==today);
     const ord=(state.kanbanOrder||{})[tipo]||[];
-    if(!ord.length) return [...items].sort(sortFn);
-    return [...items].sort((a,b)=>{ const ia=ord.indexOf(a.id),ib=ord.indexOf(b.id); if(ia<0&&ib<0)return sortFn(a,b); if(ia<0)return 1; if(ib<0)return -1; return ia-ib; });
+    const sortRest=(!ord.length)?[...restItems].sort(sortFn):[...restItems].sort((a,b)=>{ const ia=ord.indexOf(a.id),ib=ord.indexOf(b.id); if(ia<0&&ib<0)return sortFn(a,b); if(ia<0)return 1; if(ib<0)return -1; return ia-ib; });
+    return [...todayItems.sort(sortFn), ...sortRest];
   };
 
   const urgent=open.filter(t=>t.urgency==='alta').sort(sortFn);
