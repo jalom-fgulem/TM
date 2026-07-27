@@ -734,8 +734,15 @@
     -webkit-tap-highlight-color:transparent;
   }
   .mobile-back-btn i{font-size:18px;}
+
+  /* Pantalla de entrada */
+  .login-screen{position:fixed; inset:0; display:flex; align-items:center; justify-content:center; padding:24px; background:var(--bg); z-index:200;}
+  .login-card{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:32px 28px; max-width:380px; width:100%; text-align:center; box-shadow:0 4px 24px rgba(0,0,0,0.06);}
+  .login-card h1{font-size:22px; margin:0 0 10px;}
+  .login-card p{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:13.5px; color:var(--text-soft); line-height:1.5; margin:0 0 20px;}
+  .login-card button{width:100%; padding:11px;}
 </style>
-<script src="https://accounts.google.com/gsi/client" async onload="initGoogleTokenClient()"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <div class="wrap">
@@ -1023,9 +1030,16 @@ function escapeAttr(s){ return escapeHtml(s).replace(/"/g,'&quot;'); }
 function getProj(id){ return state.projects.find(x=>x.id===id) || null; }
 function projName(id){ const p=getProj(id); return p?p.name:null; }
 
+// Cabeceras de acceso a la base de datos. Si hay sesión iniciada se usa el pase
+// del usuario; así las tablas pueden exigir estar identificado en vez de estar
+// abiertas a cualquiera.
+function sbHeaders(extra){
+  const token = (sbSession && sbSession.access_token) ? sbSession.access_token : SUPABASE_KEY;
+  return Object.assign({ 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${token}` }, extra||{});
+}
 async function fetchTable(table, orderDir){
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=data&order=id.${orderDir}`, {
-    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+    headers: sbHeaders()
   });
   if(!res.ok) throw new Error('HTTP '+res.status);
   const rows = await res.json();
@@ -1034,12 +1048,10 @@ async function fetchTable(table, orderDir){
 async function upsertRow(table, id, data){
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
     method: 'POST',
-    headers: {
-      'apikey': SUPABASE_KEY,
-      'Authorization': `Bearer ${SUPABASE_KEY}`,
+    headers: sbHeaders({
       'Content-Type': 'application/json',
       'Prefer': 'resolution=merge-duplicates,return=minimal'
-    },
+    }),
     body: JSON.stringify([{ id, data, updated_at: new Date().toISOString() }])
   });
   if(!res.ok) setStatus('No se pudo guardar (HTTP '+res.status+'). Reintenta.');
@@ -1047,7 +1059,7 @@ async function upsertRow(table, id, data){
 async function deleteRow(table, id){
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${encodeURIComponent(id)}`, {
     method: 'DELETE',
-    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+    headers: sbHeaders()
   });
   if(!res.ok) setStatus('No se pudo borrar (HTTP '+res.status+'). Reintenta.');
 }
@@ -1073,7 +1085,7 @@ async function loadState(){
       fetchTable('contacts','asc'),
       fetchTable('notes','desc'),
       fetch(`${SUPABASE_URL}/rest/v1/board?id=eq.${STORAGE_KEY}&select=data`, {
-        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+        headers: sbHeaders()
       }).then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
     ]);
     const settings = (boardRes && boardRes.length && boardRes[0].data) ? boardRes[0].data : {};
@@ -2198,14 +2210,14 @@ function render(){
 }
 
 // ---- Google Integration ----
-const GOOGLE_CLIENT_ID = '1043299015570-mi3k1ecnrvle83qfjl186kuucmn4bnd7.apps.googleusercontent.com';
+// 🔧 PERSONALIZAR: permisos que la aplicación pide a Google. Si añades uno nuevo,
+// tendrás que volver a autorizar (botón "Reautorizar" en Ajustes → Google).
 const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/drive.readonly';
-let googleToken = null;
+let googleToken = null;      // pase de acceso de 1 hora, lo entrega el servidor
 let googleTokenExpiry = 0;
-let gTokenClient = null;
 let googleCalendars = []; // [{id, summary, backgroundColor, selected}]
 let _tokenRefreshTimer = null;
-let _tokenHardExpired = false; // true cuando una API devuelve 401 (el token está muerto de verdad)
+let _tokenHardExpired = false; // evita lanzar varios refrescos a la vez
 let calViewMonth = new Date();
 let calViewDate = new Date();
 let calView = 'month';
@@ -2227,105 +2239,157 @@ let currentGTaskList = null;
 let currentEmailQuery = 'is:starred';
 let gmailUserLabels = [];
 
+// ============================================================
+//  SESIÓN Y CONEXIÓN CON GOOGLE
+//
+//  Antes: el navegador pedía a Google un pase de 1 hora y trataba de renovarlo
+//  por su cuenta. Safari bloquea esa renovación, de ahí que pidiera sesión sin
+//  parar.
+//
+//  Ahora: entras con tu cuenta de Google, y el "pase de renovación" de larga
+//  duración queda custodiado en el servidor (Supabase). El navegador solo pide
+//  pases frescos cuando los necesita. Sin ventanas emergentes y sin depender
+//  del navegador.
+// ============================================================
+
+let sbClient = null;
+let sbSession = null;
+
+function initSupabaseAuth(){
+  if(sbClient) return sbClient;
+  if(typeof window.supabase === 'undefined') return null;
+  sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true, flowType:'pkce' }
+  });
+  return sbClient;
+}
+
+// Llama a la función de servidor que custodia el pase de renovación.
+async function callTokenFn(body){
+  if(!sbSession) return { error:'no_session' };
+  try{
+    const r = await fetch(`${SUPABASE_URL}/functions/v1/google-token`, {
+      method:'POST',
+      headers:{
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${sbSession.access_token}`,
+        'Content-Type':'application/json'
+      },
+      body: JSON.stringify(body||{})
+    });
+    return await r.json().catch(()=>({ error:'bad_response' }));
+  }catch(e){ return { error:'network' }; }
+}
+
+// Guarda en el servidor el pase de renovación que Google entrega al iniciar sesión.
+async function storeRefreshToken(session){
+  if(!session || !session.provider_refresh_token) return;
+  await callTokenFn({ action:'store', refresh_token: session.provider_refresh_token });
+}
+
+// Devuelve un pase de acceso de Google válido, pidiéndolo al servidor si hace falta.
+async function ensureGoogleToken(force){
+  if(!sbSession){ googleToken=null; googleTokenExpiry=0; return null; }
+  if(!force && googleToken && googleTokenExpiry > Date.now() + 60000) return googleToken;
+  const res = await callTokenFn({});
+  if(res && res.access_token){
+    googleToken = res.access_token;
+    googleTokenExpiry = Date.now() + ((res.expires_in||3600) - 120)*1000;
+    _tokenHardExpired = false;
+    scheduleTokenRefresh(res.expires_in||3600);
+    updateGoogleUI();
+    return googleToken;
+  }
+  googleToken=null; googleTokenExpiry=0;
+  if(res && (res.error==='not_connected' || res.error==='reauth_required')){
+    setStatus('Hay que volver a autorizar Google.');
+  }
+  updateGoogleUI();
+  return null;
+}
+
 function scheduleTokenRefresh(expiresIn){
   if(_tokenRefreshTimer) clearTimeout(_tokenRefreshTimer);
-  // Refrescar 5 minutos antes de que expire (el token dura 1h)
   const delay = Math.max((expiresIn - 300) * 1000, 10000);
-  _tokenRefreshTimer = setTimeout(()=>{
-    // prompt:'none' = nunca abrir ventana emergente; si falla, el callback lo gestiona
-    if(gTokenClient) gTokenClient.requestAccessToken({prompt:'none'});
-  }, delay);
+  _tokenRefreshTimer = setTimeout(()=>{ ensureGoogleToken(true); }, delay);
 }
 
-function _saveGoogleToken(t, expiry){
-  googleToken = t; googleTokenExpiry = expiry;
-  localStorage.setItem('g_tok', JSON.stringify({t, e: expiry}));
-  localStorage.setItem('g_authorized', '1'); // marca: ya autorizó alguna vez
-}
+// El temporizador de arriba no se dispara si el móvil congela la pestaña.
+// Por eso comprobamos también cada vez que vuelves a la aplicación.
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState==='visible' && sbSession) ensureGoogleToken();
+});
+window.addEventListener('focus', ()=>{ if(sbSession) ensureGoogleToken(); });
 
-function initGoogleTokenClient(){
-  if(typeof google === 'undefined' || !google.accounts) return;
-  gTokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: GOOGLE_CLIENT_ID,
-    scope: GOOGLE_SCOPES,
-    callback: async (resp) => {
-      if(resp.error){
-        if(resp.error === 'interaction_required' || resp.error === 'access_denied'){
-          // Si fue un 401 real (_tokenHardExpired) o el token ya expiró → pedir reconexión
-          if(_tokenHardExpired || !googleToken || googleTokenExpiry <= Date.now()){
-            googleToken=null; googleTokenExpiry=0; localStorage.removeItem('g_tok');
-            _tokenHardExpired=false;
-            googleCalendars=[]; updateGoogleUI();
-            return;
-          }
-          // Refresco silencioso fallido pero el token local sigue vigente → reintentamos más tarde
-          scheduleTokenRefresh(Math.round((googleTokenExpiry - Date.now())/1000));
-          return;
-        }
-        setStatus('Error Google: '+resp.error); return;
-      }
-      _tokenHardExpired=false;
-      _saveGoogleToken(resp.access_token, Date.now() + (resp.expires_in - 60)*1000);
-      scheduleTokenRefresh(resp.expires_in);
-      await fetchCalendarList();
-      updateGoogleUI();
-      fetchGmailLabels();
-      refreshHeaderEvents();
-      fetchGoogleTasks();
-      if(currentView==='calendario'||currentView==='correo'){ render(); loadAgendaData(); }
+// Iniciar sesión: una sola vez. access_type:offline es lo que hace que Google
+// entregue el pase de renovación de larga duración.
+async function connectGoogle(){
+  const c = initSupabaseAuth();
+  if(!c){ setStatus('Cargando librería de sesión. Reintenta en un momento.'); return; }
+  const { error } = await c.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      scopes: GOOGLE_SCOPES,
+      redirectTo: window.location.origin + window.location.pathname,
+      queryParams: { access_type:'offline', prompt:'consent' }
     }
   });
+  if(error) setStatus('No se pudo iniciar sesión: '+error.message);
+}
 
-  // Restaurar token guardado o intentar refresco silencioso si ya autorizó antes
-  try{
-    const s = JSON.parse(localStorage.getItem('g_tok')||'null');
-    if(s && s.e > Date.now()){
-      // Token todavía válido
-      googleToken=s.t; googleTokenExpiry=s.e;
-      scheduleTokenRefresh(Math.round((s.e - Date.now())/1000));
-      fetchCalendarList().then(()=>{ updateGoogleUI(); fetchGmailLabels(); refreshHeaderEvents(); fetchGoogleTasks(); if(currentView==='calendario'||currentView==='correo'){ render(); loadAgendaData(); } });
-    } else if(localStorage.getItem('g_authorized')==='1'){
-      // Token expirado pero el usuario ya autorizó antes → refresco silencioso sin popup
-      gTokenClient.requestAccessToken({prompt:'none'});
-    }
-  }catch(e){}
-}
-function connectGoogle(){
-  if(!gTokenClient) initGoogleTokenClient();
-  if(!gTokenClient){ setStatus('Librería de Google no cargada aún. Reintenta en un momento.'); return; }
-  gTokenClient.requestAccessToken({prompt: googleToken?'':'consent'});
-}
-function disconnectGoogle(){
+async function disconnectGoogle(){
   if(_tokenRefreshTimer){ clearTimeout(_tokenRefreshTimer); _tokenRefreshTimer=null; }
-  if(googleToken) try{ google.accounts.oauth2.revoke(googleToken,()=>{}); }catch(e){}
   googleToken=null; googleTokenExpiry=0; googleCalendars=[];
-  localStorage.removeItem('g_tok');
-  localStorage.removeItem('g_authorized');
-  updateGoogleUI();
-  if(currentView==='calendario'||currentView==='correo') render();
+  try{ if(sbClient) await sbClient.auth.signOut(); }catch(e){}
+  sbSession=null;
+  location.reload();
 }
+
 function updateGoogleUI(){
-  const el=document.getElementById('googleAuthStatus'); if(!el) return;
-  if(googleToken){
-    el.innerHTML=`<p class="google-connected">✓ Conectado con Google</p>
-      <button class="btn-ghost btn-small" style="margin-top:6px;" onclick="disconnectGoogle()">Desconectar</button>`;
-  } else {
-    el.innerHTML=`<button class="btn-ghost btn-small" onclick="connectGoogle()">🔗 Conectar con Google</button>`;
+  const el=document.getElementById('googleAuthStatus');
+  if(el){
+    if(googleToken){
+      const who = (sbSession && sbSession.user && sbSession.user.email) ? sbSession.user.email : '';
+      el.innerHTML=`<p class="google-connected">✓ Conectado con Google${who?' — '+escapeHtml(who):''}</p>
+        <button class="btn-ghost btn-small" style="margin-top:6px;" onclick="disconnectGoogle()">Cerrar sesión</button>`;
+    } else {
+      el.innerHTML=`<button class="btn-ghost btn-small" onclick="connectGoogle()">🔗 Conectar con Google</button>`;
+    }
   }
   updateGoogleCalendarConfigUI();
 }
-function handleGoogleExpired(){
-  // Marcamos que la API rechazó el token (401) y lanzamos refresco silencioso.
-  // NO borramos el token aquí: si el refresco falla, el callback decidirá qué mostrar.
-  _tokenHardExpired=true;
-  if(gTokenClient && localStorage.getItem('g_authorized')==='1'){
-    gTokenClient.requestAccessToken({prompt:'none'});
-  } else {
-    googleToken=null; googleTokenExpiry=0; localStorage.removeItem('g_tok');
-    _tokenHardExpired=false;
-    googleCalendars=[]; updateGoogleUI();
-    setStatus('Sesión de Google expirada — vuelve a conectar.');
-  }
+
+// Una API de Google ha respondido 401: pedimos un pase nuevo al servidor.
+async function handleGoogleExpired(){
+  if(_tokenHardExpired) return; // evita ráfagas de refrescos simultáneos
+  _tokenHardExpired = true;
+  await ensureGoogleToken(true);
+  _tokenHardExpired = false;
+}
+
+// Carga los datos de Google una vez tenemos pase válido.
+async function afterGoogleConnected(){
+  if(!googleToken) return;
+  await fetchCalendarList();
+  updateGoogleUI();
+  fetchGmailLabels();
+  refreshHeaderEvents();
+  fetchGoogleTasks();
+  if(currentView==='calendario'||currentView==='correo'){ render(); loadAgendaData(); }
+}
+
+// Pantalla de entrada cuando no hay sesión.
+function showLoginScreen(){
+  document.querySelector('.wrap').style.display='none';
+  const el=document.createElement('div');
+  el.className='login-screen';
+  el.innerHTML=`
+    <div class="login-card">
+      <h1>Gestor de tareas</h1>
+      <p>Entra con tu cuenta de Google de la Universidad de León para acceder a tu tablero.</p>
+      <button class="btn-primary" onclick="connectGoogle()">Entrar con Google</button>
+    </div>`;
+  document.body.appendChild(el);
 }
 async function fetchCalendarList(){
   if(!googleToken) return;
@@ -3753,8 +3817,9 @@ function driveFileIcon(mimeType){
 }
 let _driveSearchTimer=null;
 function reauthorizeForDrive(){
-  if(!gTokenClient) return;
-  gTokenClient.requestAccessToken({prompt:'consent'});
+  // Vuelve a pasar por la pantalla de permisos de Google (p. ej. si se añaden
+  // permisos nuevos). Mantiene la sesión de la aplicación.
+  connectGoogle();
 }
 function searchDriveFiles(query){
   const res=document.getElementById('mDriveResults'); if(!res) return;
@@ -4767,7 +4832,36 @@ function scheduleMeetingNotification(ev) {
   }
 }
 
-loadState().then(() => initNotifications()).catch(() => initNotifications());
+// ---- Arranque ----
+async function bootstrap(){
+  const c = initSupabaseAuth();
+  if(!c){
+    // La librería de sesión aún no ha cargado; reintenta en un instante.
+    return setTimeout(bootstrap, 200);
+  }
+
+  c.auth.onAuthStateChange((event, session)=>{
+    sbSession = session;
+    if(event==='SIGNED_IN' && session) storeRefreshToken(session);
+  });
+
+  const { data } = await c.auth.getSession();
+  sbSession = data ? data.session : null;
+
+  if(!sbSession){ showLoginScreen(); return; }
+
+  // Limpia de la barra de direcciones los restos del retorno de Google.
+  if(location.search.includes('code=') || location.hash.includes('access_token')){
+    history.replaceState({}, '', location.pathname);
+  }
+
+  await storeRefreshToken(sbSession);
+  await ensureGoogleToken();
+  await loadState();
+  initNotifications();
+  afterGoogleConnected();
+}
+bootstrap();
 
 // ===== MOBILE NAV =====
 function isMobile(){ return window.innerWidth <= 600; }
