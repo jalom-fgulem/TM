@@ -3,6 +3,7 @@
 
 let _composeCtx = null;    // contexto del correo que se está redactando
 let _currentEmailMsg = null; // último mensaje abierto en el panel de lectura
+let _composeAdjuntos = [];   // archivos adjuntos del correo que se redacta
 let googleSendAs = [];       // direcciones de envío configuradas en Gmail, con su firma
 let _sendAsSinPermiso = false; // true si Gmail exige un permiso extra para leerlas
 
@@ -107,7 +108,9 @@ function emFormatFrom(alias){
   return emEncodeSubject(nombre) + ' <' + alias.sendAsEmail + '>';
 }
 
-function emBuildRaw(o){
+// Devuelve el correo completo en texto plano (formato RFC 822)
+function emBuildMime(o){
+  const adj = o.adjuntos || [];
   const l = [];
   if(o.from) l.push('From: ' + o.from);
   l.push('To: ' + (o.to || ''));
@@ -119,12 +122,39 @@ function emBuildRaw(o){
     l.push('References: ' + (o.references ? o.references + ' ' + o.inReplyTo : o.inReplyTo));
   }
   l.push('MIME-Version: 1.0');
+
+  const cuerpoB64 = emB64(o.bodyHtml || '').replace(/(.{76})/g, '$1\r\n');
+
+  if(!adj.length){
+    l.push('Content-Type: text/html; charset="UTF-8"');
+    l.push('Content-Transfer-Encoding: base64');
+    l.push('');
+    l.push(cuerpoB64);
+    return l.join('\r\n');
+  }
+
+  // Con adjuntos: el correo se parte en trozos separados por una marca única
+  const marca = 'tm_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+  l.push(`Content-Type: multipart/mixed; boundary="${marca}"`);
+  l.push('');
+  l.push(`--${marca}`);
   l.push('Content-Type: text/html; charset="UTF-8"');
   l.push('Content-Transfer-Encoding: base64');
   l.push('');
-  l.push(emB64(o.bodyHtml || '').replace(/(.{76})/g, '$1\r\n'));
-  return emB64Url(l.join('\r\n'));
+  l.push(cuerpoB64);
+
+  adj.forEach(a => {
+    l.push(`--${marca}`);
+    l.push(`Content-Type: ${a.tipo || 'application/octet-stream'}; name="${a.nombre.replace(/"/g,'')}"`);
+    l.push(`Content-Disposition: attachment; filename="${a.nombre.replace(/"/g,'')}"`);
+    l.push('Content-Transfer-Encoding: base64');
+    l.push('');
+    l.push(a.datos.replace(/(.{76})/g, '$1\r\n'));
+  });
+  l.push(`--${marca}--`);
+  return l.join('\r\n');
 }
+function emBuildRaw(o){ return emB64Url(emBuildMime(o)); }
 
 // ---- Cita del mensaje original ----
 // Fecha completa, no relativa: en una cita "El ayer 09:15..." queda mal redactado.
@@ -199,6 +229,7 @@ function openCompose(modo, prefill){
   const firma = firmaHtml ? `<div class="firma-insertada" data-firma="1">${firmaHtml}</div>` : '';
   cuerpo = (modo === 'nuevo') ? '<br>' + firma : '<br><br>' + firma + emQuoteOriginal(msg);
 
+  _composeAdjuntos = [];
   _composeCtx = { modo, inReplyTo, references, threadId, cuerpoInicial: cuerpo };
 
   const titulo = modo === 'nuevo' ? 'Nuevo correo'
@@ -213,6 +244,9 @@ function openCompose(modo, prefill){
           <span class="cw-title">${titulo}</span>
           <div class="cw-status" id="cpStatus"></div>
           <div class="cw-head-actions">
+            <button class="cw-close" onclick="composeElegirAdjuntos()" title="Adjuntar archivos">
+              <i class="ti ti-paperclip" aria-hidden="true"></i>
+            </button>
             <button class="btn-primary cw-send" id="cpSendBtn" onclick="sendComposedEmail()">
               <i class="ti ti-send" aria-hidden="true"></i><span>Enviar</span>
             </button>
@@ -255,6 +289,7 @@ function openCompose(modo, prefill){
         </div>
 
         <div class="cw-toolbar-wrap">${editorToolbarHTML()}</div>
+        <div class="cp-adjuntos" id="cpAdjuntos" style="display:none;"></div>
 
         <div class="cw-body-wrap">
           <div class="compose-body" id="cpBody" contenteditable="true">${cuerpo}</div>
@@ -643,6 +678,7 @@ function editorLimpiar(){
 function composeTieneContenido(){
   const val = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
   if(val('cpTo') || val('cpCc') || val('cpBcc') || val('cpSubject')) return true;
+  if(_composeAdjuntos.length) return true;
   const body = editorCuerpo();
   if(!body || !_composeCtx) return false;
   return body.innerHTML.trim() !== (_composeCtx.cuerpoInicial || '').trim();
@@ -689,7 +725,8 @@ async function guardarBorrador(){
     subject: val('cpSubject'),
     bodyHtml: editorCuerpo().innerHTML,
     inReplyTo: _composeCtx ? _composeCtx.inReplyTo : '',
-    references: _composeCtx ? _composeCtx.references : ''
+    references: _composeCtx ? _composeCtx.references : '',
+    adjuntos: _composeAdjuntos
   });
   const mensaje = { raw };
   if(_composeCtx && _composeCtx.threadId) mensaje.threadId = _composeCtx.threadId;
@@ -736,16 +773,30 @@ async function sendComposedEmail(){
   const fromHeader = (aliasEnvio && (aliasEnvio.displayName || !aliasEnvio.isPrimary))
     ? emFormatFrom(aliasEnvio) : '';
 
-  const raw = emBuildRaw({
+  const datos = {
     from: fromHeader,
     to, cc, bcc, subject, bodyHtml,
     inReplyTo: _composeCtx ? _composeCtx.inReplyTo : '',
-    references: _composeCtx ? _composeCtx.references : ''
-  });
-  const payload = { raw };
-  if(_composeCtx && _composeCtx.threadId) payload.threadId = _composeCtx.threadId;
+    references: _composeCtx ? _composeCtx.references : '',
+    adjuntos: _composeAdjuntos
+  };
+  const mime = emBuildMime(datos);
+
+  // Por debajo de 4 MB se envía como texto dentro de la petición, que permite
+  // indicar la conversación. Por encima hay que usar el extremo de subida, que
+  // no la admite: ahí el hilo lo mantienen las cabeceras In-Reply-To.
+  const grande = mime.length > 4 * 1024 * 1024;
 
   async function intentar(){
+    if(grande){
+      return fetch('https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=media', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${googleToken}`, 'Content-Type': 'message/rfc822' },
+        body: mime
+      });
+    }
+    const payload = { raw: emB64Url(mime) };
+    if(_composeCtx && _composeCtx.threadId) payload.threadId = _composeCtx.threadId;
     return fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
       method: 'POST',
       headers: { Authorization: `Bearer ${googleToken}`, 'Content-Type': 'application/json' },
@@ -772,4 +823,87 @@ async function sendComposedEmail(){
     composeStatus('Error de red al enviar. Revisa la conexión e inténtalo de nuevo.', 'error');
     btn.disabled = false; btn.textContent = 'Enviar';
   }
+}
+
+// ============================================================
+//  ADJUNTOS
+// ============================================================
+
+const ADJ_LIMITE_TOTAL = 24 * 1024 * 1024;   // 🔧 PERSONALIZAR: tope conjunto
+
+function composeElegirAdjuntos(){
+  let input = document.getElementById('cpFiles');
+  if(!input){
+    input = document.createElement('input');
+    input.type = 'file'; input.multiple = true; input.id = 'cpFiles';
+    input.style.display = 'none';
+    input.addEventListener('change', () => composeAnadirAdjuntos(input.files));
+    document.querySelector('.compose-window').appendChild(input);
+  }
+  input.value = '';
+  input.click();
+}
+
+async function composeAnadirAdjuntos(archivos){
+  const lista = [...(archivos || [])];
+  if(!lista.length) return;
+  composeStatus('Preparando adjuntos…');
+
+  for(const f of lista){
+    const yaHay = _composeAdjuntos.reduce((t, a) => t + a.bytes, 0);
+    if(yaHay + f.size > ADJ_LIMITE_TOTAL){
+      composeStatus(`"${f.name}" no cabe: el conjunto no puede pasar de ${Math.round(ADJ_LIMITE_TOTAL/1024/1024)} MB.`, 'error');
+      continue;
+    }
+    try{
+      const datos = await leerArchivoBase64(f);
+      _composeAdjuntos.push({ nombre: f.name, tipo: f.type || 'application/octet-stream', bytes: f.size, datos });
+    }catch(e){
+      composeStatus(`No se pudo leer "${f.name}".`, 'error');
+    }
+  }
+  renderAdjuntosCompose();
+  composeStatus('');
+}
+
+function leerArchivoBase64(f){
+  return new Promise((resolver, rechazar) => {
+    const lector = new FileReader();
+    lector.onload = () => {
+      // El resultado viene como "data:tipo;base64,XXXX"; nos quedamos con XXXX
+      const r = String(lector.result);
+      resolver(r.slice(r.indexOf(',') + 1));
+    };
+    lector.onerror = rechazar;
+    lector.readAsDataURL(f);
+  });
+}
+
+function tamañoLegible(bytes){
+  if(bytes < 1024) return bytes + ' B';
+  if(bytes < 1024*1024) return Math.round(bytes/1024) + ' KB';
+  return (bytes/1024/1024).toFixed(1).replace('.', ',') + ' MB';
+}
+
+function renderAdjuntosCompose(){
+  const zona = document.getElementById('cpAdjuntos');
+  if(!zona) return;
+  if(!_composeAdjuntos.length){ zona.innerHTML = ''; zona.style.display = 'none'; return; }
+  zona.style.display = '';
+  const total = _composeAdjuntos.reduce((t, a) => t + a.bytes, 0);
+  zona.innerHTML = `
+    <div class="cp-adj-titulo"><i class="ti ti-paperclip" aria-hidden="true"></i> ${_composeAdjuntos.length} adjunto${_composeAdjuntos.length>1?'s':''} · ${tamañoLegible(total)}</div>
+    <div class="cp-adj-lista">
+      ${_composeAdjuntos.map((a, i) => `
+        <span class="cp-adj">
+          <i class="ti ${attachmentIcon(a.tipo)}" aria-hidden="true"></i>
+          <span class="cp-adj-nombre" title="${escapeAttr(a.nombre)}">${escapeHtml(a.nombre)}</span>
+          <span class="cp-adj-peso">${tamañoLegible(a.bytes)}</span>
+          <button type="button" onclick="quitarAdjunto(${i})" title="Quitar">✕</button>
+        </span>`).join('')}
+    </div>`;
+}
+function quitarAdjunto(i){
+  _composeAdjuntos.splice(i, 1);
+  renderAdjuntosCompose();
 }

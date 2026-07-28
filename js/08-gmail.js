@@ -20,6 +20,7 @@ async function loadGmailWidget(){
     const dB=new Date((b.payload?.headers||[]).find(h=>h.name==='Date')?.value||0);
     return dA-dB;
   }));
+  let _grupoActual=null;   // para insertar la cabecera de día al cambiar de fecha
   el.innerHTML=[...byThread.entries()].map(([tid,tMsgs])=>{
     const main=tMsgs[tMsgs.length-1]; // newest = representative
     const count=tMsgs.length;
@@ -49,7 +50,11 @@ async function loadGmailWidget(){
     const subContainer=count>1?`<div class="thread-sub-container" id="thread-sub-${tid}">
       <div class="thread-sub-loading">Cargando hilo…</div>
     </div>`:'';
-    return mainRow+subContainer;
+    // Cabecera de día cuando cambia la fecha respecto al correo anterior
+    const grupo=grupoDeDia(date);
+    let cabecera='';
+    if(grupo!==_grupoActual){ _grupoActual=grupo; cabecera=`<div class="gm-dia">${escapeHtml(grupo)}</div>`; }
+    return cabecera+mainRow+subContainer;
   }).join('');
 }
 async function fetchGmailUnread(){
@@ -341,6 +346,7 @@ async function avisarSiHayCorreoNuevo(){
     const sinLeer = d.messagesUnread || 0;
     const badge = document.getElementById('gmailUnreadBadge');
     if(badge){ badge.textContent = sinLeer || ''; badge.style.display = sinLeer ? '' : 'none'; }
+    actualizarBadgeApp(sinLeer);
 
     if(_lastUnread !== null && sinLeer > _lastUnread && typeof _swNotify === 'function'){
       const nuevos = sinLeer - _lastUnread;
@@ -351,5 +357,32 @@ async function avisarSiHayCorreoNuevo(){
       );
     }
     _lastUnread = sinLeer;
+  }catch(e){}
+}
+
+
+// Agrupa por fecha para las separaciones de la lista
+function grupoDeDia(fechaStr){
+  try{
+    const d=new Date(fechaStr); if(isNaN(d)) return 'Sin fecha';
+    const hoy=new Date(); hoy.setHours(0,0,0,0);
+    const dia=new Date(d); dia.setHours(0,0,0,0);
+    const diff=Math.round((hoy-dia)/86400000);
+    if(diff<=0) return 'Hoy';
+    if(diff===1) return 'Ayer';
+    if(diff<7) return d.toLocaleDateString('es-ES',{weekday:'long'}).replace(/^./,c=>c.toUpperCase());
+    if(diff<30) return 'Últimas semanas';
+    return d.toLocaleDateString('es-ES',{month:'long', year:'numeric'}).replace(/^./,c=>c.toUpperCase());
+  }catch(e){ return 'Sin fecha'; }
+}
+
+// ---- Contador en el icono de la aplicación ----
+// Solo funciona con la app instalada en la pantalla de inicio (o como aplicación
+// en el escritorio). En una pestaña normal del navegador no se ve.
+async function actualizarBadgeApp(n){
+  try{
+    if(!('setAppBadge' in navigator)) return;
+    if(n > 0) await navigator.setAppBadge(n);
+    else await navigator.clearAppBadge();
   }catch(e){}
 }

@@ -773,6 +773,19 @@
   .gm-ficha.on{background:var(--text); color:var(--surface); border-color:var(--text);}
   .gm-fichas-ayuda{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:11px; color:var(--text-muted); font-style:italic;}
 
+  /* Adjuntos del redactor */
+  .cp-adjuntos{padding:10px 20px 0; flex-shrink:0;}
+  .cp-adj-titulo{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:11.5px; color:var(--text-soft); margin-bottom:7px; display:flex; align-items:center; gap:5px;}
+  .cp-adj-lista{display:flex; flex-wrap:wrap; gap:6px;}
+  .cp-adj{display:inline-flex; align-items:center; gap:7px; max-width:280px; padding:5px 9px; background:var(--surface2); border:1px solid var(--border); border-radius:20px; font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:12px; color:var(--text);}
+  .cp-adj-nombre{white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .cp-adj-peso{color:var(--text-muted); font-size:11px; flex-shrink:0;}
+  .cp-adj button{border:none; background:transparent; color:var(--text-muted); cursor:pointer; padding:0 2px; font-size:12px; flex-shrink:0;}
+  .cp-adj button:hover{color:var(--alta);}
+
+  /* Separadores por día en la lista de correo */
+  .gm-dia{position:sticky; top:0; z-index:2; background:var(--bg); padding:9px 12px 5px; font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--text-muted); border-bottom:1px solid var(--border);}
+
   /* Aviso de deshacer */
   .undo-toast{position:fixed; left:50%; bottom:26px; transform:translateX(-50%); z-index:300; display:flex; align-items:center; gap:12px; background:var(--text); color:var(--surface); padding:11px 16px; border-radius:26px; box-shadow:0 8px 28px rgba(0,0,0,0.24); font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:13px; animation:undoSube .18s ease-out;}
   @keyframes undoSube{from{opacity:0; transform:translate(-50%,10px);} to{opacity:1; transform:translate(-50%,0);}}
