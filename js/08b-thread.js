@@ -65,7 +65,9 @@ async function selectEmail(msgId, threadId){
 }
 
 function renderThreadPanel(){
-  const col = document.getElementById('gmailPreviewCol');
+  const col = _lecturaAmpliada
+    ? document.getElementById('gmailPreviewColAmpliado')
+    : document.getElementById('gmailPreviewCol');
   if(!col || !_currentThread) return;
   const msgs = _currentThread.messages || [];
   if(!msgs.length){ col.innerHTML = '<div class="gmail-preview-empty">Conversación vacía.</div>'; return; }
@@ -95,7 +97,9 @@ function renderThreadPanel(){
         <button class="gm-acc peligro" onclick="deleteEmail('${_currentThread.id}')" title="Mover toda la conversación a la papelera"><i class="ti ti-trash" aria-hidden="true"></i></button>
         <button class="gm-acc" onclick="abrirSelectorEtiquetas('${ultimo.id}')" title="Etiquetar"><i class="ti ti-tag" aria-hidden="true"></i></button>
         <button class="gm-acc" onclick="crearReglaDesdeCorreo('${ultimo.id}')" title="Crear regla con este remitente"><i class="ti ti-filter" aria-hidden="true"></i></button>
+        <button class="gm-acc" onclick="${_lecturaAmpliada ? 'cerrarLecturaAmpliada()' : 'ampliarLectura()'}" title="${_lecturaAmpliada ? 'Volver al panel' : 'Ver a pantalla completa'}"><i class="ti ti-${_lecturaAmpliada ? 'arrows-minimize' : 'arrows-maximize'}" aria-hidden="true"></i></button>
         <span class="gm-acc-sep"></span>
+        <button class="gm-acc" onclick="reunionDesdeCorreo('${ultimo.id}')" title="Crear ficha de reunión"><i class="ti ti-users" aria-hidden="true"></i></button>
         <button class="gm-acc" onclick="importEmailAsTask('${escapeAttr(asunto)}','${escapeAttr((emHeader(ultimo,'From')||'').replace(/<[^>]+>/,'').trim())}','${escapeAttr(ultimo.id)}')" title="Crear tarea"><i class="ti ti-checkbox" aria-hidden="true"></i></button>
       </div>
     </div>
@@ -229,4 +233,93 @@ async function toggleStarEmail(msgId){
     renderThreadPanel();
     setStatus(tiene ? 'Destacado quitado.' : 'Correo destacado.');
   }catch(e){ setStatus('Error de red.'); }
+}
+
+// ============================================================
+//  LECTURA A PANTALLA COMPLETA
+//
+//  El panel de la derecha se queda corto para correos largos o con tablas.
+//  Esta vista reutiliza el mismo pintado, pero a todo lo ancho.
+// ============================================================
+
+let _lecturaAmpliada = false;
+
+function ampliarLectura(){
+  if(!_currentThread) return;
+  _lecturaAmpliada = true;
+  const caja = document.createElement('div');
+  caja.className = 'lectura-overlay';
+  caja.id = 'lecturaOverlay';
+  caja.innerHTML = `
+    <div class="lectura-ventana">
+      <div class="lectura-cab">
+        <span class="lectura-titulo">Lectura ampliada</span>
+        <button class="cw-close" onclick="cerrarLecturaAmpliada()" title="Volver (Esc)">
+          <i class="ti ti-x" aria-hidden="true"></i>
+        </button>
+      </div>
+      <div class="gmail-preview-col" id="gmailPreviewColAmpliado"></div>
+    </div>`;
+  document.body.appendChild(caja);
+  renderThreadPanel();          // vuelve a pintar, ahora dentro de la ventana grande
+}
+
+function cerrarLecturaAmpliada(){
+  _lecturaAmpliada = false;
+  const o = document.getElementById('lecturaOverlay');
+  if(o) o.remove();
+  renderThreadPanel();          // devuelve el contenido al panel de la derecha
+}
+
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape' && _lecturaAmpliada) cerrarLecturaAmpliada();
+});
+
+// Doble clic en un correo de la lista lo abre directamente ampliado
+document.addEventListener('dblclick', e => {
+  const fila = e.target.closest('.gmail-list-item');
+  if(!fila) return;
+  if(e.target.closest('.gli-acc')) return;   // no si se pulsó un botón de acción
+  if(_currentThread && _currentThread.id === fila.dataset.tid) ampliarLectura();
+  else selectEmail(fila.dataset.id, fila.dataset.tid).then(() => ampliarLectura());
+});
+
+
+// ---- Ficha de reunión a partir de un correo ----
+// Aprovecha el remitente y los destinatarios como participantes previstos, y
+// deja el asunto como título. Al guardar, la ficha puede crear su evento en el
+// calendario desde el propio formulario de reuniones.
+function reunionDesdeCorreo(msgId){
+  const m = (_currentThread?.messages || []).find(x => x.id === msgId)
+         || (_currentThread?.messages || []).slice(-1)[0];
+  if(!m){ setStatus('Abre primero un correo.'); return; }
+
+  const yo = emBareAddress(emMyAddress());
+  const gente = [
+    ...emSplitAddresses(emHeader(m, 'From')),
+    ...emSplitAddresses(emHeader(m, 'To')),
+    ...emSplitAddresses(emHeader(m, 'Cc'))
+  ];
+  // Nombres legibles, sin duplicados y sin uno mismo
+  const vistos = new Set();
+  const participantes = [];
+  gente.forEach(a => {
+    const correo = emBareAddress(a);
+    if(!correo || correo === yo || vistos.has(correo)) return;
+    vistos.add(correo);
+    const nombre = a.replace(/<[^>]+>/, '').replace(/"/g, '').trim();
+    participantes.push(nombre || correo);
+  });
+
+  const asunto = (emHeader(m, 'Subject') || '').replace(/^\s*(re|rv|fwd)\s*:\s*/i, '').trim();
+  const resumen = 'Origen: correo de ' + (emHeader(m, 'From') || '') +
+                  ' del ' + emQuoteDate(emHeader(m, 'Date')) + '.';
+
+  openMeetingModal(null, {
+    title: asunto || 'Reunión',
+    date: todayStr(),
+    participants: participantes,
+    summary: resumen,
+    sourceEmailId: msgId
+  });
 }

@@ -174,3 +174,48 @@ document.addEventListener('drop', e => {
   if(!threadId) return;
   moverHiloAEtiqueta(threadId, zona.dataset.labelId, zona.dataset.labelName || 'la etiqueta');
 });
+
+// ============================================================
+//  ACCIONES DESDE LA LISTA, SIN ABRIR EL CORREO
+//
+//  Necesitan datos del mensaje (etiquetas actuales, remitente), así que se
+//  piden al vuelo. Es una petición pequeña y evita tener que abrirlo.
+// ============================================================
+
+async function _traerMensaje(msgId, formato){
+  const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}?format=${formato || 'minimal'}`,
+    { headers: { Authorization: `Bearer ${googleToken}` } });
+  if(r.status === 401){ await handleGoogleExpired(); return null; }
+  if(!r.ok) return null;
+  return await r.json();
+}
+
+async function destacarDesdeLista(msgId, threadId){
+  if(!googleToken) return;
+  const m = await _traerMensaje(msgId); if(!m) return;
+  const tiene = (m.labelIds || []).includes('STARRED');
+  try{
+    await accionHilo(threadId, 'modify', tiene ? { removeLabelIds: ['STARRED'] } : { addLabelIds: ['STARRED'] });
+    // Actualiza el icono sin recargar toda la lista
+    const btn = document.querySelector(`.gmail-list-item[data-id="${msgId}"] .gli-acc`);
+    if(btn){
+      btn.classList.toggle('on', !tiene);
+      btn.innerHTML = `<i class="ti ti-star${!tiene ? '-filled' : ''}" aria-hidden="true"></i>`;
+    }
+    setStatus(tiene ? 'Destacado quitado.' : 'Correo destacado.');
+  }catch(e){ if(e.message !== 'sesion') setStatus('No se pudo cambiar el destacado.'); }
+}
+
+// Reutiliza el selector de etiquetas, cargando antes el mensaje
+async function etiquetarDesdeLista(msgId, threadId){
+  if(!googleToken) return;
+  const m = await _traerMensaje(msgId, 'metadata'); if(!m) return;
+  _currentThread = { id: threadId, messages: [m] };
+  abrirSelectorEtiquetas(msgId);
+}
+
+async function reglaDesdeLista(msgId){
+  if(!googleToken) return;
+  const m = await _traerMensaje(msgId, 'metadata'); if(!m) return;
+  abrirEditorRegla({ from: emBareAddress(emHeader(m, 'From')) });
+}

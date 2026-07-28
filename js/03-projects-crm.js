@@ -186,6 +186,36 @@ function openMeetingModal(meetingId, prefill){
           <textarea id="rAcuerdos">${escapeHtml(data.acuerdos||'')}</textarea>
         </div>
         <input type="hidden" id="rCalEventId" value="${escapeAttr(data.calEventId||'')}">
+        <input type="hidden" id="rSourceEmailId" value="${escapeAttr(data.sourceEmailId||'')}">
+        ${data.calEventId ? `
+        <div class="field">
+          <label>Calendario</label>
+          <p class="help" style="margin:0;">Esta ficha ya está vinculada a un evento del calendario.</p>
+        </div>` : `
+        <div class="field">
+          <label class="regla-check"><input type="checkbox" id="rCrearEvento" onchange="document.getElementById('rEventoDatos').style.display=this.checked?'':'none'"> Crear también el evento en el calendario</label>
+          <div id="rEventoDatos" style="display:none; margin-top:8px;">
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <div style="flex:1; min-width:110px;">
+                <label>Hora</label>
+                <input type="time" id="rHora" value="10:00">
+              </div>
+              <div style="flex:1; min-width:110px;">
+                <label>Duración</label>
+                <select id="rDuracion">
+                  <option value="30">30 minutos</option>
+                  <option value="60" selected>1 hora</option>
+                  <option value="90">1 hora y media</option>
+                  <option value="120">2 horas</option>
+                </select>
+              </div>
+            </div>
+            <label style="margin-top:8px;">Calendario</label>
+            <select id="rCalendario">
+              ${(googleCalendars||[]).map(c=>`<option value="${escapeAttr(c.id)}">${escapeHtml(c.summary||c.id)}</option>`).join('')}
+            </select>
+          </div>
+        </div>`}
         <div class="modal-actions">
           <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
           <button class="btn-primary" onclick="saveMeeting('${editing?editing.id:''}')">Guardar ficha</button>
@@ -229,7 +259,7 @@ function addParticipant(){
   if(!tempParticipants.includes(val)) tempParticipants.push(val);
   input.value=''; renderParticipants();
 }
-function saveMeeting(meetingId){
+async function saveMeeting(meetingId){
   const title=document.getElementById('rTitle').value.trim();
   if(!title){ setStatus('El título no puede estar vacío.'); return; }
   const date=document.getElementById('rDate').value || todayStr();
@@ -238,14 +268,21 @@ function saveMeeting(meetingId){
   const summary=document.getElementById('rSummary').value.trim();
   const acuerdos=document.getElementById('rAcuerdos').value.trim();
   const participants=tempParticipants.slice();
-  const calEventId=document.getElementById('rCalEventId')?.value || null;
+  let calEventId=document.getElementById('rCalEventId')?.value || null;
+  const sourceEmailId=document.getElementById('rSourceEmailId')?.value || null;
+
+  // Si se ha pedido, se crea antes el evento para poder guardar su referencia
+  const quiereEvento=document.getElementById('rCrearEvento')?.checked;
+  if(quiereEvento && !calEventId){
+    calEventId = await crearEventoDeReunion({ title, date, participants: tempParticipants.slice(), summary });
+  }
 
   let m;
   if(meetingId){
     m=state.meetings.find(x=>x.id===meetingId);
     Object.assign(m,{title,date,importance,projectId,summary,acuerdos,participants,calEventId});
   } else {
-    m={id:uid(),title,date,importance,projectId,summary,acuerdos,participants,calEventId};
+    m={id:uid(),title,date,importance,projectId,summary,acuerdos,participants,calEventId,sourceEmailId};
     state.meetings.unshift(m);
   }
   tempParticipants=[];
@@ -439,4 +476,41 @@ function renderContactDetail(c){
     ${meetingsHtml}
     <p class="sect-h" style="margin-top:14px;">Llamadas (${calls.length})</p>
     ${callsHtml}`;
+}
+
+
+// Crea el evento en Google Calendar y devuelve su identificador
+async function crearEventoDeReunion({ title, date, participants, summary }){
+  if(!googleToken){ setStatus('Sin conexión con Google: la ficha se guarda sin evento.'); return null; }
+  const hora = document.getElementById('rHora')?.value || '10:00';
+  const minutos = parseInt(document.getElementById('rDuracion')?.value || '60', 10);
+  const calId = document.getElementById('rCalendario')?.value || 'primary';
+
+  const inicio = new Date(`${date}T${hora}:00`);
+  const fin = new Date(inicio.getTime() + minutos * 60000);
+  const zona = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+  const evento = {
+    summary: title,
+    description: summary || '',
+    start: { dateTime: inicio.toISOString(), timeZone: zona },
+    end:   { dateTime: fin.toISOString(),    timeZone: zona }
+  };
+
+  try{
+    const r = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${googleToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(evento)
+    });
+    if(r.status === 401){ await handleGoogleExpired(); return null; }
+    if(!r.ok){ setStatus('La ficha se guarda, pero no se pudo crear el evento.'); return null; }
+    const creado = await r.json();
+    setStatus('Ficha guardada y evento creado en el calendario.');
+    refreshHeaderEvents();
+    return creado.id || null;
+  }catch(e){
+    setStatus('La ficha se guarda, pero no se pudo crear el evento.');
+    return null;
+  }
 }

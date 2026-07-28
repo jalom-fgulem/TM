@@ -43,7 +43,18 @@ async function loadGmailWidget(){
           <span class="gli-date">${escapeHtml(formatEmailDate(date))}</span>
         </div>
       </div>
-      <div class="gli-subject${unread?' bold':''}">${escapeHtml(subject)}</div>
+      <div class="gli-fila2">
+        <div class="gli-subject${unread?' bold':''}">${escapeHtml(subject)}</div>
+        <div class="gli-acciones">
+          <button class="gli-acc${(main.labelIds||[]).includes('STARRED')?' on':''}" title="Destacar"
+            onclick="event.stopPropagation();destacarDesdeLista('${main.id}','${tid}')"><i class="ti ti-star${(main.labelIds||[]).includes('STARRED')?'-filled':''}" aria-hidden="true"></i></button>
+          <button class="gli-acc" title="Etiquetar" onclick="event.stopPropagation();etiquetarDesdeLista('${main.id}','${tid}')"><i class="ti ti-tag" aria-hidden="true"></i></button>
+          <button class="gli-acc" title="Crear regla con este remitente" onclick="event.stopPropagation();reglaDesdeLista('${main.id}')"><i class="ti ti-filter" aria-hidden="true"></i></button>
+          <button class="gli-acc" title="Archivar" onclick="event.stopPropagation();archiveEmail('${tid}')"><i class="ti ti-archive" aria-hidden="true"></i></button>
+          <button class="gli-acc" title="Marcar como spam" onclick="event.stopPropagation();marcarComoSpam('${tid}')"><i class="ti ti-alert-octagon" aria-hidden="true"></i></button>
+          <button class="gli-acc peligro" title="Mover a papelera" onclick="event.stopPropagation();deleteEmail('${tid}')"><i class="ti ti-trash" aria-hidden="true"></i></button>
+        </div>
+      </div>
       <div class="gli-snippet">${escapeHtml(main.snippet||'')}</div>
       ${hasTask?`<span class="gli-task-badge"><i class="ti ti-checkbox" aria-hidden="true"></i> Tarea vinculada</span>`:''}
     </div>`;
