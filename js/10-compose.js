@@ -202,6 +202,7 @@ function openCompose(modo, prefill){
 
         <header class="cw-head">
           <span class="cw-title">${titulo}</span>
+          <div class="cw-status" id="cpStatus"></div>
           <div class="cw-head-actions">
             <button class="btn-primary cw-send" id="cpSendBtn" onclick="sendComposedEmail()">
               <i class="ti ti-send" aria-hidden="true"></i><span>Enviar</span>
@@ -354,6 +355,18 @@ function editorToolbarHTML(){
 }
 
 function editorCuerpo(){ return document.getElementById('cpBody'); }
+
+// El redactor ocupa toda la pantalla y tapa la línea de avisos del pie,
+// así que los mensajes se muestran en su propia cabecera.
+function composeStatus(msg, tipo){
+  const el = document.getElementById('cpStatus');
+  if(!el){ setStatus(msg); return; }
+  el.textContent = msg || '';
+  el.className = 'cw-status' + (tipo ? ' ' + tipo : '');
+  if(msg) setTimeout(() => {
+    if(el.textContent === msg){ el.textContent = ''; el.className = 'cw-status'; }
+  }, 6000);
+}
 
 // Coloca (o sustituye) la firma justo encima de la cita del mensaje original
 function composeAplicarFirma(html){
@@ -515,14 +528,14 @@ function editorAncestro(tag){
 }
 function editorFila(anadir){
   const celda = editorAncestro('TD') || editorAncestro('TH');
-  if(!celda){ setStatus('Coloca el cursor dentro de una tabla.'); return; }
+  if(!celda){ composeStatus('Coloca el cursor dentro de una tabla.'); return; }
   const fila = celda.parentNode, tabla = fila.closest('table');
   if(anadir){
     const nueva = fila.cloneNode(true);
     nueva.querySelectorAll('td,th').forEach(c=>{ c.innerHTML = '&nbsp;'; });
     fila.parentNode.insertBefore(nueva, fila.nextSibling);
   } else {
-    if(tabla.rows.length <= 1){ setStatus('La tabla se quedaría sin filas.'); return; }
+    if(tabla.rows.length <= 1){ composeStatus('La tabla se quedaría sin filas.'); return; }
     const idx = fila.rowIndex;
     fila.remove();
     // Sin esto el cursor queda huérfano y la siguiente acción sobre la tabla falla
@@ -532,7 +545,7 @@ function editorFila(anadir){
 }
 function editorColumna(anadir){
   const celda = editorAncestro('TD') || editorAncestro('TH');
-  if(!celda){ setStatus('Coloca el cursor dentro de una tabla.'); return; }
+  if(!celda){ composeStatus('Coloca el cursor dentro de una tabla.'); return; }
   const idx = celda.cellIndex, tabla = celda.closest('table');
   [...tabla.rows].forEach(r=>{
     if(anadir){
@@ -551,7 +564,7 @@ function editorColumna(anadir){
 }
 function editorBorrarTabla(){
   const celda = editorAncestro('TD') || editorAncestro('TH');
-  if(!celda){ setStatus('Coloca el cursor dentro de una tabla.'); return; }
+  if(!celda){ composeStatus('Coloca el cursor dentro de una tabla.'); return; }
   celda.closest('table').remove();
   editorActualizarBarraTabla();
 }
@@ -569,9 +582,9 @@ function editorFirma(){
   const alias = composeAliasPorEmail(sel ? sel.value : emMyAddress());
   if(alias && alias.signature){ composeAplicarFirma(alias.signature); return; }
   if(_sendAsSinPermiso){
-    setStatus('Para leer tus firmas de Gmail hace falta volver a autorizar. Ve a Configuración → Google.');
+    composeStatus('Falta autorizar el acceso a tus firmas. Ve a Configuración → Google → Volver a autorizar.', 'aviso');
   } else {
-    setStatus('Esta dirección no tiene firma configurada en Gmail.');
+    composeStatus('Esta dirección no tiene firma configurada en Gmail.', 'aviso');
   }
 }
 
@@ -588,7 +601,7 @@ function closeCompose(){
 // ---- Envío ----
 async function sendComposedEmail(){
   const to = document.getElementById('cpTo').value.trim();
-  if(!to){ setStatus('Falta el destinatario.'); return; }
+  if(!to){ composeStatus('Falta el destinatario.', 'error'); return; }
   const cc = document.getElementById('cpCc').value.trim();
   const bcc = document.getElementById('cpBcc').value.trim();
   const subject = document.getElementById('cpSubject').value.trim();
@@ -625,7 +638,7 @@ async function sendComposedEmail(){
     }
     if(!r.ok){
       const err = await r.json().catch(() => ({}));
-      setStatus('No se pudo enviar: ' + ((err.error && err.error.message) || ('HTTP ' + r.status)));
+      composeStatus('No se pudo enviar: ' + ((err.error && err.error.message) || ('HTTP ' + r.status)), 'error');
       btn.disabled = false; btn.textContent = 'Enviar';
       return;
     }
@@ -633,7 +646,7 @@ async function sendComposedEmail(){
     setStatus('Correo enviado.');
     if(currentView === 'correo') loadGmailWidget();
   }catch(e){
-    setStatus('Error de red al enviar.');
+    composeStatus('Error de red al enviar. Revisa la conexión e inténtalo de nuevo.', 'error');
     btn.disabled = false; btn.textContent = 'Enviar';
   }
 }

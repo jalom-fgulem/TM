@@ -4,7 +4,7 @@
 // ---- Google Integration ----
 // 🔧 PERSONALIZAR: permisos que la aplicación pide a Google. Si añades uno nuevo,
 // tendrás que volver a autorizar (botón "Reautorizar" en Ajustes → Google).
-const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/drive.readonly';
+const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.settings.basic https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/drive.readonly';
 let googleToken = null;      // pase de acceso de 1 hora, lo entrega el servidor
 let googleTokenExpiry = 0;
 let googleCalendars = []; // [{id, summary, backgroundColor, selected}]
@@ -142,8 +142,15 @@ function updateGoogleUI(){
   if(el){
     if(googleToken){
       const who = (sbSession && sbSession.user && sbSession.user.email) ? sbSession.user.email : '';
+      const avisoAlias = (typeof _sendAsSinPermiso !== 'undefined' && _sendAsSinPermiso)
+        ? `<p class="google-aviso">No se han podido leer tus direcciones de envío ni tus firmas: falta autorizar ese permiso. Pulsa «Volver a autorizar» — solo hay que hacerlo una vez.</p>`
+        : '';
       el.innerHTML=`<p class="google-connected">✓ Conectado con Google${who?' — '+escapeHtml(who):''}</p>
-        <button class="btn-ghost btn-small" style="margin-top:6px;" onclick="disconnectGoogle()">Cerrar sesión</button>`;
+        ${avisoAlias}
+        <div style="display:flex; gap:6px; margin-top:6px; flex-wrap:wrap;">
+          <button class="btn-ghost btn-small" onclick="connectGoogle()">Volver a autorizar</button>
+          <button class="btn-ghost btn-small" onclick="disconnectGoogle()">Cerrar sesión</button>
+        </div>`;
     } else {
       el.innerHTML=`<button class="btn-ghost btn-small" onclick="connectGoogle()">🔗 Conectar con Google</button>`;
     }
