@@ -816,13 +816,42 @@ async function sendComposedEmail(){
       btn.disabled = false; btn.textContent = 'Enviar';
       return;
     }
-    closeCompose();
+    closeCompose(true);
     setStatus('Correo enviado.');
     if(currentView === 'correo') loadGmailWidget();
   }catch(e){
-    composeStatus('Error de red al enviar. Revisa la conexión e inténtalo de nuevo.', 'error');
+    // Puede que la petición llegara y solo se perdiera la respuesta. Antes de
+    // invitar a reintentar —lo que enviaría el correo dos veces— se comprueba
+    // si de verdad salió.
+    composeStatus('Comprobando si el correo llegó a salir…');
+    const salio = await comprobarSiSalio(subject);
+    if(salio){
+      closeCompose(true);
+      setStatus('El correo sí se envió; solo se perdió la confirmación.');
+      if(currentView === 'correo') loadGmailWidget();
+      return;
+    }
+    composeStatus('No se pudo enviar. Revisa la conexión e inténtalo de nuevo.', 'error');
     btn.disabled = false; btn.textContent = 'Enviar';
   }
+}
+
+// Busca en Enviados un correo con ese asunto de hace menos de tres minutos
+async function comprobarSiSalio(subject){
+  if(!subject || !googleToken) return false;
+  try{
+    const consulta = `in:sent subject:"${subject.replace(/"/g, '')}"`;
+    const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(consulta)}&maxResults=3`,
+      { headers: { Authorization: `Bearer ${googleToken}` } });
+    if(!r.ok) return false;
+    const lista = (await r.json()).messages || [];
+    if(!lista.length) return false;
+    const det = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${lista[0].id}?format=minimal`,
+      { headers: { Authorization: `Bearer ${googleToken}` } });
+    if(!det.ok) return false;
+    const m = await det.json();
+    return (Date.now() - Number(m.internalDate || 0)) < 3 * 60 * 1000;
+  }catch(e){ return false; }
 }
 
 // ============================================================
