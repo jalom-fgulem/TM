@@ -30,7 +30,14 @@ async function fetchSendAsAliases(){
 // Lista utilizable siempre, aunque no hayamos podido leer los alias
 function composeAliasDisponibles(){
   if(googleSendAs.length) return googleSendAs;
-  return [{ sendAsEmail: emMyAddress(), displayName: '', signature: '', isDefault: true, isPrimary: true }];
+  // Sin permiso para leer los alias, al menos usamos el nombre del perfil de
+  // Google que viene con la sesión.
+  const meta = (sbSession && sbSession.user && sbSession.user.user_metadata) || {};
+  return [{
+    sendAsEmail: emMyAddress(),
+    displayName: meta.full_name || meta.name || '',
+    signature: '', isDefault: true, isPrimary: true
+  }];
 }
 function composeAliasPorEmail(email){
   return composeAliasDisponibles().find(a => a.sendAsEmail.toLowerCase() === (email || '').toLowerCase()) || null;
@@ -613,8 +620,14 @@ async function sendComposedEmail(){
   const selFrom = document.getElementById('cpFrom');
   const aliasEnvio = composeAliasPorEmail(selFrom ? selFrom.value : '');
 
+  // Solo se envía From si aporta algo: un nombre, o un alias distinto del
+  // principal. Mandarlo con la dirección pelada haría que el destinatario
+  // viera el correo SIN tu nombre, porque anula el que pondría Gmail.
+  const fromHeader = (aliasEnvio && (aliasEnvio.displayName || !aliasEnvio.isPrimary))
+    ? emFormatFrom(aliasEnvio) : '';
+
   const raw = emBuildRaw({
-    from: aliasEnvio ? emFormatFrom(aliasEnvio) : '',
+    from: fromHeader,
     to, cc, bcc, subject, bodyHtml,
     inReplyTo: _composeCtx ? _composeCtx.inReplyTo : '',
     references: _composeCtx ? _composeCtx.references : ''
