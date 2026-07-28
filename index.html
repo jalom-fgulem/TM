@@ -271,9 +271,12 @@
   /* Gmail 3-column layout */
   .gmail-layout{display:grid;grid-template-columns:var(--gm-sb,170px) 6px var(--gm-list,280px) 6px 1fr;border:1px solid var(--border);border-radius:10px;overflow:hidden;height:calc(100dvh - 158px);min-height:360px;background:var(--surface);}
   /* Tiradores para ajustar el ancho de las columnas */
-  .gm-tirador{cursor:col-resize; background:transparent; position:relative; z-index:5;}
-  .gm-tirador::after{content:''; position:absolute; inset:0 2px; background:var(--border); transition:background .12s;}
-  .gm-tirador:hover::after, .gm-tirador.arrastrando::after{background:var(--accent);}
+  .gm-tirador{cursor:col-resize; background:transparent; position:relative; z-index:6; touch-action:none;}
+  /* Zona de agarre invisible de 16px: 6px reales son casi imposibles de acertar */
+  .gm-tirador::before{content:''; position:absolute; top:0; bottom:0; left:-5px; right:-5px;}
+  .gm-tirador::after{content:''; position:absolute; top:0; bottom:0; left:2px; right:2px; background:var(--border); transition:background .12s, box-shadow .12s; pointer-events:none;}
+  .gm-tirador:hover::after{background:var(--accent); box-shadow:0 0 0 1px var(--accent-border);}
+  .gm-tirador.arrastrando::after{background:var(--accent);}
   body.gm-redimensionando{cursor:col-resize; user-select:none;}
   .gmail-sidebar{overflow-y:auto;border-right:1px solid var(--border);background:var(--bg);padding:6px 4px;}
   .gmail-sb-item{display:flex;align-items:center;gap:7px;padding:6px 10px;border-radius:7px;cursor:pointer;font-size:12.5px;color:var(--text-soft);user-select:none;transition:background .1s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}

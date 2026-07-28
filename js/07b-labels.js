@@ -232,41 +232,44 @@ function aplicarAnchosCorreo(){
   document.documentElement.style.setProperty('--gm-list', cap(l.list, GM_ANCHOS.list) + 'px');
 }
 
-// Un solo escuchador en el documento: los tiradores se repintan con la vista
-document.addEventListener('mousedown', e => {
+// Eventos de puntero (no de ratón): valen igual para ratón, dedo y lápiz.
+// La captura evita perder el arrastre si mueves rápido y sales del tirador.
+document.addEventListener('pointerdown', e => {
   const tirador = e.target.closest('.gm-tirador');
   if(!tirador) return;
   e.preventDefault();
 
   const cual = tirador.dataset.col;
   const cfg = GM_ANCHOS[cual];
-  const rejilla = tirador.closest('.gmail-layout');
-  if(!rejilla || !cfg) return;
+  if(!cfg) return;
+  const variable = cual === 'sb' ? '--gm-sb' : '--gm-list';
 
   const inicioX = e.clientX;
-  const actual = parseInt(getComputedStyle(document.documentElement)
-    .getPropertyValue(cual === 'sb' ? '--gm-sb' : '--gm-list')) || cfg.def;
+  const actual = parseInt(getComputedStyle(document.documentElement).getPropertyValue(variable)) || cfg.def;
 
+  try{ tirador.setPointerCapture(e.pointerId); }catch(err){}
   tirador.classList.add('arrastrando');
   document.body.classList.add('gm-redimensionando');
 
   const mover = ev => {
     const nuevo = Math.min(Math.max(actual + (ev.clientX - inicioX), cfg.min), cfg.max);
-    document.documentElement.style.setProperty(cual === 'sb' ? '--gm-sb' : '--gm-list', nuevo + 'px');
+    document.documentElement.style.setProperty(variable, nuevo + 'px');
   };
   const soltar = () => {
-    document.removeEventListener('mousemove', mover);
-    document.removeEventListener('mouseup', soltar);
+    tirador.removeEventListener('pointermove', mover);
+    tirador.removeEventListener('pointerup', soltar);
+    tirador.removeEventListener('pointercancel', soltar);
+    try{ tirador.releasePointerCapture(e.pointerId); }catch(err){}
     tirador.classList.remove('arrastrando');
     document.body.classList.remove('gm-redimensionando');
     // Se guarda al soltar, no en cada píxel
     state.mailLayout = state.mailLayout || {};
-    state.mailLayout[cual] = parseInt(getComputedStyle(document.documentElement)
-      .getPropertyValue(cual === 'sb' ? '--gm-sb' : '--gm-list'));
+    state.mailLayout[cual] = parseInt(getComputedStyle(document.documentElement).getPropertyValue(variable));
     saveSettings();
   };
-  document.addEventListener('mousemove', mover);
-  document.addEventListener('mouseup', soltar);
+  tirador.addEventListener('pointermove', mover);
+  tirador.addEventListener('pointerup', soltar);
+  tirador.addEventListener('pointercancel', soltar);
 });
 
 // Doble clic en un tirador devuelve la columna a su ancho original
