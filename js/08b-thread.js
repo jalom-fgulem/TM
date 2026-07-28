@@ -103,6 +103,7 @@ function renderThreadPanel(){
         <button class="gm-acc" onclick="importEmailAsTask('${escapeAttr(asunto)}','${escapeAttr((emHeader(ultimo,'From')||'').replace(/<[^>]+>/,'').trim())}','${escapeAttr(ultimo.id)}')" title="Crear tarea"><i class="ti ti-checkbox" aria-hidden="true"></i></button>
       </div>
     </div>
+    ${fichaCrmHTML(emHeader(msgs[0], 'From'))}
     <div class="gm-th-lista" id="gmThreadList">
       ${msgs.map((m, i) => renderMensajeHilo(m, i === msgs.length - 1)).join('')}
     </div>`;
@@ -145,8 +146,11 @@ function renderMensajeHilo(m, esUltimo){
       ${adjuntos.length ? `<div class="email-attachments">
         <div class="email-attachments-title"><i class="ti ti-paperclip" aria-hidden="true"></i> ${adjuntos.length} adjunto${adjuntos.length > 1 ? 's' : ''}</div>
         <div class="email-attach-list">
-          ${adjuntos.map(a => `<div class="email-attach-item" onclick="openEmailAttachment('${escapeAttr(m.id)}','${escapeAttr(a.attachmentId || '')}','${escapeAttr(a.filename)}','${escapeAttr(a.mimeType)}')" title="${escapeAttr(a.filename)}">
-            <i class="ti ${attachmentIcon(a.mimeType)}" aria-hidden="true"></i><span>${escapeHtml(a.filename)}</span>
+          ${adjuntos.map(a => `<div class="email-attach-item" title="${escapeAttr(a.filename)}">
+            <span class="adj-abrir" onclick="openEmailAttachment('${escapeAttr(m.id)}','${escapeAttr(a.attachmentId || '')}','${escapeAttr(a.filename)}','${escapeAttr(a.mimeType)}')">
+              <i class="ti ${attachmentIcon(a.mimeType)}" aria-hidden="true"></i><span>${escapeHtml(a.filename)}</span>
+            </span>
+            <button class="adj-guardar" title="Guardar como…" onclick="event.stopPropagation();guardarAdjunto('${escapeAttr(m.id)}','${escapeAttr(a.attachmentId || '')}','${escapeAttr(a.filename)}','${escapeAttr(a.mimeType)}')"><i class="ti ti-download" aria-hidden="true"></i></button>
           </div>`).join('')}
         </div>
       </div>` : ''}
@@ -322,4 +326,34 @@ function reunionDesdeCorreo(msgId){
     summary: resumen,
     sourceEmailId: msgId
   });
+}
+
+
+// ---- Tarjeta del remitente: ¿está en el CRM? ----
+function fichaCrmHTML(cabeceraFrom){
+  if(!cabeceraFrom) return '';
+  const c = (typeof contactoPorRemitente === 'function') ? contactoPorRemitente(cabeceraFrom) : null;
+  const correo = emBareAddress(cabeceraFrom);
+  const visible = (cabeceraFrom || '').replace(/<[^>]+>/, '').replace(/"/g, '').trim() || correo;
+
+  if(c){
+    const detalle = [c.cargo, c.empresa].filter(Boolean).join(' · ');
+    return `<div class="crm-tarjeta conocido">
+      ${avatarHTML(cabeceraFrom, 'sm')}
+      <div class="crm-datos">
+        <span class="crm-nombre">${escapeHtml(contactFullName(c))}</span>
+        ${detalle ? `<span class="crm-detalle">${escapeHtml(detalle)}</span>` : ''}
+      </div>
+      <span class="crm-marca"><i class="ti ti-address-book" aria-hidden="true"></i> En tu CRM</span>
+      <button class="btn-ghost btn-small" onclick="openContactDetail('${c.id}'); setView('crm');">Ver ficha</button>
+    </div>`;
+  }
+  return `<div class="crm-tarjeta">
+    ${avatarHTML(cabeceraFrom, 'sm')}
+    <div class="crm-datos">
+      <span class="crm-nombre">${escapeHtml(visible)}</span>
+      <span class="crm-detalle">No está en tu CRM</span>
+    </div>
+    <button class="btn-ghost btn-small" onclick="altaContactoDesdeCorreo('${escapeAttr(cabeceraFrom)}')">+ Añadir al CRM</button>
+  </div>`;
 }

@@ -32,7 +32,8 @@ async function loadGmailWidget(){
     const sel=selectedEmailId===main.id;
     const hasTask=linkedEmailIds.has(main.id);
     const hasAtt=tMsgs.some(m=>extractAttachments(m.payload).length>0);
-    const mainRow=`<div class="gmail-list-item${sel?' selected':''}${hasTask?' has-task':''}" draggable="true" title="Puedes arrastrarlo a una etiqueta" data-id="${main.id}" data-tid="${tid}" onclick="selectEmail('${main.id}','${tid}')">
+    const destacado=(main.labelIds||[]).includes('STARRED');
+    const mainRow=`<div class="gmail-list-item${sel?' selected':''}${hasTask?' has-task':''}${destacado?' destacado':''}" draggable="true" title="Puedes arrastrarlo a una etiqueta" data-id="${main.id}" data-tid="${tid}" onclick="selectEmail('${main.id}','${tid}')">
       <div class="gli-row1">
         ${count>1?`<button class="thread-toggle" onclick="event.stopPropagation();toggleListThread('${escapeAttr(tid)}')" title="Ver hilo"><i class="ti ti-chevron-right" aria-hidden="true"></i></button>`:'<span style="width:16px;flex-shrink:0;display:inline-block;"></span>'}
         ${avatarHTML(hdrs.find(h=>h.name==='From')?.value||'', 'sm')}
@@ -400,4 +401,48 @@ async function actualizarBadgeApp(n){
     if(n > 0) await navigator.setAppBadge(n);
     else await navigator.clearAppBadge();
   }catch(e){}
+}
+
+// ---- Guardar un adjunto eligiendo dónde ----
+// Los navegadores de escritorio permiten abrir el diálogo "Guardar como" del
+// sistema. Donde no está disponible (Safari, y en general el móvil) se recurre
+// a la descarga normal, que va a la carpeta de descargas.
+async function descargarAdjuntoBlob(msgId, attachmentId, mimeType){
+  const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}/attachments/${attachmentId}`,
+    { headers: { Authorization: `Bearer ${googleToken}` } });
+  if(r.status === 401){ handleGoogleExpired(); return null; }
+  if(!r.ok) return null;
+  const data = await r.json();
+  const b64 = data.data.replace(/-/g, '+').replace(/_/g, '/');
+  const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  return new Blob([bytes], { type: mimeType || 'application/octet-stream' });
+}
+
+async function guardarAdjunto(msgId, attachmentId, filename, mimeType){
+  if(!googleToken) return;
+  setStatus('Preparando el archivo…');
+  try{
+    const blob = await descargarAdjuntoBlob(msgId, attachmentId, mimeType);
+    if(!blob){ setStatus('No se pudo obtener el adjunto.'); return; }
+
+    if(window.showSaveFilePicker){
+      try{
+        const destino = await window.showSaveFilePicker({ suggestedName: filename });
+        const escritor = await destino.createWritable();
+        await escritor.write(blob);
+        await escritor.close();
+        setStatus('Archivo guardado.');
+        return;
+      }catch(e){
+        if(e && e.name === 'AbortError'){ setStatus(''); return; }  // lo canceló el usuario
+        // Cualquier otro problema: se sigue por la vía de descarga normal
+      }
+    }
+    const url = URL.createObjectURL(blob);
+    const enlace = document.createElement('a');
+    enlace.href = url; enlace.download = filename || 'adjunto';
+    document.body.appendChild(enlace); enlace.click(); enlace.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    setStatus('Archivo descargado.');
+  }catch(e){ setStatus('No se pudo guardar el adjunto.'); }
 }

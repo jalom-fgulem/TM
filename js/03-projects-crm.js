@@ -76,6 +76,7 @@ function openContactModal(contactId, prefill){
         <h3>${editing?'Editar contacto':'Nuevo contacto'}</h3>
         <div class="field"><label>Nombre</label><input type="text" id="cNombre" value="${escapeAttr(data.nombre||'')}"></div>
         <div class="field"><label>Apellidos</label><input type="text" id="cApellidos" value="${escapeAttr(data.apellidos||'')}"></div>
+        <div class="field"><label>Correo electrónico</label><input type="text" id="cEmail" value="${escapeAttr(data.email||'')}" placeholder="nombre@dominio.es"></div>
         <div class="field"><label>Cargo</label><input type="text" id="cCargo" value="${escapeAttr(data.cargo||'')}"></div>
         <div class="field"><label>Empresa / Institución</label><input type="text" id="cEmpresa" value="${escapeAttr(data.empresa||'')}"></div>
         <div class="modal-actions">
@@ -90,14 +91,15 @@ function saveContact(contactId){
   const nombre=document.getElementById('cNombre').value.trim();
   const apellidos=document.getElementById('cApellidos').value.trim();
   if(!nombre){ setStatus('El nombre no puede estar vacío.'); return; }
+  const email=(document.getElementById('cEmail')?.value||'').trim().toLowerCase();
   const cargo=document.getElementById('cCargo').value.trim();
   const empresa=document.getElementById('cEmpresa').value.trim();
   let c;
   if(contactId){
     c=state.contacts.find(x=>x.id===contactId);
-    Object.assign(c,{nombre,apellidos,cargo,empresa});
+    Object.assign(c,{nombre,apellidos,email,cargo,empresa});
   } else {
-    c={id:uid(),nombre,apellidos,cargo,empresa};
+    c={id:uid(),nombre,apellidos,email,cargo,empresa};
     state.contacts.push(c);
   }
   saveContactRow(c);
@@ -513,4 +515,33 @@ async function crearEventoDeReunion({ title, date, participants, summary }){
     setStatus('La ficha se guarda, pero no se pudo crear el evento.');
     return null;
   }
+}
+
+
+// ---- Identificar al remitente en el CRM ----
+// Se busca primero por correo, que es inequívoco. Como los contactos antiguos
+// no lo tienen guardado, se recurre al nombre completo como segundo criterio.
+function contactoPorRemitente(cabeceraFrom){
+  const correo = emBareAddress(cabeceraFrom || '');
+  const nombre = (cabeceraFrom || '').replace(/<[^>]+>/, '').replace(/"/g, '').trim().toLowerCase();
+  const lista = state.contacts || [];
+  if(correo){
+    const porCorreo = lista.find(c => (c.email || '').toLowerCase() === correo);
+    if(porCorreo) return porCorreo;
+  }
+  if(nombre){
+    const porNombre = lista.find(c => contactFullName(c).toLowerCase() === nombre);
+    if(porNombre) return porNombre;
+  }
+  return null;
+}
+
+// Alta rápida desde un correo, con nombre y dirección ya puestos
+function altaContactoDesdeCorreo(cabeceraFrom){
+  const correo = emBareAddress(cabeceraFrom || '');
+  const completo = (cabeceraFrom || '').replace(/<[^>]+>/, '').replace(/"/g, '').trim();
+  const partes = completo.split(/\s+/).filter(Boolean);
+  const nombre = partes.length > 1 ? partes.slice(0, -1).join(' ') : (partes[0] || correo);
+  const apellidos = partes.length > 1 ? partes.slice(-1)[0] : '';
+  openContactModal(null, { nombre, apellidos, email: correo });
 }

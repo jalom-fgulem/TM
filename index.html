@@ -773,6 +773,25 @@
   .gm-ficha.on{background:var(--text); color:var(--surface); border-color:var(--text);}
   .gm-fichas-ayuda{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:11px; color:var(--text-muted); font-style:italic;}
 
+  /* Correos destacados: realce muy suave, sin gritar */
+  .gmail-list-item.destacado{background:linear-gradient(90deg, rgba(217,119,6,.07), transparent 60%); box-shadow:inset 3px 0 0 var(--media);}
+  .gmail-list-item.destacado.selected{background:var(--accent-bg);}
+
+  /* Tarjeta del remitente y su ficha en el CRM */
+  .crm-tarjeta{display:flex; align-items:center; gap:10px; margin:10px 14px 0; padding:9px 12px; border:1px solid var(--border); border-radius:10px; background:var(--surface2); font-family:-apple-system,Helvetica,Arial,sans-serif;}
+  .crm-tarjeta.conocido{border-color:var(--baja-border); background:var(--baja-bg);}
+  .crm-datos{flex:1; min-width:0; display:flex; flex-direction:column;}
+  .crm-nombre{font-size:13px; font-weight:600; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .crm-detalle{font-size:11.5px; color:var(--text-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .crm-marca{display:inline-flex; align-items:center; gap:4px; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--baja); flex-shrink:0;}
+
+  /* Adjuntos: abrir o guardar */
+  .email-attach-item{display:flex !important; align-items:center; gap:2px; padding:0 !important;}
+  .adj-abrir{display:flex; align-items:center; gap:6px; padding:6px 4px 6px 9px; cursor:pointer; min-width:0;}
+  .adj-abrir span{white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .adj-guardar{width:26px; height:26px; margin-right:4px; border:none; background:transparent; border-radius:5px; cursor:pointer; color:var(--text-muted); font-size:13px; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0;}
+  .adj-guardar:hover{background:var(--surface); color:var(--accent);}
+
   /* Acciones rápidas en cada fila de la lista */
   .gli-fila2{display:flex; align-items:center; gap:8px;}
   .gli-fila2 .gli-subject{flex:1; min-width:0;}
