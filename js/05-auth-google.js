@@ -165,6 +165,7 @@ async function afterGoogleConnected(){
   await fetchCalendarList();
   updateGoogleUI();
   fetchGmailLabels();
+  fetchSendAsAliases();   // direcciones de envío y sus firmas
   refreshHeaderEvents();
   fetchGoogleTasks();
   if(currentView==='calendario'||currentView==='correo'){ render(); loadAgendaData(); }

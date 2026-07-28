@@ -3,6 +3,49 @@
 
 let _composeCtx = null;    // contexto del correo que se está redactando
 let _currentEmailMsg = null; // último mensaje abierto en el panel de lectura
+let googleSendAs = [];       // direcciones de envío configuradas en Gmail, con su firma
+let _sendAsSinPermiso = false; // true si Gmail exige un permiso extra para leerlas
+
+// ---- Direcciones de envío (alias) y sus firmas ----
+// Gmail guarda los alias y la firma de cada uno en el mismo sitio, así que una
+// sola consulta resuelve las dos cosas.
+async function fetchSendAsAliases(){
+  if(!googleToken) return;
+  try{
+    const r = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/settings/sendAs',
+      { headers: { Authorization: `Bearer ${googleToken}` } });
+    if(r.status === 401){ await handleGoogleExpired(); return; }
+    if(r.status === 403){        // hace falta el permiso gmail.settings.basic
+      _sendAsSinPermiso = true;
+      return;
+    }
+    if(!r.ok) return;
+    const d = await r.json();
+    // Se descartan los alias pendientes de verificar: Gmail no deja enviar con ellos
+    googleSendAs = (d.sendAs || []).filter(a => a.isPrimary || a.verificationStatus === 'accepted');
+    _sendAsSinPermiso = false;
+  }catch(e){}
+}
+
+// Lista utilizable siempre, aunque no hayamos podido leer los alias
+function composeAliasDisponibles(){
+  if(googleSendAs.length) return googleSendAs;
+  return [{ sendAsEmail: emMyAddress(), displayName: '', signature: '', isDefault: true, isPrimary: true }];
+}
+function composeAliasPorEmail(email){
+  return composeAliasDisponibles().find(a => a.sendAsEmail.toLowerCase() === (email || '').toLowerCase()) || null;
+}
+// Al responder conviene hacerlo desde la dirección a la que escribieron
+function composeAliasParaRespuesta(msg){
+  const lista = composeAliasDisponibles();
+  const candidatos = [
+    ...emSplitAddresses(emHeader(msg, 'To')),
+    ...emSplitAddresses(emHeader(msg, 'Cc')),
+    emHeader(msg, 'Delivered-To')
+  ].filter(Boolean).map(emBareAddress);
+  const encontrado = lista.find(a => candidatos.includes(a.sendAsEmail.toLowerCase()));
+  return encontrado || lista.find(a => a.isDefault) || lista[0];
+}
 
 // ---- Utilidades de cabeceras ----
 function emHeader(msg, nombre){
@@ -49,8 +92,17 @@ function emEncodeSubject(s){
   return /^[\x00-\x7F]*$/.test(s || '') ? (s || '') : '=?UTF-8?B?' + emB64(s) + '?=';
 }
 
+// "José Carlos <jc@x.es>" -> el nombre necesita codificarse si lleva acentos
+function emFormatFrom(alias){
+  if(!alias) return '';
+  const nombre = (alias.displayName || '').trim();
+  if(!nombre) return alias.sendAsEmail;
+  return emEncodeSubject(nombre) + ' <' + alias.sendAsEmail + '>';
+}
+
 function emBuildRaw(o){
   const l = [];
+  if(o.from) l.push('From: ' + o.from);
   l.push('To: ' + (o.to || ''));
   if(o.cc)  l.push('Cc: '  + o.cc);
   if(o.bcc) l.push('Bcc: ' + o.bcc);
@@ -85,8 +137,8 @@ function emQuoteOriginal(msg){
   const contenido = cuerpo.html
     ? cuerpo.html
     : '<pre style="white-space:pre-wrap;font-family:inherit;margin:0;">' + escapeHtml(cuerpo.text || '') + '</pre>';
-  return `<br><br><div style="color:#555;">El ${escapeHtml(emQuoteDate(fecha))}, ${escapeHtml(de)} escribió:</div>
-    <blockquote style="border-left:2px solid #ccc;margin:6px 0 0;padding-left:12px;color:#555;">${contenido}</blockquote>`;
+  return `<div data-cita="1"><div style="color:#555;">El ${escapeHtml(emQuoteDate(fecha))}, ${escapeHtml(de)} escribió:</div>
+    <blockquote style="border-left:2px solid #ccc;margin:6px 0 0;padding-left:12px;color:#555;">${contenido}</blockquote></div>`;
 }
 
 // ---- Apertura del redactor ----
@@ -102,7 +154,6 @@ function openCompose(modo, prefill){
   if(modo === 'nuevo'){
     to = (prefill && prefill.to) || '';
     asunto = (prefill && prefill.subject) || '';
-    cuerpo = '<br>';
   } else {
     const asuntoOrig = emHeader(msg, 'Subject') || '(sin asunto)';
     inReplyTo  = emHeader(msg, 'Message-ID');
@@ -110,7 +161,6 @@ function openCompose(modo, prefill){
 
     if(modo === 'reenviar'){
       asunto = /^\s*(fwd|rv):/i.test(asuntoOrig) ? asuntoOrig : 'Fwd: ' + asuntoOrig;
-      cuerpo = '<br><br>' + emQuoteOriginal(msg);
       inReplyTo = ''; references = '';   // reenviar abre conversación nueva
     } else {
       asunto = /^\s*re:/i.test(asuntoOrig) ? asuntoOrig : 'Re: ' + asuntoOrig;
@@ -125,9 +175,20 @@ function openCompose(modo, prefill){
           });
         cc = otros.join(', ');
       }
-      cuerpo = '<br><br>' + emQuoteOriginal(msg);
     }
   }
+
+  // Dirección de envío: al responder, la misma a la que te escribieron
+  const alias = composeAliasDisponibles();
+  const aliasElegido = (modo === 'nuevo')
+    ? (alias.find(a => a.isDefault) || alias[0])
+    : composeAliasParaRespuesta(msg);
+
+  // La firma va debajo de lo que escribas y encima de la cita del original
+  const firma = (aliasElegido && aliasElegido.signature)
+    ? `<div class="firma-insertada" data-firma="1">${aliasElegido.signature}</div>`
+    : '';
+  cuerpo = (modo === 'nuevo') ? '<br>' + firma : '<br><br>' + firma + emQuoteOriginal(msg);
 
   _composeCtx = { modo, inReplyTo, references, threadId };
 
@@ -169,8 +230,13 @@ function openCompose(modo, prefill){
             <input type="text" id="cpBcc" value="">
           </div>
           <div class="cw-row">
-            <label>De</label>
-            <span class="cw-from"><i class="ti ti-user" aria-hidden="true"></i>${escapeHtml(emMyAddress())}</span>
+            <label for="cpFrom">De</label>
+            ${alias.length > 1 ? `
+              <select id="cpFrom" class="cw-from-select" onchange="onComposeAliasChange()">
+                ${alias.map(a => `<option value="${escapeAttr(a.sendAsEmail)}" ${a.sendAsEmail === aliasElegido.sendAsEmail ? 'selected' : ''}>${escapeHtml(a.displayName ? a.displayName + ' <' + a.sendAsEmail + '>' : a.sendAsEmail)}</option>`).join('')}
+              </select>`
+            : `<span class="cw-from"><i class="ti ti-user" aria-hidden="true"></i>${escapeHtml(aliasElegido.sendAsEmail)}</span>
+               <input type="hidden" id="cpFrom" value="${escapeAttr(aliasElegido.sendAsEmail)}">`}
           </div>
           <div class="cw-row">
             <label for="cpSubject">Asunto</label>
@@ -288,6 +354,31 @@ function editorToolbarHTML(){
 }
 
 function editorCuerpo(){ return document.getElementById('cpBody'); }
+
+// Coloca (o sustituye) la firma justo encima de la cita del mensaje original
+function composeAplicarFirma(html){
+  const body = editorCuerpo(); if(!body) return;
+  const actual = body.querySelector('[data-firma]');
+  if(actual){
+    if(html){ actual.innerHTML = html; return; }
+    actual.remove(); return;
+  }
+  if(!html) return;
+  const bloque = document.createElement('div');
+  bloque.className = 'firma-insertada';
+  bloque.setAttribute('data-firma', '1');
+  bloque.innerHTML = html;
+  const cita = body.querySelector('[data-cita]');
+  if(cita) body.insertBefore(bloque, cita);
+  else body.appendChild(bloque);
+}
+
+// Al cambiar de dirección de envío, cambia también su firma
+function onComposeAliasChange(){
+  const sel = document.getElementById('cpFrom'); if(!sel) return;
+  const alias = composeAliasPorEmail(sel.value);
+  composeAplicarFirma(alias && alias.signature ? alias.signature : '');
+}
 
 // Inserta contenido SIN pasar por la orden de edición del navegador.
 // Es imprescindible: esa orden aplica un filtro que borra bordes, relleno y
@@ -474,23 +565,14 @@ function editorActualizarBarraTabla(){
 
 // ---- Firma ----
 function editorFirma(){
-  const firmas = (state.signatures || []).filter(f => f && f.html);
-  if(!firmas.length){
-    setStatus('Todavía no hay firmas configuradas. Las añadiremos en el siguiente paso.');
-    return;
+  const sel = document.getElementById('cpFrom');
+  const alias = composeAliasPorEmail(sel ? sel.value : emMyAddress());
+  if(alias && alias.signature){ composeAplicarFirma(alias.signature); return; }
+  if(_sendAsSinPermiso){
+    setStatus('Para leer tus firmas de Gmail hace falta volver a autorizar. Ve a Configuración → Google.');
+  } else {
+    setStatus('Esta dirección no tiene firma configurada en Gmail.');
   }
-  const porDefecto = firmas.find(f => f.default) || firmas[0];
-  editorInsertarFirma(porDefecto.html);
-}
-function editorInsertarFirma(html){
-  const b = editorCuerpo(); if(!b) return;
-  // La firma va al final del texto propio, antes de la cita del original
-  const cita = b.querySelector('blockquote');
-  const bloque = document.createElement('div');
-  bloque.className = 'firma-insertada';
-  bloque.innerHTML = html;
-  if(cita) b.insertBefore(bloque, cita.previousSibling || cita);
-  else b.appendChild(bloque);
 }
 
 function editorLimpiar(){
@@ -515,7 +597,11 @@ async function sendComposedEmail(){
   const btn = document.getElementById('cpSendBtn');
   btn.disabled = true; btn.textContent = 'Enviando…';
 
+  const selFrom = document.getElementById('cpFrom');
+  const aliasEnvio = composeAliasPorEmail(selFrom ? selFrom.value : '');
+
   const raw = emBuildRaw({
+    from: aliasEnvio ? emFormatFrom(aliasEnvio) : '',
     to, cc, bcc, subject, bodyHtml,
     inReplyTo: _composeCtx ? _composeCtx.inReplyTo : '',
     references: _composeCtx ? _composeCtx.references : ''
