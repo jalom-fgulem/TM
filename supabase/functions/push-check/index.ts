@@ -191,10 +191,22 @@ Deno.serve(async (req: Request) => {
       const { data: estado } = await admin.from('notif_state')
         .select('*').eq('user_id', userId).maybeSingle()
       const yaAvisados: Record<string, boolean> = estado?.avisados ?? {}
+      const prefs = estado?.prefs ?? {}
 
-      const { avisos: correo, sinLeer } = await avisosDeCorreo(get, estado)
-      const reuniones = await avisosDeReuniones(get, yaAvisados)
-      const tareas = await avisosDeTareas(admin, yaAvisados)
+      const { avisos: correo, sinLeer } = (prefs.correo === false)
+        ? { avisos: [], sinLeer: estado?.last_unread ?? 0 }
+        : await avisosDeCorreo(get, estado)
+      const reuniones = (prefs.reuniones === false) ? [] : await avisosDeReuniones(get, yaAvisados)
+
+      // Las tareas se agrupan en un único aviso diario a la hora elegida, para
+      // que no se entremezclen con el correo a lo largo del día.
+      let tareas: Aviso[] = []
+      if (prefs.tareas !== false) {
+        const horaAviso = Number.isFinite(prefs.horaTareas) ? prefs.horaTareas : 8
+        const horaAhora = Number(new Date().toLocaleString('en-US',
+          { hour: '2-digit', hour12: false, timeZone: 'Europe/Madrid' }))
+        if (horaAhora === horaAviso) tareas = await avisosDeTareas(admin, yaAvisados)
+      }
       const todos = [...correo, ...reuniones, ...tareas]
 
       for (const a of todos) {

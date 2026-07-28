@@ -58,10 +58,27 @@ Deno.serve(async (req: Request) => {
     return json({ ok: true })
   }
 
+  if (action === 'prefs') {
+    const p = body.prefs ?? {}
+    await admin.from('notif_state').upsert({
+      user_id: user.id,
+      prefs: {
+        correo: p.correo !== false,
+        reuniones: p.reuniones !== false,
+        tareas: p.tareas !== false,
+        horaTareas: Number.isFinite(p.horaTareas) ? p.horaTareas : 8,
+      },
+      updated_at: new Date().toISOString(),
+    })
+    return json({ ok: true })
+  }
+
   if (action === 'status') {
     const { count } = await admin.from('push_subscriptions')
       .select('id', { count: 'exact', head: true }).eq('user_id', user.id)
-    return json({ subscripciones: count ?? 0 })
+    const { data: est } = await admin.from('notif_state')
+      .select('prefs').eq('user_id', user.id).maybeSingle()
+    return json({ subscripciones: count ?? 0, prefs: est?.prefs ?? {} })
   }
 
   // Alta por defecto

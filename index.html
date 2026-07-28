@@ -812,6 +812,20 @@
   .lectura-ventana .gmail-preview-col{flex:1; overflow-y:auto; display:block;}
   @media (max-width:820px){ .lectura-overlay{padding:0;} .lectura-ventana{border-radius:0; border:none;} }
 
+  /* Deslizar un correo para archivarlo o borrarlo */
+  .gmail-list-item{position:relative; touch-action:pan-y;}
+  .gmail-list-item.deslizando{transition:none; z-index:3;}
+  .gmail-list-item[data-sw-lado]::before{
+    content:attr(data-sw-texto); position:absolute; top:0; bottom:0; width:100vw;
+    display:flex; align-items:center; padding:0 22px; z-index:-1;
+    background:var(--sw-color, var(--alta)); color:#fff;
+    font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:13px; font-weight:700;
+    text-transform:uppercase; letter-spacing:.05em; opacity:.55;
+  }
+  .gmail-list-item[data-sw-lado="izq"]::before{left:100%; justify-content:flex-start;}
+  .gmail-list-item[data-sw-lado="der"]::before{right:100%; justify-content:flex-end;}
+  .gmail-list-item.sw-listo::before{opacity:1;}
+
   /* Correspondencia en la ficha de contacto */
   .crm-correo{border:1px solid var(--border); border-left-width:3px; border-radius:var(--radius); padding:9px 11px; margin-bottom:7px; background:var(--surface); cursor:pointer;}
   .crm-correo:hover{border-color:var(--text-soft);}
@@ -1250,6 +1264,18 @@
           <button class="btn-primary btn-small" onclick="editarFirma('')">+ Nueva firma</button>
           <button class="btn-ghost btn-small" onclick="importarFirmasDeGmail()">Importar de Gmail</button>
         </div>
+      </div>
+    </details>
+
+    <!-- Gestos en el móvil -->
+    <details class="cfg-accordion" id="cfgSec-gestos" ontoggle="if(this.open) renderConfigDeslizar()">
+      <summary class="cfg-acc-summary">
+        <span><i class="ti ti-hand-move" style="margin-right:6px;"></i>Gestos en el móvil</span>
+        <i class="ti ti-chevron-down cfg-acc-icon"></i>
+      </summary>
+      <div class="cfg-acc-body">
+        <p class="help">Desliza un correo de la lista hacia un lado para actuar sobre él sin tener que acertar con los botones.</p>
+        <div id="swipeCfg" style="margin-top:10px;"></div>
       </div>
     </details>
 

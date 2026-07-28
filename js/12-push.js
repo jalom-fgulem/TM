@@ -154,8 +154,24 @@ async function renderEstadoPush(){
     ? `<p class="google-aviso">Estás en Safari. En el iPhone las notificaciones solo llegan con la
        aplicación instalada en la pantalla de inicio.</p>` : '';
 
+  const prefs = res.prefs || {};
+  const controles = activadoAqui ? `
+    <div class="notif-prefs">
+      <p class="sect-h" style="margin:14px 0 8px;">Qué quieres que te avise</p>
+      <label class="regla-check"><input type="checkbox" id="npCorreo" ${prefs.correo !== false ? 'checked' : ''} onchange="guardarPrefsAviso()"> Correo nuevo</label>
+      <label class="regla-check"><input type="checkbox" id="npReuniones" ${prefs.reuniones !== false ? 'checked' : ''} onchange="guardarPrefsAviso()"> Reuniones a punto de empezar</label>
+      <label class="regla-check"><input type="checkbox" id="npTareas" ${prefs.tareas !== false ? 'checked' : ''} onchange="guardarPrefsAviso()"> Tareas vencidas</label>
+      <div class="cfg-fields" style="margin-top:6px;">
+        <label>Hora del resumen de tareas</label>
+        <select id="npHora" onchange="guardarPrefsAviso()">
+          ${[7,8,9,10,13,17,20].map(h => `<option value="${h}" ${(prefs.horaTareas ?? 8) === h ? 'selected' : ''}>${String(h).padStart(2,'0')}:00</option>`).join('')}
+        </select>
+        <p class="help" style="margin-top:5px;">Las tareas llegan en un único aviso a esa hora, no repartidas durante el día mezclándose con el correo.</p>
+      </div>
+    </div>` : '';
+
   const diag = await diagnosticoPushHTML();
-  el.innerHTML = avisoIOS + diag + (activadoAqui
+  el.innerHTML = avisoIOS + diag + controles + (activadoAqui
     ? `<p class="google-connected">✓ Activadas en este dispositivo</p>
        <p class="help">Dispositivos registrados: ${total}. Se te avisará de correo nuevo, reuniones
        a punto de empezar y tareas vencidas.</p>
@@ -221,4 +237,17 @@ if('serviceWorker' in navigator){
       if(m) abrirDestino(decodeURIComponent(m[1]));
     }
   });
+}
+
+
+async function guardarPrefsAviso(){
+  const marcado = id => { const e = document.getElementById(id); return e ? e.checked : true; };
+  const prefs = {
+    correo: marcado('npCorreo'),
+    reuniones: marcado('npReuniones'),
+    tareas: marcado('npTareas'),
+    horaTareas: parseInt(document.getElementById('npHora')?.value || '8', 10)
+  };
+  const res = await llamarPushFn({ action: 'prefs', prefs });
+  setStatus(res.error ? 'No se pudieron guardar los avisos.' : 'Avisos actualizados.');
 }

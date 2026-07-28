@@ -219,3 +219,98 @@ async function reglaDesdeLista(msgId){
   const m = await _traerMensaje(msgId, 'metadata'); if(!m) return;
   abrirEditorRegla({ from: emBareAddress(emHeader(m, 'From')) });
 }
+
+// ============================================================
+//  DESLIZAR UN CORREO PARA ARCHIVARLO O BORRARLO
+//
+//  Pensado para el móvil, donde acertar con un botón de 24 píxeles es
+//  incómodo. Solo se activa si el movimiento es claramente horizontal, para
+//  no estorbar al desplazamiento vertical de la lista.
+// ============================================================
+
+const SWIPE_UMBRAL = 90;          // píxeles a partir de los cuales se ejecuta
+let _sw = null;
+
+function accionDeslizar(direccion){
+  const cfg = state.mailSwipe || {};
+  return (direccion === 'izq' ? cfg.izquierda : cfg.derecha)
+      || (direccion === 'izq' ? 'papelera' : 'archivar');   // por defecto
+}
+const _swMeta = {
+  papelera: { icono: 'ti-trash',   texto: 'Papelera', color: 'var(--alta)',  fn: id => deleteEmail(id) },
+  archivar: { icono: 'ti-archive', texto: 'Archivar', color: 'var(--baja)',  fn: id => archiveEmail(id) },
+  spam:     { icono: 'ti-alert-octagon', texto: 'Spam', color: 'var(--media)', fn: id => marcarComoSpam(id) },
+  destacar: { icono: 'ti-star',    texto: 'Destacar', color: 'var(--media)', fn: (id, mid) => destacarDesdeLista(mid, id) },
+};
+
+document.addEventListener('touchstart', e => {
+  const fila = e.target.closest('.gmail-list-item');
+  if(!fila || e.touches.length !== 1) return;
+  const t = e.touches[0];
+  _sw = { fila, x0: t.clientX, y0: t.clientY, dx: 0, decidido: false, horizontal: false };
+}, { passive: true });
+
+document.addEventListener('touchmove', e => {
+  if(!_sw || e.touches.length !== 1) return;
+  const t = e.touches[0];
+  const dx = t.clientX - _sw.x0, dy = t.clientY - _sw.y0;
+
+  // Se decide una sola vez si el gesto es horizontal o vertical
+  if(!_sw.decidido){
+    if(Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+    _sw.decidido = true;
+    _sw.horizontal = Math.abs(dx) > Math.abs(dy) * 1.4;
+    if(_sw.horizontal) _sw.fila.classList.add('deslizando');
+  }
+  if(!_sw.horizontal) return;
+
+  _sw.dx = dx;
+  const accion = accionDeslizar(dx < 0 ? 'izq' : 'der');
+  const meta = _swMeta[accion] || _swMeta.papelera;
+  const pasado = Math.abs(dx) >= SWIPE_UMBRAL;
+
+  _sw.fila.style.transform = `translateX(${dx}px)`;
+  _sw.fila.style.setProperty('--sw-color', meta.color);
+  _sw.fila.dataset.swLado = dx < 0 ? 'izq' : 'der';
+  _sw.fila.dataset.swTexto = meta.texto;
+  _sw.fila.dataset.swIcono = meta.icono;
+  _sw.fila.classList.toggle('sw-listo', pasado);
+}, { passive: true });
+
+document.addEventListener('touchend', () => {
+  if(!_sw) return;
+  const { fila, dx, horizontal } = _sw;
+  _sw = null;
+  fila.classList.remove('deslizando');
+  fila.style.transform = '';
+  if(!horizontal || Math.abs(dx) < SWIPE_UMBRAL){ fila.classList.remove('sw-listo'); return; }
+
+  const accion = accionDeslizar(dx < 0 ? 'izq' : 'der');
+  const meta = _swMeta[accion] || _swMeta.papelera;
+  // Se aparta antes de actuar, para que el gesto se sienta inmediato
+  fila.style.transition = 'transform .18s, opacity .18s';
+  fila.style.transform = `translateX(${dx < 0 ? -400 : 400}px)`;
+  fila.style.opacity = '0';
+  setTimeout(() => meta.fn(fila.dataset.tid, fila.dataset.id), 160);
+}, { passive: true });
+
+// ---- Configuración del gesto ----
+function renderConfigDeslizar(){
+  const el = document.getElementById('swipeCfg'); if(!el) return;
+  const cfg = state.mailSwipe || {};
+  const opciones = lado => Object.entries(_swMeta).map(([k, m]) =>
+    `<option value="${k}" ${(cfg[lado] || (lado === 'izquierda' ? 'papelera' : 'archivar')) === k ? 'selected' : ''}>${m.texto}</option>`).join('');
+  el.innerHTML = `
+    <div class="cfg-fields">
+      <label>Al deslizar hacia la izquierda</label>
+      <select onchange="guardarDeslizar('izquierda', this.value)">${opciones('izquierda')}</select>
+      <label style="margin-top:8px;">Al deslizar hacia la derecha</label>
+      <select onchange="guardarDeslizar('derecha', this.value)">${opciones('derecha')}</select>
+    </div>`;
+}
+function guardarDeslizar(lado, valor){
+  state.mailSwipe = state.mailSwipe || {};
+  state.mailSwipe[lado] = valor;
+  saveSettings();
+  setStatus('Gesto guardado.');
+}
