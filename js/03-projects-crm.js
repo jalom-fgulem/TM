@@ -402,7 +402,11 @@ function closeContactDetail(){ currentContactId=null; render(); }
 function renderCRM(){
   if(currentContactId){
     const c = state.contacts.find(x=>x.id===currentContactId);
-    if(c) return renderContactDetail(c);
+    if(c){
+      // La correspondencia se pide después de pintar, para no retrasar la ficha
+      setTimeout(() => cargarCorreosDeContacto(c), 0);
+      return renderContactDetail(c);
+    }
     currentContactId=null;
   }
   const rows = state.contacts.slice().sort((a,b)=>contactFullName(a).localeCompare(contactFullName(b)));
@@ -466,6 +470,7 @@ function renderContactDetail(c){
       <h3>${escapeHtml(fn)}
         <span style="display:flex; gap:6px;">
           <button class="btn-ghost btn-small" onclick="closeContactDetail()">← Volver a contactos</button>
+          ${c.email ? `<button class="btn-primary btn-small" onclick="escribirAContacto(state.contacts.find(x=>x.id==='${c.id}'))"><i class="ti ti-pencil-plus" aria-hidden="true"></i> Escribir</button>` : ''}
           <button class="btn-ghost btn-small" onclick="openContactModal('${c.id}')">Editar</button>
         </span>
       </h3>
@@ -474,10 +479,72 @@ function renderContactDetail(c){
         ${c.empresa?`<span class="badge proj">${escapeHtml(c.empresa)}</span>`:''}
       </div>
     </div>
-    <p class="sect-h">Reuniones (${meetings.length})</p>
+    <p class="sect-h">Correspondencia</p>
+    <div id="crmCorreos"><p class="empty">Cargando…</p></div>
+    <p class="sect-h" style="margin-top:14px;">Reuniones (${meetings.length})</p>
     ${meetingsHtml}
     <p class="sect-h" style="margin-top:14px;">Llamadas (${calls.length})</p>
     ${callsHtml}`;
+}
+
+// ---- Correos intercambiados con un contacto ----
+// Se consulta a Gmail por su dirección, tanto lo que te ha escrito como lo que
+// le has escrito tú. Sin dirección no hay forma fiable de buscar.
+async function cargarCorreosDeContacto(c){
+  const el = document.getElementById('crmCorreos'); if(!el) return;
+  if(!c.email){
+    el.innerHTML = `<p class="empty">Este contacto no tiene correo guardado, así que no se puede
+      buscar su correspondencia. Añádelo con «Editar».</p>`;
+    return;
+  }
+  if(!googleToken){ el.innerHTML = '<p class="empty">Sin conexión con Google.</p>'; return; }
+
+  try{
+    const consulta = `from:${c.email} OR to:${c.email} OR cc:${c.email}`;
+    const lr = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(consulta)}&maxResults=25`,
+      { headers: { Authorization: `Bearer ${googleToken}` } });
+    if(lr.status === 401){ handleGoogleExpired(); return; }
+    if(!lr.ok) throw new Error();
+    const ids = (await lr.json()).messages || [];
+    if(!ids.length){ el.innerHTML = '<p class="empty">Todavía no hay correos con esta persona.</p>'; return; }
+
+    const msgs = (await Promise.all(ids.map(({ id }) =>
+      fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`,
+        { headers: { Authorization: `Bearer ${googleToken}` } })
+        .then(r => r.ok ? r.json() : null).catch(() => null)
+    ))).filter(Boolean);
+
+    const yo = emBareAddress(emMyAddress());
+    el.innerHTML = msgs.map(m => {
+      const h = n => (m.payload?.headers || []).find(x => x.name === n)?.value || '';
+      const de = h('From');
+      const looEnvieYo = emBareAddress(de) === yo;
+      return `<div class="crm-correo" onclick="abrirCorreoDesdeCrm('${escapeAttr(m.id)}','${escapeAttr(m.threadId || '')}')">
+        <div class="crm-correo-cab">
+          <span class="crm-correo-dir ${looEnvieYo ? 'saliente' : 'entrante'}">
+            <i class="ti ti-arrow-${looEnvieYo ? 'up-right' : 'down-left'}" aria-hidden="true"></i>
+            ${looEnvieYo ? 'Enviado' : 'Recibido'}
+          </span>
+          <span class="crm-correo-fecha">${escapeHtml(formatEmailDate(h('Date')))}</span>
+        </div>
+        <div class="crm-correo-asunto">${escapeHtml(h('Subject') || '(sin asunto)')}</div>
+        <div class="crm-correo-frag">${escapeHtml(m.snippet || '')}</div>
+      </div>`;
+    }).join('') + `<button class="btn-ghost btn-small" style="margin-top:8px;"
+      onclick="setView('correo'); setEmailQuery('${escapeAttr('from:'+c.email+' OR to:'+c.email)}');">Ver todos en Correo</button>`;
+  }catch(e){
+    el.innerHTML = '<p class="empty">No se pudo consultar el correo.</p>';
+  }
+}
+
+function abrirCorreoDesdeCrm(msgId, threadId){
+  setView('correo');
+  setTimeout(() => selectEmail(msgId, threadId), 250);
+}
+
+function escribirAContacto(c){
+  if(!c || !c.email){ setStatus('Este contacto no tiene correo guardado.'); return; }
+  openCompose('nuevo', { to: contactFullName(c) ? `${contactFullName(c)} <${c.email}>` : c.email });
 }
 
 
