@@ -72,6 +72,7 @@ async function avisosDeCorreo(get: any, estado: any): Promise<{ avisos: Aviso[];
   // Se mira el más reciente para poner remitente y asunto en el aviso
   let titulo = `${sinLeer - antes} correo${sinLeer - antes > 1 ? 's nuevos' : ' nuevo'}`
   let cuerpo = `Tienes ${sinLeer} sin leer en la bandeja de entrada.`
+  let destino = '/TM/'
   try {
     const lr = await get('https://gmail.googleapis.com/gmail/v1/users/me/messages?q=is:unread+in:inbox&maxResults=1')
     const ids = (await lr.json()).messages ?? []
@@ -81,10 +82,12 @@ async function avisosDeCorreo(get: any, estado: any): Promise<{ avisos: Aviso[];
       const h = (n: string) => (m.payload?.headers ?? []).find((x: any) => x.name === n)?.value ?? ''
       const de = h('From').replace(/<[^>]+>/, '').replace(/"/g, '').trim()
       if (de) { titulo = de; cuerpo = h('Subject') || '(sin asunto)' }
+      // Al tocar el aviso se abrirá esta conversación concreta
+      destino = `/TM/#abrir=correo:${m.threadId ?? ids[0].threadId ?? ''}:${ids[0].id}`
     }
   } catch { /* el aviso genérico ya sirve */ }
 
-  return { avisos: [{ clave: 'correo:' + sinLeer, titulo, cuerpo, url: '/TM/' }], sinLeer }
+  return { avisos: [{ clave: 'correo:' + sinLeer, titulo, cuerpo, url: destino }], sinLeer }
 }
 
 async function avisosDeReuniones(get: any, yaAvisados: Record<string, boolean>): Promise<Aviso[]> {
@@ -103,7 +106,8 @@ async function avisosDeReuniones(get: any, yaAvisados: Record<string, boolean>):
     if (yaAvisados[clave]) continue
     const hora = new Date(ev.start.dateTime).toLocaleTimeString('es-ES',
       { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' })
-    out.push({ clave, titulo: 'Reunión a las ' + hora, cuerpo: ev.summary ?? '(sin título)', url: '/TM/' })
+    out.push({ clave, titulo: 'Reunión a las ' + hora, cuerpo: ev.summary ?? '(sin título)',
+               url: `/TM/#abrir=reunion:${ev.id}` })
   }
   return out
 }
@@ -122,7 +126,7 @@ async function avisosDeTareas(admin: any, yaAvisados: Record<string, boolean>): 
     clave,
     titulo: `${vencidas.length} tarea${vencidas.length > 1 ? 's vencidas' : ' vencida'}`,
     cuerpo: vencidas.slice(0, 3).map((t: any) => t.title).join(' · '),
-    url: '/TM/',
+    url: '/TM/#abrir=tareas',
   }]
 }
 

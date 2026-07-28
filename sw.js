@@ -1,5 +1,5 @@
 // Service Worker — network-first con soporte de notificaciones en segundo plano
-const CACHE = 'tm-v4';
+const CACHE = 'tm-v5';
 
 self.addEventListener('install', e => {
   self.skipWaiting();
@@ -96,11 +96,16 @@ self.addEventListener('push', e => {
 // Al hacer clic en una notificación, abre/enfoca la app
 self.addEventListener('notificationclick', e => {
   e.notification.close();
-  const url = e.notification.data?.url || '/';
+  const url = e.notification.data?.url || '/TM/';
   e.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
-      const existing = clients.find(c => c.url.includes('/TM') || c.url.includes('localhost'));
-      if (existing) return existing.focus();
+      const abierta = clients.find(c => c.url.includes('/TM') || c.url.includes('localhost'));
+      if (abierta) {
+        // Ya está abierta: se le indica qué abrir, porque cambiar la dirección
+        // de una ventana existente no siempre la hace reaccionar.
+        abierta.postMessage({ type: 'ABRIR_DESTINO', url });
+        return abierta.focus();
+      }
       return self.clients.openWindow(url);
     })
   );

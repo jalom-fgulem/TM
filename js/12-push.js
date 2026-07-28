@@ -163,3 +163,62 @@ async function renderEstadoPush(){
     : `<p class="help">Aún no están activadas en este dispositivo${total ? ` (hay ${total} registrado${total>1?'s':''})` : ''}.</p>
        <button class="btn-primary btn-small" onclick="activarNotificaciones()">Activar notificaciones</button>`);
 }
+
+// ============================================================
+//  ABRIR EL ELEMENTO CONCRETO AL TOCAR UNA NOTIFICACIÓN
+//
+//  El aviso trae en la dirección qué debe abrirse (#abrir=correo:hilo:mensaje).
+//  Llega por dos vías: si la app estaba cerrada, en la propia dirección al
+//  arrancar; si ya estaba abierta, como mensaje del servicio en segundo plano.
+// ============================================================
+
+async function abrirDestino(destino){
+  if(!destino) return;
+  const partes = destino.split(':');
+  const tipo = partes[0];
+
+  if(tipo === 'correo'){
+    const hilo = partes[1] || '', mensaje = partes[2] || '';
+    setView('correo');
+    // Si aún no hay pase de Google, se espera a que lo haya
+    for(let i = 0; i < 20 && !googleToken; i++) await new Promise(r => setTimeout(r, 300));
+    if(mensaje) selectEmail(mensaje, hilo);
+    return;
+  }
+  if(tipo === 'reunion'){
+    const idEvento = partes.slice(1).join(':');
+    setView('calendario');
+    for(let i = 0; i < 20 && !googleToken; i++) await new Promise(r => setTimeout(r, 300));
+    await refreshHeaderEvents();
+    if(typeof openCalEventModal === 'function' && _findCalEvent(idEvento)) openCalEventModal(idEvento);
+    return;
+  }
+  if(tipo === 'tareas'){
+    setView('lista');
+    setStatus('Estas son tus tareas pendientes.');
+  }
+}
+
+function _leerDestinoDeLaDireccion(){
+  const h = location.hash || '';
+  const m = h.match(/#abrir=(.+)$/);
+  if(!m) return null;
+  history.replaceState({}, '', location.pathname);   // se limpia para no repetirlo al recargar
+  return decodeURIComponent(m[1]);
+}
+
+// La app estaba cerrada y se ha abierto desde el aviso
+window.addEventListener('load', () => {
+  const destino = _leerDestinoDeLaDireccion();
+  if(destino) setTimeout(() => abrirDestino(destino), 600);
+});
+
+// La app ya estaba abierta
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.addEventListener('message', e => {
+    if(e.data && e.data.type === 'ABRIR_DESTINO'){
+      const m = String(e.data.url).match(/#abrir=(.+)$/);
+      if(m) abrirDestino(decodeURIComponent(m[1]));
+    }
+  });
+}
