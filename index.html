@@ -1220,6 +1220,18 @@
       </div>
     </details>
 
+    <!-- Notificaciones -->
+    <details class="cfg-accordion" id="cfgSec-avisos" ontoggle="if(this.open) renderEstadoPush()">
+      <summary class="cfg-acc-summary">
+        <span><i class="ti ti-bell" style="margin-right:6px;"></i>Notificaciones en el móvil</span>
+        <i class="ti ti-chevron-down cfg-acc-icon"></i>
+      </summary>
+      <div class="cfg-acc-body">
+        <p class="help">Avisos de correo nuevo, reuniones a punto de empezar y tareas vencidas, aunque la aplicación esté cerrada.</p>
+        <div id="pushEstado" style="margin-top:10px;"></div>
+      </div>
+    </details>
+
     <!-- Reglas de correo -->
     <details class="cfg-accordion" id="cfgSec-reglas" ontoggle="if(this.open) fetchGmailFiltros()">
       <summary class="cfg-acc-summary">
@@ -1299,6 +1311,7 @@
 <script src="js/09-gtasks-ui.js"></script>
 <script src="js/09b-firmas.js"></script>
 <script src="js/10-compose.js"></script>
+<script src="js/12-push.js"></script>
 <script src="js/11-pwa-boot.js"></script>
 </body>
 </html>

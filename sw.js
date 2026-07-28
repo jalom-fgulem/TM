@@ -78,6 +78,21 @@ self.addEventListener('message', e => {
   }
 });
 
+// Aviso llegado desde el servidor (funciona con la app cerrada)
+self.addEventListener('push', e => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (err) { d = { title: 'Gestor de tareas', body: e.data ? e.data.text() : '' }; }
+  e.waitUntil(
+    self.registration.showNotification(d.title || 'Gestor de tareas', {
+      body: d.body || '',
+      icon: '/TM/icon-192.png',
+      badge: '/TM/icon-192.png',
+      tag: d.tag || 'tm-push',
+      data: { url: d.url || '/TM/' }
+    })
+  );
+});
+
 // Al hacer clic en una notificación, abre/enfoca la app
 self.addEventListener('notificationclick', e => {
   e.notification.close();
