@@ -131,36 +131,59 @@ function openCompose(modo, prefill){
 
   _composeCtx = { modo, inReplyTo, references, threadId };
 
+  const titulo = modo === 'nuevo' ? 'Nuevo correo'
+               : modo === 'reenviar' ? 'Reenviar'
+               : modo === 'responderTodos' ? 'Responder a todos' : 'Responder';
+
   document.getElementById('modalRoot').innerHTML = `
-    <div class="modal-bg" onclick="if(event.target===this) closeCompose()">
-      <div class="modal compose-modal">
-        <h3>${modo === 'nuevo' ? 'Nuevo correo' : modo === 'reenviar' ? 'Reenviar' : modo === 'responderTodos' ? 'Responder a todos' : 'Responder'}</h3>
-        <div class="compose-field">
-          <label>Para</label>
-          <input type="text" id="cpTo" value="${escapeAttr(to)}" placeholder="nombre@dominio.es, otro@dominio.es">
+    <div class="compose-overlay" onclick="if(event.target===this) closeCompose()">
+      <div class="compose-window">
+
+        <header class="cw-head">
+          <span class="cw-title">${titulo}</span>
+          <div class="cw-head-actions">
+            <button class="btn-primary cw-send" id="cpSendBtn" onclick="sendComposedEmail()">
+              <i class="ti ti-send" aria-hidden="true"></i><span>Enviar</span>
+            </button>
+            <button class="cw-close" onclick="closeCompose()" title="Descartar" aria-label="Descartar">
+              <i class="ti ti-x" aria-hidden="true"></i>
+            </button>
+          </div>
+        </header>
+
+        <div class="cw-fields">
+          <div class="cw-row">
+            <label for="cpTo">Para</label>
+            <input type="text" id="cpTo" value="${escapeAttr(to)}" placeholder="nombre@dominio.es">
+            <span class="cw-row-extra">
+              <button type="button" onclick="toggleComposeField('cpCcRow')">Cc</button>
+              <button type="button" onclick="toggleComposeField('cpBccRow')">Cco</button>
+            </span>
+          </div>
+          <div class="cw-row" id="cpCcRow" style="${cc ? '' : 'display:none;'}">
+            <label for="cpCc">Cc</label>
+            <input type="text" id="cpCc" value="${escapeAttr(cc)}">
+          </div>
+          <div class="cw-row" id="cpBccRow" style="display:none;">
+            <label for="cpBcc">Cco</label>
+            <input type="text" id="cpBcc" value="">
+          </div>
+          <div class="cw-row">
+            <label>De</label>
+            <span class="cw-from"><i class="ti ti-user" aria-hidden="true"></i>${escapeHtml(emMyAddress())}</span>
+          </div>
+          <div class="cw-row">
+            <label for="cpSubject">Asunto</label>
+            <input type="text" id="cpSubject" value="${escapeAttr(asunto)}" placeholder="Asunto del mensaje">
+          </div>
         </div>
-        <div class="compose-field" id="cpCcRow" style="${cc ? '' : 'display:none;'}">
-          <label>Cc</label>
-          <input type="text" id="cpCc" value="${escapeAttr(cc)}">
+
+        <div class="cw-toolbar-wrap">${editorToolbarHTML()}</div>
+
+        <div class="cw-body-wrap">
+          <div class="compose-body" id="cpBody" contenteditable="true">${cuerpo}</div>
         </div>
-        <div class="compose-field" id="cpBccRow" style="display:none;">
-          <label>Cco</label>
-          <input type="text" id="cpBcc" value="">
-        </div>
-        <div class="compose-toggles">
-          <button type="button" class="btn-link-small" onclick="toggleComposeField('cpCcRow')">Cc</button>
-          <button type="button" class="btn-link-small" onclick="toggleComposeField('cpBccRow')">Cco</button>
-        </div>
-        <div class="compose-field">
-          <label>Asunto</label>
-          <input type="text" id="cpSubject" value="${escapeAttr(asunto)}">
-        </div>
-        ${editorToolbarHTML()}
-        <div class="compose-body" id="cpBody" contenteditable="true">${cuerpo}</div>
-        <div class="modal-actions">
-          <button class="btn-ghost" onclick="closeCompose()">Cancelar</button>
-          <button class="btn-primary" id="cpSendBtn" onclick="sendComposedEmail()">Enviar</button>
-        </div>
+
       </div>
     </div>`;
 
