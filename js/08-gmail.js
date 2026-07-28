@@ -347,3 +347,69 @@ function extractEmailBody(payload){
   walk(payload);
   return{text,html};
 }
+// ============================================================
+//  REFRESCO AUTOMÁTICO DEL CORREO
+//
+//  Gmail mantiene un contador de cambios del buzón (historyId). Consultarlo es
+//  una petición mínima, así que se comprueba cada 45 segundos y solo se
+//  recarga la lista cuando de verdad ha cambiado algo.
+//
+//  Se pausa cuando la pestaña no está a la vista (no gasta batería ni cuota)
+//  y mientras estás escribiendo un correo.
+// ============================================================
+
+let _mailPollTimer = null;
+let _lastHistoryId = null;
+let _lastUnread = null;
+const MAIL_POLL_MS = 45000;   // 🔧 PERSONALIZAR: cada cuánto se comprueba
+
+function startMailPolling(){
+  stopMailPolling();
+  _mailPollTimer = setInterval(checkNewMail, MAIL_POLL_MS);
+}
+function stopMailPolling(){
+  if(_mailPollTimer){ clearInterval(_mailPollTimer); _mailPollTimer = null; }
+}
+
+async function checkNewMail(silencioso){
+  if(!googleToken) return;
+  if(!silencioso && document.visibilityState !== 'visible') return;
+  if(document.querySelector('.compose-window')) return;   // no molestar mientras escribes
+  try{
+    const r = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile',
+      { headers: { Authorization: `Bearer ${googleToken}` } });
+    if(r.status === 401){ handleGoogleExpired(); return; }
+    if(!r.ok) return;
+    const perfil = await r.json();
+
+    if(_lastHistoryId === null){ _lastHistoryId = perfil.historyId; return; }
+    if(perfil.historyId === _lastHistoryId) return;        // nada nuevo
+    _lastHistoryId = perfil.historyId;
+
+    if(currentView === 'correo') loadGmailWidget();
+    avisarSiHayCorreoNuevo();
+  }catch(e){}
+}
+
+// Avisa solo si han ENTRADO mensajes, no cuando los lees o los archivas
+async function avisarSiHayCorreoNuevo(){
+  try{
+    const r = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/labels/INBOX',
+      { headers: { Authorization: `Bearer ${googleToken}` } });
+    if(!r.ok) return;
+    const d = await r.json();
+    const sinLeer = d.messagesUnread || 0;
+    const badge = document.getElementById('gmailUnreadBadge');
+    if(badge){ badge.textContent = sinLeer || ''; badge.style.display = sinLeer ? '' : 'none'; }
+
+    if(_lastUnread !== null && sinLeer > _lastUnread && typeof _swNotify === 'function'){
+      const nuevos = sinLeer - _lastUnread;
+      _swNotify(
+        `${nuevos} correo${nuevos > 1 ? 's nuevos' : ' nuevo'}`,
+        'Tienes ' + sinLeer + ' sin leer en la bandeja de entrada.',
+        { tag: 'tm-correo-nuevo' }
+      );
+    }
+    _lastUnread = sinLeer;
+  }catch(e){}
+}

@@ -784,6 +784,14 @@
   .firma-editor{min-height:150px; max-height:320px; overflow-y:auto; border:1px solid var(--border); border-radius:0 0 var(--radius) var(--radius); padding:11px; font-size:13.5px; line-height:1.55; outline:none; background:var(--surface);}
   .firma-editor img{max-width:200px; height:auto;}
 
+  /* Pregunta de guardar borrador al cerrar */
+  .cw-ask{position:absolute; inset:0; background:rgba(26,26,24,0.30); display:flex; align-items:center; justify-content:center; padding:20px; z-index:30;}
+  .cw-ask-box{background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:22px 24px; max-width:420px; width:100%; box-shadow:0 12px 32px rgba(0,0,0,0.18);}
+  .cw-ask-box h4{margin:0 0 8px; font-family:Georgia,'Times New Roman',serif; font-size:16.5px; color:var(--text);}
+  .cw-ask-box p{margin:0 0 16px; font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:13px; line-height:1.5; color:var(--text-soft);}
+  .cw-ask-actions{display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;}
+  .cw-ask-descartar{color:var(--alta) !important; border-color:var(--alta-border) !important;}
+
   .cw-status{flex:1; text-align:center; font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:12.5px; color:var(--text-soft); padding:0 12px; min-height:16px;}
   .cw-status.error{color:var(--alta); font-weight:600;}
   .cw-status.aviso{color:var(--media); font-weight:600;}
@@ -898,14 +906,14 @@
   </div>
 
   <div class="viewtabs">
-    <button id="tab-panel" class="active" onclick="setView('panel')"><i class="ti ti-layout-kanban" aria-hidden="true"></i> Panel</button>
+    <button id="tab-correo" class="active" onclick="setView('correo')"><i class="ti ti-mail" aria-hidden="true"></i> Correo</button>
+    <button id="tab-panel" onclick="setView('panel')"><i class="ti ti-layout-kanban" aria-hidden="true"></i> Panel</button>
     <button id="tab-lista" onclick="setView('lista')"><i class="ti ti-list" aria-hidden="true"></i> Lista</button>
     <button id="tab-proyectos" onclick="setView('proyectos')"><i class="ti ti-folder" aria-hidden="true"></i> Proyectos</button>
     <button id="tab-reuniones" onclick="setView('reuniones')"><i class="ti ti-users" aria-hidden="true"></i> Reuniones</button>
     <button id="tab-crm" onclick="setView('crm')"><i class="ti ti-address-book" aria-hidden="true"></i> CRM</button>
     <button id="tab-desarrollo" onclick="setView('desarrollo')"><i class="ti ti-code" aria-hidden="true"></i> Desarrollo</button>
     <button id="tab-calendario" onclick="setView('calendario')"><i class="ti ti-calendar" aria-hidden="true"></i> Calendario</button>
-    <button id="tab-correo" onclick="setView('correo')"><i class="ti ti-mail" aria-hidden="true"></i> Correo</button>
     <button id="tab-gtasks" onclick="setView('gtasks')"><i class="ti ti-checkbox" aria-hidden="true"></i> G Tasks</button>
     <button id="btnToggleDone" style="margin-left:auto;display:none;" onclick="showDoneTasks=!showDoneTasks;render();">Mostrar cerradas</button>
     <button id="btnInstallApp" style="display:none;margin-left:6px;" class="btn-primary btn-small" onclick="installApp()" title="Instalar como aplicación"><i class="ti ti-device-mobile-down"></i> Instalar app</button>

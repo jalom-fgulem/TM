@@ -199,7 +199,7 @@ function openCompose(modo, prefill){
   const firma = firmaHtml ? `<div class="firma-insertada" data-firma="1">${firmaHtml}</div>` : '';
   cuerpo = (modo === 'nuevo') ? '<br>' + firma : '<br><br>' + firma + emQuoteOriginal(msg);
 
-  _composeCtx = { modo, inReplyTo, references, threadId };
+  _composeCtx = { modo, inReplyTo, references, threadId, cuerpoInicial: cuerpo };
 
   const titulo = modo === 'nuevo' ? 'Nuevo correo'
                : modo === 'reenviar' ? 'Reenviar'
@@ -637,9 +637,82 @@ function editorLimpiar(){
   editorExec('unlink');
 }
 
-function closeCompose(){
+// ---- Cierre con opción de guardar borrador ----
+// Compara con el contenido inicial para saber si de verdad has escrito algo:
+// la firma y la cita del original no cuentan como texto tuyo.
+function composeTieneContenido(){
+  const val = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  if(val('cpTo') || val('cpCc') || val('cpBcc') || val('cpSubject')) return true;
+  const body = editorCuerpo();
+  if(!body || !_composeCtx) return false;
+  return body.innerHTML.trim() !== (_composeCtx.cuerpoInicial || '').trim();
+}
+
+function closeCompose(forzar){
+  if(!forzar && composeTieneContenido()){ preguntarPorBorrador(); return; }
   _composeCtx = null;
   document.getElementById('modalRoot').innerHTML = '';
+}
+
+function preguntarPorBorrador(){
+  if(document.getElementById('cpDraftAsk')) return;
+  const caja = document.createElement('div');
+  caja.className = 'cw-ask';
+  caja.id = 'cpDraftAsk';
+  caja.innerHTML = `
+    <div class="cw-ask-box">
+      <h4>¿Guardar el borrador?</h4>
+      <p>Has empezado a escribir este correo. Puedes guardarlo en tus borradores de Gmail y seguir más tarde.</p>
+      <div class="cw-ask-actions">
+        <button class="btn-ghost btn-small" onclick="document.getElementById('cpDraftAsk').remove()">Seguir escribiendo</button>
+        <button class="btn-ghost btn-small cw-ask-descartar" onclick="closeCompose(true)">Descartar</button>
+        <button class="btn-primary btn-small" onclick="guardarBorrador()">Guardar borrador</button>
+      </div>
+    </div>`;
+  document.querySelector('.compose-window').appendChild(caja);
+}
+
+async function guardarBorrador(){
+  const ask = document.getElementById('cpDraftAsk');
+  if(ask) ask.remove();
+  composeStatus('Guardando borrador…');
+
+  const val = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  const selFrom = document.getElementById('cpFrom');
+  const aliasEnvio = composeAliasPorEmail(selFrom ? selFrom.value : '');
+  const fromHeader = (aliasEnvio && (aliasEnvio.displayName || !aliasEnvio.isPrimary))
+    ? emFormatFrom(aliasEnvio) : '';
+
+  const raw = emBuildRaw({
+    from: fromHeader,
+    to: val('cpTo'), cc: val('cpCc'), bcc: val('cpBcc'),
+    subject: val('cpSubject'),
+    bodyHtml: editorCuerpo().innerHTML,
+    inReplyTo: _composeCtx ? _composeCtx.inReplyTo : '',
+    references: _composeCtx ? _composeCtx.references : ''
+  });
+  const mensaje = { raw };
+  if(_composeCtx && _composeCtx.threadId) mensaje.threadId = _composeCtx.threadId;
+
+  const enviar = () => fetch('https://gmail.googleapis.com/gmail/v1/users/me/drafts', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${googleToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: mensaje })
+  });
+
+  try{
+    let r = await enviar();
+    if(r.status === 401){ await handleGoogleExpired(); if(googleToken) r = await enviar(); }
+    if(!r.ok){
+      const err = await r.json().catch(() => ({}));
+      composeStatus('No se pudo guardar el borrador: ' + ((err.error && err.error.message) || ('HTTP ' + r.status)), 'error');
+      return;
+    }
+    closeCompose(true);
+    setStatus('Borrador guardado en Gmail.');
+  }catch(e){
+    composeStatus('Error de red al guardar el borrador.', 'error');
+  }
 }
 
 // ---- Envío ----

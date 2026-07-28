@@ -28,7 +28,7 @@ let _reunionesEvents15 = [], _agendaDirEvents15 = [];
 let googleTaskLists = [];
 let googleTasks = [];
 let currentGTaskList = null;
-let currentEmailQuery = 'is:starred';
+let currentEmailQuery = 'in:inbox';
 let gmailUserLabels = [];
 
 // ============================================================
@@ -176,7 +176,16 @@ async function afterGoogleConnected(){
   refreshHeaderEvents();
   fetchGoogleTasks();
   if(currentView==='calendario'||currentView==='correo'){ render(); loadAgendaData(); }
+  // La app arranca en Correo: hay que cargar la lista, render() solo pinta el marco
+  if(currentView==='correo') loadGmailWidget();
+  checkNewMail(true);      // toma la referencia inicial de cambios
+  startMailPolling();      // y a partir de ahí se actualiza solo
 }
+
+// Al volver a la app, comprobar sin esperar al siguiente ciclo
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState==='visible' && googleToken) checkNewMail();
+});
 
 // Pantalla de entrada cuando no hay sesión.
 function showLoginScreen(){
