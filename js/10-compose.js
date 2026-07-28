@@ -936,3 +936,77 @@ function quitarAdjunto(i){
   _composeAdjuntos.splice(i, 1);
   renderAdjuntosCompose();
 }
+
+// ============================================================
+//  ARRASTRAR ARCHIVOS DESDE EL FINDER AL REDACTOR
+//
+//  Se añade además una protección de alcance general: si sueltas un archivo
+//  fuera del redactor, el navegador lo abriría en la pestaña y perderías lo
+//  que estuvieras escribiendo. Aquí se impide.
+// ============================================================
+
+function _arrastraArchivos(e){
+  const t = e.dataTransfer && e.dataTransfer.types;
+  return !!t && Array.from(t).includes('Files');
+}
+// El objetivo de un evento no siempre es un elemento (puede ser window o el
+// propio documento), y entonces closest() no existe.
+function _dentroDelRedactor(destino){
+  return !!(destino && typeof destino.closest === 'function' && destino.closest('.compose-window'));
+}
+
+// Red de seguridad: ningún archivo suelto navega fuera de la aplicación
+window.addEventListener('dragover', e => { if(_arrastraArchivos(e)) e.preventDefault(); });
+window.addEventListener('drop',     e => { if(_arrastraArchivos(e) && !_dentroDelRedactor(e.target)) e.preventDefault(); });
+
+let _contadorArrastre = 0;   // dragenter/dragleave saltan también en los hijos
+
+document.addEventListener('dragenter', e => {
+  if(!_arrastraArchivos(e)) return;
+  const ventana = document.querySelector('.compose-window');
+  if(!ventana) return;
+  _contadorArrastre++;
+  if(!document.getElementById('cpSoltar')){
+    const capa = document.createElement('div');
+    capa.className = 'cp-soltar';
+    capa.id = 'cpSoltar';
+    capa.innerHTML = `<div class="cp-soltar-caja">
+      <i class="ti ti-paperclip" aria-hidden="true"></i>
+      <span>Suelta los archivos para adjuntarlos</span>
+    </div>`;
+    ventana.appendChild(capa);
+  }
+});
+
+document.addEventListener('dragleave', e => {
+  if(!_arrastraArchivos(e)) return;
+  _contadorArrastre--;
+  if(_contadorArrastre <= 0){ _contadorArrastre = 0; quitarCapaSoltar(); }
+});
+
+document.addEventListener('drop', async e => {
+  if(!_arrastraArchivos(e)) return;
+  _contadorArrastre = 0;
+  quitarCapaSoltar();
+  if(!_dentroDelRedactor(e.target)) return;  // fuera del redactor no se hace nada
+  e.preventDefault();
+  const archivos = e.dataTransfer.files;
+  if(archivos && archivos.length) await composeAnadirAdjuntos(archivos);
+});
+
+function quitarCapaSoltar(){
+  const c = document.getElementById('cpSoltar');
+  if(c) c.remove();
+}
+
+// Pegar archivos o capturas de pantalla: van como adjunto, no incrustados.
+// Las imágenes pegadas dentro del texto viajan como datos en el propio HTML y
+// la mayoría de gestores de correo las bloquean o las descartan.
+document.addEventListener('paste', async e => {
+  if(!document.querySelector('.compose-window')) return;
+  const items = e.clipboardData && e.clipboardData.files;
+  if(!items || !items.length) return;
+  e.preventDefault();
+  await composeAnadirAdjuntos(items);
+  composeStatus(`${items.length} archivo${items.length>1?'s':''} adjuntado${items.length>1?'s':''} desde el portapapeles.`);
+});
