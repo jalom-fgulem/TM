@@ -1,5 +1,5 @@
 // Service Worker — network-first con soporte de notificaciones en segundo plano
-const CACHE = 'tm-v3';
+const CACHE = 'tm-v4';
 
 self.addEventListener('install', e => {
   self.skipWaiting();
@@ -16,8 +16,12 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   if (!e.request.url.startsWith(self.location.origin)) return;
+  // 'no-cache' obliga a revalidar con el servidor en cada carga. Sin esto, el
+  // navegador podía seguir sirviendo JavaScript antiguo hasta diez minutos
+  // después de publicar, y convivían dos versiones del mismo código a la vez.
+  // La revalidación es barata: si no ha cambiado, el servidor responde 304.
   e.respondWith(
-    fetch(e.request)
+    fetch(e.request, { cache: 'no-cache' })
       .then(res => {
         const copy = res.clone();
         caches.open(CACHE).then(c => c.put(e.request, copy));

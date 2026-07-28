@@ -31,7 +31,7 @@ async function loadGmailWidget(){
     const sel=selectedEmailId===main.id;
     const hasTask=linkedEmailIds.has(main.id);
     const hasAtt=tMsgs.some(m=>extractAttachments(m.payload).length>0);
-    const mainRow=`<div class="gmail-list-item${sel?' selected':''}${hasTask?' has-task':''}" data-id="${main.id}" data-tid="${tid}" onclick="selectEmail('${main.id}','${tid}')">
+    const mainRow=`<div class="gmail-list-item${sel?' selected':''}${hasTask?' has-task':''}" draggable="true" title="Puedes arrastrarlo a una etiqueta" data-id="${main.id}" data-tid="${tid}" onclick="selectEmail('${main.id}','${tid}')">
       <div class="gli-row1">
         ${count>1?`<button class="thread-toggle" onclick="event.stopPropagation();toggleListThread('${escapeAttr(tid)}')" title="Ver hilo"><i class="ti ti-chevron-right" aria-hidden="true"></i></button>`:'<span style="width:16px;flex-shrink:0;display:inline-block;"></span>'}
         ${avatarHTML(hdrs.find(h=>h.name==='From')?.value||'', 'sm')}

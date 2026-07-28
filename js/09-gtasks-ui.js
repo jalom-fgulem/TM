@@ -312,50 +312,6 @@ function addCorreoPendiente(subject, msgId){
   tempSourceEmailId = msgId || null;
   openTaskModal(null,{title:subject, tipo:'Correo pendiente'});
 }
-async function archiveEmail(msgId){
-  if(!googleToken) return;
-  const el=document.querySelector(`.gmail-list-item[data-id="${msgId}"]`);
-  if(el){ el.style.opacity='0.4'; el.style.pointerEvents='none'; }
-  try{
-    const res=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}/modify`,{
-      method:'POST',
-      headers:{Authorization:`Bearer ${googleToken}`,'Content-Type':'application/json'},
-      body:JSON.stringify({removeLabelIds:['INBOX']})
-    });
-    if(res.status===401){handleGoogleExpired();return;}
-    if(res.ok){
-      if(selectedEmailId===msgId) selectNextEmail(msgId);
-      if(el) el.remove();
-      setStatus('Email archivado.');
-    }
-    else{ if(el){el.style.opacity='';el.style.pointerEvents='';} setStatus('Error al archivar el email.'); }
-  }catch(e){
-    if(el){el.style.opacity='';el.style.pointerEvents='';}
-    setStatus('Error al archivar el email.');
-  }
-}
-async function deleteEmail(msgId){
-  if(!googleToken) return;
-  const el=document.querySelector(`.gmail-list-item[data-id="${msgId}"]`);
-  if(el){ el.style.opacity='0.4'; el.style.pointerEvents='none'; }
-  try{
-    const res=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}/trash`,{
-      method:'POST',
-      headers:{Authorization:`Bearer ${googleToken}`}
-    });
-    if(res.status===401){handleGoogleExpired();return;}
-    if(res.ok){
-      if(selectedEmailId===msgId) selectNextEmail(msgId);
-      if(el) el.remove();
-      setStatus('Email movido a papelera.');
-    }
-    else{ if(el){el.style.opacity='';el.style.pointerEvents='';} setStatus('Error al borrar el email.'); }
-  }catch(e){
-    if(el){el.style.opacity='';el.style.pointerEvents='';}
-    setStatus('Error al borrar el email.');
-  }
-}
-
 function renderNotes(){
   const badge=document.getElementById('notesCountBadge');
   if(badge){ if(state.notes.length){ badge.style.display='inline'; badge.textContent=state.notes.length; } else { badge.style.display='none'; } }

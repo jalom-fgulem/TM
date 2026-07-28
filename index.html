@@ -773,6 +773,20 @@
   .gm-ficha.on{background:var(--text); color:var(--surface); border-color:var(--text);}
   .gm-fichas-ayuda{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:11px; color:var(--text-muted); font-style:italic;}
 
+  /* Aviso de deshacer */
+  .undo-toast{position:fixed; left:50%; bottom:26px; transform:translateX(-50%); z-index:300; display:flex; align-items:center; gap:12px; background:var(--text); color:var(--surface); padding:11px 16px; border-radius:26px; box-shadow:0 8px 28px rgba(0,0,0,0.24); font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:13px; animation:undoSube .18s ease-out;}
+  @keyframes undoSube{from{opacity:0; transform:translate(-50%,10px);} to{opacity:1; transform:translate(-50%,0);}}
+  .undo-btn{background:transparent; border:none; color:#8AB4F8; font-weight:700; font-size:13px; cursor:pointer; padding:2px 4px;}
+  .undo-btn:hover{text-decoration:underline;}
+  .undo-seg{min-width:20px; text-align:center; font-size:11.5px; opacity:.65; border:1px solid rgba(255,255,255,.28); border-radius:20px; padding:1px 6px;}
+
+  /* Arrastrar correos a las etiquetas */
+  .gmail-list-item[draggable]{cursor:grab;}
+  .gmail-list-item.arrastrando{opacity:.45;}
+  body.gm-arrastrando-correo [data-label-id]{outline:1px dashed var(--accent-border); outline-offset:-2px;}
+  .soltar-aqui{background:var(--accent-bg) !important; color:var(--accent) !important; outline:2px solid var(--accent) !important; outline-offset:-2px;}
+  .gm-ficha.soltar-aqui{border-color:var(--accent) !important;}
+
   /* Reglas de correo */
   .regla-item{display:flex; align-items:flex-start; gap:10px; border:1px solid var(--border); border-radius:var(--radius); padding:11px 12px; margin-bottom:8px; background:var(--surface2);}
   .regla-texto{flex:1; min-width:0; font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:12.5px; line-height:1.6; color:var(--text-soft);}
@@ -1229,6 +1243,7 @@
 <script src="js/07c-reglas.js"></script>
 <script src="js/08-gmail.js"></script>
 <script src="js/08b-thread.js"></script>
+<script src="js/08c-acciones.js"></script>
 <script src="js/09-gtasks-ui.js"></script>
 <script src="js/09b-firmas.js"></script>
 <script src="js/10-compose.js"></script>

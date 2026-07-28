@@ -90,9 +90,9 @@ function renderThreadPanel(){
         <button class="gm-acc" onclick="openCompose('reenviar')" title="Reenviar"><i class="ti ti-corner-up-right" aria-hidden="true"></i></button>
         <span class="gm-acc-sep"></span>
         <button class="gm-acc ${destacado ? 'on' : ''}" onclick="toggleStarEmail('${ultimo.id}')" title="${destacado ? 'Quitar destacado' : 'Destacar'}"><i class="ti ti-star${destacado ? '-filled' : ''}" aria-hidden="true"></i></button>
-        <button class="gm-acc" onclick="archiveEmail('${ultimo.id}')" title="Archivar"><i class="ti ti-archive" aria-hidden="true"></i></button>
-        <button class="gm-acc" onclick="marcarComoSpam('${ultimo.id}')" title="Marcar como spam"><i class="ti ti-alert-octagon" aria-hidden="true"></i></button>
-        <button class="gm-acc peligro" onclick="deleteEmail('${ultimo.id}')" title="Mover a papelera"><i class="ti ti-trash" aria-hidden="true"></i></button>
+        <button class="gm-acc" onclick="archiveEmail('${_currentThread.id}')" title="Archivar toda la conversación"><i class="ti ti-archive" aria-hidden="true"></i></button>
+        <button class="gm-acc" onclick="marcarComoSpam('${_currentThread.id}')" title="Marcar como spam"><i class="ti ti-alert-octagon" aria-hidden="true"></i></button>
+        <button class="gm-acc peligro" onclick="deleteEmail('${_currentThread.id}')" title="Mover toda la conversación a la papelera"><i class="ti ti-trash" aria-hidden="true"></i></button>
         <button class="gm-acc" onclick="abrirSelectorEtiquetas('${ultimo.id}')" title="Etiquetar"><i class="ti ti-tag" aria-hidden="true"></i></button>
         <button class="gm-acc" onclick="crearReglaDesdeCorreo('${ultimo.id}')" title="Crear regla con este remitente"><i class="ti ti-filter" aria-hidden="true"></i></button>
         <span class="gm-acc-sep"></span>
@@ -229,24 +229,4 @@ async function toggleStarEmail(msgId){
     renderThreadPanel();
     setStatus(tiene ? 'Destacado quitado.' : 'Correo destacado.');
   }catch(e){ setStatus('Error de red.'); }
-}
-
-async function marcarComoSpam(msgId){
-  if(!googleToken) return;
-  showConfirm('¿Marcar como spam? Se moverá a la carpeta de spam y Gmail aprenderá de remitentes parecidos.', async () => {
-    closeModal();
-    const el = document.querySelector(`.gmail-list-item[data-id="${msgId}"]`);
-    try{
-      const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}/modify`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${googleToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ addLabelIds: ['SPAM'], removeLabelIds: ['INBOX'] })
-      });
-      if(r.status === 401){ handleGoogleExpired(); return; }
-      if(!r.ok){ setStatus('No se pudo marcar como spam.'); return; }
-      if(selectedEmailId === msgId) selectNextEmail(msgId);
-      if(el) el.remove();
-      setStatus('Marcado como spam.');
-    }catch(e){ setStatus('Error de red.'); }
-  });
 }

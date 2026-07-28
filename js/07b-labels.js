@@ -49,6 +49,7 @@ function pintarNodosEtiqueta(nodos, nivel){
 
     const fila = `
       <div class="gmail-sb-item ${activo ? 'active' : ''}" style="padding-left:${sangria}px;"
+           ${n.label ? `data-label-id="${escapeAttr(n.label.id)}" data-label-name="${escapeAttr(n.nombre)}"` : ''}
            onclick="${n.label ? `setEmailQuery('label:${escapeAttr(n.ruta)}')` : `toggleGrupoEtiqueta('${escapeAttr(n.ruta)}')`}">
         ${hijos ? `<button class="gmail-sb-flecha ${plegado ? '' : 'abierta'}" onclick="event.stopPropagation();toggleGrupoEtiqueta('${escapeAttr(n.ruta)}')" title="${plegado ? 'Desplegar' : 'Plegar'}"><i class="ti ti-chevron-right" aria-hidden="true"></i></button>`
                 : '<span class="gmail-sb-flecha hueco"></span>'}
@@ -96,7 +97,9 @@ function renderGmailSidebarHTML(){
     <div class="gmail-sb-sep"></div>
     <div class="gmail-sb-section">Favoritas</div>
     ${fav.map(n => `
-      <div class="gmail-sb-item ${currentEmailQuery === 'label:' + n ? 'active' : ''}" onclick="setEmailQuery('label:${escapeAttr(n)}')">
+      <div class="gmail-sb-item ${currentEmailQuery === 'label:' + n ? 'active' : ''}"
+           data-label-id="${escapeAttr((gmailUserLabels.find(l=>l.name===n)||{}).id||'')}" data-label-name="${escapeAttr(n.split('/').pop())}"
+           onclick="setEmailQuery('label:${escapeAttr(n)}')">
         <span class="gmail-sb-flecha hueco"></span>
         <i class="ti ti-star-filled" style="color:var(--media);" aria-hidden="true"></i>
         <span class="gmail-sb-nombre">${escapeHtml(n.split('/').pop())}</span>
@@ -120,7 +123,9 @@ function renderFichasEtiqueta(){
     return `<div class="gm-fichas">${todas}<span class="gm-fichas-ayuda">Marca etiquetas con la estrella para tenerlas aquí</span></div>`;
   }
   return `<div class="gm-fichas">${todas}${fav.map(n => `
-    <button class="gm-ficha ${currentEmailQuery === 'label:' + n ? 'on' : ''}" onclick="setEmailQuery('label:${escapeAttr(n)}')">${escapeHtml(n.split('/').pop())}</button>`).join('')}</div>`;
+    <button class="gm-ficha ${currentEmailQuery === 'label:' + n ? 'on' : ''}"
+      data-label-id="${escapeAttr((gmailUserLabels.find(l=>l.name===n)||{}).id||'')}" data-label-name="${escapeAttr(n.split('/').pop())}"
+      onclick="setEmailQuery('label:${escapeAttr(n)}')">${escapeHtml(n.split('/').pop())}</button>`).join('')}</div>`;
 }
 function actualizarFichasEtiqueta(){
   const el = document.getElementById('gmFichas');
