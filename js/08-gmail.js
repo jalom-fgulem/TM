@@ -34,6 +34,7 @@ async function loadGmailWidget(){
     const mainRow=`<div class="gmail-list-item${sel?' selected':''}${hasTask?' has-task':''}" data-id="${main.id}" data-tid="${tid}" onclick="selectEmail('${main.id}','${tid}')">
       <div class="gli-row1">
         ${count>1?`<button class="thread-toggle" onclick="event.stopPropagation();toggleListThread('${escapeAttr(tid)}')" title="Ver hilo"><i class="ti ti-chevron-right" aria-hidden="true"></i></button>`:'<span style="width:16px;flex-shrink:0;display:inline-block;"></span>'}
+        ${avatarHTML(hdrs.find(h=>h.name==='From')?.value||'', 'sm')}
         <div class="gli-from${unread?' bold':''}" style="min-width:0;">${escapeHtml(from)}</div>
         <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
           ${hasAtt?`<i class="ti ti-paperclip" style="font-size:11px;color:var(--text-soft);" aria-hidden="true"></i>`:''}
@@ -125,23 +126,6 @@ async function toggleListThread(tid){
     }).join('');
   }catch(e){ container.innerHTML='<div class="thread-sub-loading" style="color:var(--alta);">Error al cargar el hilo.</div>'; _expandedThreads[tid]=false; }
 }
-async function selectEmail(msgId, threadId){
-  selectedEmailId=msgId;
-  document.querySelectorAll('.gmail-list-item,.thread-sub-item').forEach(el=>el.classList.toggle('selected',el.dataset.id===msgId));
-  const col=document.getElementById('gmailPreviewCol'); if(!col) return;
-  col.innerHTML='<div class="gmail-preview-empty"><i class="ti ti-loader" style="font-size:24px;opacity:.4;" aria-hidden="true"></i></div>';
-  try{
-    const r=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}?format=full`,{headers:{Authorization:`Bearer ${googleToken}`}});
-    if(r.status===401){handleGoogleExpired();return;}
-    if(!r.ok) throw new Error();
-    const msg=await r.json();
-    renderEmailPreviewPanel(msg);
-    if(isMobile()) document.querySelector('.gmail-layout')?.classList.add('email-open');
-    if((msg.labelIds||[]).includes('UNREAD')) markEmailAsRead(msgId);
-  }catch(e){
-    if(col) col.innerHTML='<div class="gmail-preview-empty">Error al cargar el mensaje.</div>';
-  }
-}
 async function markEmailAsRead(msgId){
   if(!googleToken) return;
   try{
@@ -164,52 +148,6 @@ function selectNextEmail(removedMsgId){
     selectedEmailId=null;
     const col=document.getElementById('gmailPreviewCol');
     if(col) col.innerHTML='<div class="gmail-preview-empty"><i class="ti ti-mail" style="font-size:32px;opacity:.3;" aria-hidden="true"></i><span>Bandeja vacía</span></div>';
-  }
-}
-function renderEmailPreviewPanel(msg){
-  const col=document.getElementById('gmailPreviewCol'); if(!col) return;
-  _currentEmailMsg=msg;   // lo guarda para poder responder/reenviar
-  const hdrs=msg.payload?.headers||[];
-  const subject=hdrs.find(h=>h.name==='Subject')?.value||'(sin asunto)';
-  const from=hdrs.find(h=>h.name==='From')?.value||'';
-  const date=hdrs.find(h=>h.name==='Date')?.value||'';
-  const fromClean=from.replace(/<[^>]+>/,'').trim();
-  const atts=extractAttachments(msg.payload);
-  col.innerHTML=`<div class="gmail-preview-head">
-    <button class="mobile-back-btn" onclick="closeMobileEmailDetail()"><i class="ti ti-arrow-left" aria-hidden="true"></i> Volver</button>
-    <div class="gmail-preview-subject">${escapeHtml(subject)}</div>
-    <div class="gmail-preview-meta"><strong>De:</strong> ${escapeHtml(from)}<br><strong>Fecha:</strong> ${escapeHtml(formatEmailDate(date))}</div>
-    <div class="gmail-preview-actions">
-      <button class="btn-primary btn-small" onclick="openCompose('responder')"><i class="ti ti-corner-up-left" aria-hidden="true"></i> Responder</button>
-      <button class="btn-ghost btn-small" onclick="openCompose('responderTodos')" title="Responder a todos"><i class="ti ti-corner-up-left-double" aria-hidden="true"></i> A todos</button>
-      <button class="btn-ghost btn-small" onclick="openCompose('reenviar')"><i class="ti ti-corner-up-right" aria-hidden="true"></i> Reenviar</button>
-      <button class="btn-ghost btn-small" onclick="importEmailAsTask('${escapeAttr(subject)}','${escapeAttr(fromClean)}','${escapeAttr(msg.id)}')">+ Tarea</button>
-      <button class="btn-ghost btn-small" style="color:#1a73e8;border-color:#c5d8fd;" onclick="addCorreoPendiente('${escapeAttr(subject)}','${escapeAttr(msg.id)}')"><i class="ti ti-mail-forward" aria-hidden="true"></i> Correo pendiente</button>
-      <button class="btn-ghost btn-small" onclick="archiveEmail('${escapeAttr(msg.id)}')" title="Archivar"><i class="ti ti-archive" aria-hidden="true"></i> Archivar</button>
-      <button class="btn-danger btn-small" onclick="deleteEmail('${escapeAttr(msg.id)}')" title="Mover a papelera"><i class="ti ti-trash" aria-hidden="true"></i></button>
-    </div>
-  </div>
-  ${atts.length?`<div class="email-attachments">
-    <div class="email-attachments-title"><i class="ti ti-paperclip" aria-hidden="true"></i> ${atts.length} adjunto${atts.length>1?'s':''}</div>
-    <div class="email-attach-list">
-      ${atts.map(a=>`<div class="email-attach-item" onclick="openEmailAttachment('${escapeAttr(msg.id)}','${escapeAttr(a.attachmentId||'')}','${escapeAttr(a.filename)}','${escapeAttr(a.mimeType)}')" title="${escapeAttr(a.filename)}">
-        <i class="ti ${attachmentIcon(a.mimeType)}" aria-hidden="true"></i>
-        <span>${escapeHtml(a.filename)}</span>
-      </div>`).join('')}
-    </div>
-  </div>`:''}
-  <div class="gmail-preview-body" id="gmailPreviewBody"></div>`;
-  const bodyEl=document.getElementById('gmailPreviewBody');
-  const body=extractEmailBody(msg.payload);
-  if(body.html){
-    const iframe=document.createElement('iframe');
-    iframe.className='gmail-preview-iframe';
-    iframe.setAttribute('sandbox','allow-popups allow-same-origin');
-    bodyEl.appendChild(iframe);
-    iframe.srcdoc=`<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:system-ui,sans-serif;font-size:13px;line-height:1.6;margin:0;padding:8px;color:#1A1A18;word-break:break-word;}a{color:#2563EB;}img{max-width:100%;}</style></head><body>${body.html}</body></html>`;
-    iframe.onload=()=>{ try{ iframe.style.height=iframe.contentDocument.body.scrollHeight+20+'px'; }catch(e){} };
-  } else {
-    bodyEl.innerHTML=`<pre style="white-space:pre-wrap;font-size:13px;font-family:system-ui,sans-serif;margin:0;">${escapeHtml(body.text||'(sin contenido)')}</pre>`;
   }
 }
 function extractAttachments(payload){
