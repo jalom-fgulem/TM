@@ -761,6 +761,29 @@
   .cw-row-extra{display:flex; gap:6px; flex-shrink:0;}
   .cw-row-extra button{background:none; border:none; color:var(--text-muted); font-size:12px; cursor:pointer; padding:3px 7px; border-radius:5px;}
   .cw-row-extra button:hover{color:var(--accent); background:var(--accent-bg);}
+  /* Menú de firmas dentro del redactor */
+  .ed-firma-menu{position:absolute; top:100%; left:20px; margin-top:6px; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:5px; box-shadow:0 8px 24px rgba(0,0,0,0.12); min-width:230px; max-width:340px; z-index:20;}
+  .ed-firma-op{display:flex !important; flex-direction:column; align-items:flex-start !important; gap:2px; width:100% !important; height:auto !important; padding:8px 10px !important; border:none; background:transparent; border-radius:6px; cursor:pointer; text-align:left; font-family:-apple-system,Helvetica,Arial,sans-serif;}
+  .ed-firma-op:hover{background:var(--accent-bg);}
+  .ed-firma-nombre{font-size:13px; color:var(--text); font-weight:500;}
+  .ed-firma-alias{font-size:11px; color:var(--text-muted);}
+  .ed-firma-op.quitar{border-top:1px solid var(--border); border-radius:0 0 6px 6px; margin-top:4px; color:var(--text-soft); font-size:12.5px;}
+
+  /* Gestor de firmas en Configuración */
+  .firma-item{border:1px solid var(--border); border-radius:var(--radius); padding:11px 12px; margin-bottom:9px; background:var(--surface2);}
+  .firma-item-head{display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin-bottom:7px;}
+  .firma-item-nombre{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:13.5px; font-weight:600; color:var(--text);}
+  .firma-badge{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:2px 7px; border-radius:20px; background:var(--baja-bg); color:var(--baja);}
+  .firma-badge.alias{background:var(--accent-bg); color:var(--accent); text-transform:none; font-weight:600;}
+  .firma-item-previa{background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:9px 11px; font-size:12.5px; max-height:130px; overflow:auto; margin-bottom:8px;}
+  .firma-item-previa img{max-width:150px; height:auto;}
+  .firma-item-acciones{display:flex; gap:6px; flex-wrap:wrap;}
+  .firma-editor-toolbar{display:flex; gap:3px; padding:6px; background:var(--surface2); border:1px solid var(--border); border-bottom:none; border-radius:var(--radius) var(--radius) 0 0;}
+  .firma-editor-toolbar button{width:28px; height:28px; padding:0; background:transparent; border:none; border-radius:5px; cursor:pointer; font-size:12px; color:var(--text-soft); display:inline-flex; align-items:center; justify-content:center;}
+  .firma-editor-toolbar button:hover{background:var(--surface); color:var(--text);}
+  .firma-editor{min-height:150px; max-height:320px; overflow-y:auto; border:1px solid var(--border); border-radius:0 0 var(--radius) var(--radius); padding:11px; font-size:13.5px; line-height:1.55; outline:none; background:var(--surface);}
+  .firma-editor img{max-width:200px; height:auto;}
+
   .cw-status{flex:1; text-align:center; font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:12.5px; color:var(--text-soft); padding:0 12px; min-height:16px;}
   .cw-status.error{color:var(--alta); font-weight:600;}
   .cw-status.aviso{color:var(--media); font-weight:600;}
@@ -1013,6 +1036,22 @@
       </div>
     </details>
 
+    <!-- Firmas -->
+    <details class="cfg-accordion" id="cfgSec-firmas" ontoggle="if(this.open) renderFirmasConfig()">
+      <summary class="cfg-acc-summary">
+        <span><i class="ti ti-signature" style="margin-right:6px;"></i>Firmas de correo</span>
+        <i class="ti ti-chevron-down cfg-acc-icon"></i>
+      </summary>
+      <div class="cfg-acc-body">
+        <p class="help">Gmail solo permite leer una firma por dirección desde fuera, así que las firmas se guardan aquí. Podrás elegir cuál usar en cada correo.</p>
+        <div id="firmasList" style="margin:10px 0;"></div>
+        <div style="display:flex; gap:6px; flex-wrap:wrap;">
+          <button class="btn-primary btn-small" onclick="editarFirma('')">+ Nueva firma</button>
+          <button class="btn-ghost btn-small" onclick="importarFirmasDeGmail()">Importar de Gmail</button>
+        </div>
+      </div>
+    </details>
+
     <!-- Áreas -->
     <details class="cfg-accordion" id="cfgSec-areas">
       <summary class="cfg-acc-summary">
@@ -1073,6 +1112,7 @@
 <script src="js/07-views.js"></script>
 <script src="js/08-gmail.js"></script>
 <script src="js/09-gtasks-ui.js"></script>
+<script src="js/09b-firmas.js"></script>
 <script src="js/10-compose.js"></script>
 <script src="js/11-pwa-boot.js"></script>
 </body>

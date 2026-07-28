@@ -192,9 +192,11 @@ function openCompose(modo, prefill){
     : composeAliasParaRespuesta(msg);
 
   // La firma va debajo de lo que escribas y encima de la cita del original
-  const firma = (aliasElegido && aliasElegido.signature)
-    ? `<div class="firma-insertada" data-firma="1">${aliasElegido.signature}</div>`
-    : '';
+  const firmaGuardada = (typeof firmaParaAlias === 'function')
+    ? firmaParaAlias(aliasElegido ? aliasElegido.sendAsEmail : '') : null;
+  const firmaHtml = firmaGuardada ? firmaGuardada.html
+                  : (aliasElegido && aliasElegido.signature) ? aliasElegido.signature : '';
+  const firma = firmaHtml ? `<div class="firma-insertada" data-firma="1">${firmaHtml}</div>` : '';
   cuerpo = (modo === 'nuevo') ? '<br>' + firma : '<br><br>' + firma + emQuoteOriginal(msg);
 
   _composeCtx = { modo, inReplyTo, references, threadId };
@@ -269,6 +271,10 @@ function openCompose(modo, prefill){
     const menu = document.getElementById('edTablaMenu');
     if(menu && !e.target.closest('#edTablaMenu') && !e.target.closest('[onclick*="editorAbrirTablas"]')){
       menu.style.display = 'none';
+    }
+    const mf = document.getElementById('edFirmaMenu');
+    if(mf && !e.target.closest('#edFirmaMenu') && !e.target.closest('[onclick*="editorAbrirFirmas"]')){
+      mf.style.display = 'none';
     }
   });
 
@@ -346,11 +352,12 @@ function editorToolbarHTML(){
     <button type="button" onclick="editorExec('insertHorizontalRule')" title="Línea separadora"><i class="ti ti-minus" aria-hidden="true"></i></button>
     <span class="ed-sep"></span>
     <button type="button" onclick="editorAbrirTablas(event)" title="Insertar tabla"><i class="ti ti-table" aria-hidden="true"></i></button>
-    <button type="button" onclick="editorFirma()" title="Insertar firma"><i class="ti ti-signature" aria-hidden="true"></i></button>
+    <button type="button" onclick="editorAbrirFirmas(event)" title="Insertar firma"><i class="ti ti-signature" aria-hidden="true"></i></button>
     <span class="ed-sep"></span>
     <button type="button" onclick="editorLimpiar()" title="Quitar todo el formato"><i class="ti ti-clear-formatting" aria-hidden="true"></i></button>
   </div>
   <div class="ed-tabla-menu" id="edTablaMenu" style="display:none;"></div>
+  <div class="ed-firma-menu" id="edFirmaMenu" style="display:none;"></div>
   <div class="ed-tabla-acciones" id="edTablaAcciones" style="display:none;">
     <span>Tabla:</span>
     <button type="button" onclick="editorFila(true)">+ Fila</button>
@@ -396,6 +403,8 @@ function composeAplicarFirma(html){
 // Al cambiar de dirección de envío, cambia también su firma
 function onComposeAliasChange(){
   const sel = document.getElementById('cpFrom'); if(!sel) return;
+  const propia = (typeof firmaParaAlias === 'function') ? firmaParaAlias(sel.value) : null;
+  if(propia){ composeAplicarFirma(propia.html); return; }
   const alias = composeAliasPorEmail(sel.value);
   composeAplicarFirma(alias && alias.signature ? alias.signature : '');
 }
@@ -584,15 +593,43 @@ function editorActualizarBarraTabla(){
 }
 
 // ---- Firma ----
-function editorFirma(){
-  const sel = document.getElementById('cpFrom');
-  const alias = composeAliasPorEmail(sel ? sel.value : emMyAddress());
-  if(alias && alias.signature){ composeAplicarFirma(alias.signature); return; }
-  if(_sendAsSinPermiso){
-    composeStatus('Falta autorizar el acceso a tus firmas. Ve a Configuración → Google → Volver a autorizar.', 'aviso');
-  } else {
-    composeStatus('Esta dirección no tiene firma configurada en Gmail.', 'aviso');
+// Menú para elegir entre las firmas guardadas
+function editorAbrirFirmas(ev){
+  if(ev) ev.stopPropagation();
+  const menu = document.getElementById('edFirmaMenu'); if(!menu) return;
+  if(menu.style.display !== 'none'){ menu.style.display = 'none'; return; }
+
+  const lista = (typeof firmasLista === 'function') ? firmasLista() : [];
+  const selFrom = document.getElementById('cpFrom');
+  const alias = selFrom ? selFrom.value : '';
+
+  if(!lista.length){
+    const deGmail = composeAliasPorEmail(alias);
+    if(deGmail && deGmail.signature){ composeAplicarFirma(deGmail.signature); return; }
+    composeStatus('No hay firmas configuradas. Ve a Configuración → Firmas de correo.', 'aviso');
+    return;
   }
+
+  // Primero las de la dirección desde la que escribes
+  const propias = lista.filter(f => (f.alias || '').toLowerCase() === (alias || '').toLowerCase());
+  const generales = lista.filter(f => !f.alias && !propias.includes(f));
+  const resto = lista.filter(f => !propias.includes(f) && !generales.includes(f));
+  const ordenadas = [...propias, ...generales, ...resto];
+
+  menu.innerHTML = ordenadas.map(f => `
+    <button type="button" class="ed-firma-op" onclick="editorElegirFirma('${f.id}')">
+      <span class="ed-firma-nombre">${escapeHtml(f.nombre || 'Sin nombre')}</span>
+      ${f.alias ? `<span class="ed-firma-alias">${escapeHtml(f.alias)}</span>` : ''}
+    </button>`).join('')
+    + `<button type="button" class="ed-firma-op quitar" onclick="editorElegirFirma('')">Quitar la firma</button>`;
+  menu.style.display = 'block';
+}
+function editorElegirFirma(id){
+  const menu = document.getElementById('edFirmaMenu');
+  if(menu) menu.style.display = 'none';
+  if(!id){ composeAplicarFirma(''); return; }
+  const f = firmasLista().find(x => x.id === id);
+  if(f) composeAplicarFirma(f.html);
 }
 
 function editorLimpiar(){
