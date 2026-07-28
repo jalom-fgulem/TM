@@ -14,6 +14,20 @@ function esIOS(){
       || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 }
 
+// navigator.serviceWorker.ready no responde NUNCA si el servicio no llega a
+// activarse, y deja la pantalla colgada sin explicación. Se le pone un límite.
+async function swListo(msMax){
+  if(!('serviceWorker' in navigator)) return null;
+  try{
+    const reg = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise(r => setTimeout(() => r(null), msMax || 6000))
+    ]);
+    if(reg) return reg;
+    return (await navigator.serviceWorker.getRegistration()) || null;
+  }catch(e){ return null; }
+}
+
 async function llamarPushFn(cuerpo){
   if(!sbSession) return { error: 'no_session' };
   try{
@@ -65,7 +79,8 @@ async function activarNotificaciones(){
     const cfg = await llamarPushFn({ action: 'config' });
     if(!cfg.publicKey){ aviso('<p class="google-aviso">El servidor no está configurado para notificaciones.</p>'); return; }
 
-    const reg = await navigator.serviceWorker.ready;
+    const reg = await swListo();
+    if(!reg){ aviso('<p class="google-aviso">El servicio en segundo plano no ha llegado a arrancar. Cierra la aplicación del todo, vuelve a abrirla e inténtalo otra vez.</p>'); return; }
     let sus = await reg.pushManager.getSubscription();
     if(!sus){
       sus = await reg.pushManager.subscribe({
@@ -84,8 +99,8 @@ async function activarNotificaciones(){
 
 async function desactivarNotificaciones(){
   try{
-    const reg = await navigator.serviceWorker.ready;
-    const sus = await reg.pushManager.getSubscription();
+    const reg = await swListo();
+    const sus = reg ? await reg.pushManager.getSubscription() : null;
     if(sus){
       await llamarPushFn({ action: 'unsubscribe', endpoint: sus.endpoint });
       await sus.unsubscribe();
@@ -95,14 +110,41 @@ async function desactivarNotificaciones(){
   }catch(e){ setStatus('No se pudieron desactivar.'); }
 }
 
+// Diagnóstico: enseña en qué punto exacto se atasca, en vez de dejarte a ciegas
+async function diagnosticoPushHTML(){
+  const instalada = esAppInstalada();
+  const permiso = ('Notification' in window) ? Notification.permission : 'no disponible';
+  let sw = 'no', registrado = 'no';
+  try{
+    const reg = await navigator.serviceWorker.getRegistration();
+    sw = reg ? 'sí' : 'no';
+    if(reg && reg.pushManager){
+      registrado = (await reg.pushManager.getSubscription()) ? 'sí' : 'no';
+    }
+  }catch(e){}
+  const res = await llamarPushFn({ action: 'status' });
+  const enServidor = (res.subscripciones || 0);
+
+  const fila = (etiqueta, valor, bien) =>
+    `<div class="diag-fila"><span>${etiqueta}</span><span class="${bien ? 'diag-ok' : 'diag-mal'}">${escapeHtml(String(valor))}</span></div>`;
+
+  return `<div class="diag">
+    ${fila('Abierta desde la pantalla de inicio', instalada ? 'sí' : 'no — ábrela desde el icono', instalada)}
+    ${fila('Permiso de notificaciones', permiso, permiso === 'granted')}
+    ${fila('Servicio en segundo plano', sw, sw === 'sí')}
+    ${fila('Suscrito en este dispositivo', registrado, registrado === 'sí')}
+    ${fila('Dispositivos en el servidor', enServidor, enServidor > 0)}
+  </div>`;
+}
+
 async function renderEstadoPush(){
   const el = document.getElementById('pushEstado'); if(!el) return;
   if(!sbSession){ el.innerHTML = '<p class="help">Inicia sesión para configurar las notificaciones.</p>'; return; }
 
   let activadoAqui = false;
   try{
-    const reg = await navigator.serviceWorker.ready;
-    activadoAqui = !!(await reg.pushManager.getSubscription());
+    const reg = await swListo(3000);
+    if(reg && reg.pushManager) activadoAqui = !!(await reg.pushManager.getSubscription());
   }catch(e){}
 
   const res = await llamarPushFn({ action: 'status' });
@@ -112,7 +154,8 @@ async function renderEstadoPush(){
     ? `<p class="google-aviso">Estás en Safari. En el iPhone las notificaciones solo llegan con la
        aplicación instalada en la pantalla de inicio.</p>` : '';
 
-  el.innerHTML = avisoIOS + (activadoAqui
+  const diag = await diagnosticoPushHTML();
+  el.innerHTML = avisoIOS + diag + (activadoAqui
     ? `<p class="google-connected">✓ Activadas en este dispositivo</p>
        <p class="help">Dispositivos registrados: ${total}. Se te avisará de correo nuevo, reuniones
        a punto de empezar y tareas vencidas.</p>

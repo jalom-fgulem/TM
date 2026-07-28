@@ -339,7 +339,13 @@ async function checkNewMail(silencioso){
     if(!r.ok) return;
     const perfil = await r.json();
 
-    if(_lastHistoryId === null){ _lastHistoryId = perfil.historyId; return; }
+    if(_lastHistoryId === null){
+      // Primera pasada: se toma la referencia y se pinta el contador. Sin esto
+      // el número del icono no aparecía hasta que entrara un correo nuevo.
+      _lastHistoryId = perfil.historyId;
+      await avisarSiHayCorreoNuevo();
+      return;
+    }
     if(perfil.historyId === _lastHistoryId) return;        // nada nuevo
     _lastHistoryId = perfil.historyId;
 

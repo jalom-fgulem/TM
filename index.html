@@ -812,6 +812,14 @@
   .lectura-ventana .gmail-preview-col{flex:1; overflow-y:auto; display:block;}
   @media (max-width:820px){ .lectura-overlay{padding:0;} .lectura-ventana{border-radius:0; border:none;} }
 
+  /* Diagnóstico de notificaciones */
+  .diag{border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; margin-bottom:10px;}
+  .diag-fila{display:flex; justify-content:space-between; align-items:center; gap:10px; padding:7px 11px; font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:12px; border-bottom:1px solid var(--border); background:var(--surface);}
+  .diag-fila:last-child{border-bottom:none;}
+  .diag-fila > span:first-child{color:var(--text-soft);}
+  .diag-ok{color:var(--baja); font-weight:600;}
+  .diag-mal{color:var(--alta); font-weight:600; text-align:right;}
+
   /* Sugerencias de destinatario */
   .cw-row{position:relative;}
   .ac-lista{position:absolute; top:100%; left:52px; right:0; z-index:50; background:var(--surface); border:1px solid var(--border); border-radius:10px; box-shadow:0 8px 26px rgba(0,0,0,.14); padding:4px; max-height:280px; overflow-y:auto;}
