@@ -1,5 +1,5 @@
 // Service Worker — network-first con soporte de notificaciones en segundo plano
-const CACHE = 'tm-v2';
+const CACHE = 'tm-v3';
 
 self.addEventListener('install', e => {
   self.skipWaiting();
