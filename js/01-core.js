@@ -92,7 +92,7 @@ function saveContactRow(c){ return upsertRow('contacts', c.id, c); }
 function deleteContactRow(id){ return deleteRow('contacts', id); }
 function saveNoteRow(n){ return upsertRow('notes', n.id, n); }
 function deleteNoteRow(id){ return deleteRow('notes', id); }
-function saveSettings(){ return upsertRow('board', STORAGE_KEY, { areas: state.areas, tipos: state.tipos, profile: state.profile, calendarSelection: state.calendarSelection||{}, calendarConfig: state.calendarConfig||{}, kanbanOrder: state.kanbanOrder||{}, signatures: state.signatures||[], mailFavLabels: state.mailFavLabels||[], mailCollapsed: state.mailCollapsed||[] }); }
+function saveSettings(){ return upsertRow('board', STORAGE_KEY, { areas: state.areas, tipos: state.tipos, profile: state.profile, calendarSelection: state.calendarSelection||{}, calendarConfig: state.calendarConfig||{}, kanbanOrder: state.kanbanOrder||{}, signatures: state.signatures||[], mailFavLabels: state.mailFavLabels||[], mailCollapsed: state.mailCollapsed||[], mailLayout: state.mailLayout||{} }); }
 
 async function loadState(){
   setStatus('Cargando...');
@@ -118,10 +118,12 @@ async function loadState(){
       signatures: settings.signatures || [],
       mailFavLabels: settings.mailFavLabels || [],
       mailCollapsed: settings.mailCollapsed || [],
+      mailLayout: settings.mailLayout || {},
       kanbanOrder: settings.kanbanOrder || {}
     };
     state.tasks.forEach(t=>{ if(!t.subtasks) t.subtasks=[]; t.subtasks.forEach(s=>{ if(!s.children) s.children=[]; }); if(!t.linkedTaskIds) t.linkedTaskIds=[]; });
     state.projects.forEach(p=>{ if(!p.areas) p.areas=[]; if(!p.log) p.log=[]; if(p.active===undefined) p.active=true; });
+    if(typeof aplicarAnchosCorreo === 'function') aplicarAnchosCorreo();
     setStatus('');
   }catch(e){
     setStatus('Error al cargar los datos.');

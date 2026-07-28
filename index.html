@@ -269,7 +269,12 @@
   .agenda-event-time{font-size:11.5px;color:var(--text-soft);white-space:nowrap;min-width:52px;}
   .agenda-event-title{font-size:13px;font-weight:500;}
   /* Gmail 3-column layout */
-  .gmail-layout{display:grid;grid-template-columns:170px 280px 1fr;border:1px solid var(--border);border-radius:10px;overflow:hidden;height:calc(100dvh - 158px);min-height:360px;background:var(--surface);}
+  .gmail-layout{display:grid;grid-template-columns:var(--gm-sb,170px) 6px var(--gm-list,280px) 6px 1fr;border:1px solid var(--border);border-radius:10px;overflow:hidden;height:calc(100dvh - 158px);min-height:360px;background:var(--surface);}
+  /* Tiradores para ajustar el ancho de las columnas */
+  .gm-tirador{cursor:col-resize; background:transparent; position:relative; z-index:5;}
+  .gm-tirador::after{content:''; position:absolute; inset:0 2px; background:var(--border); transition:background .12s;}
+  .gm-tirador:hover::after, .gm-tirador.arrastrando::after{background:var(--accent);}
+  body.gm-redimensionando{cursor:col-resize; user-select:none;}
   .gmail-sidebar{overflow-y:auto;border-right:1px solid var(--border);background:var(--bg);padding:6px 4px;}
   .gmail-sb-item{display:flex;align-items:center;gap:7px;padding:6px 10px;border-radius:7px;cursor:pointer;font-size:12.5px;color:var(--text-soft);user-select:none;transition:background .1s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .gmail-sb-item:hover{background:var(--surface);}
@@ -331,8 +336,8 @@
   .drive-result-item:last-child{border-bottom:none;}
   .drive-result-item:hover{background:var(--accent-bg);}
   .drive-result-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  @media(max-width:860px){.gmail-layout{grid-template-columns:150px 1fr;height:calc(100dvh - 148px);}  .gmail-preview-col{display:none;}}
-  @media(max-width:600px){.gmail-layout{grid-template-columns:1fr;height:auto;min-height:0;} .gmail-sidebar{display:none;} .gmail-list-col{border-right:none;max-height:60vh;}}
+  @media(max-width:860px){.gmail-layout{grid-template-columns:150px 0 1fr 0 0;height:calc(100dvh - 148px);} .gmail-preview-col{display:none;} .gm-tirador{display:none;}}
+  @media(max-width:600px){.gmail-layout{grid-template-columns:1fr;height:auto;min-height:0;} .gmail-sidebar{display:none;} .gm-tirador{display:none;} .gmail-list-col{border-right:none;max-height:60vh;}}
   .agenda-connect{text-align:center;padding:48px 20px;}
   .agenda-connect p{margin-bottom:14px;font-size:14px;color:var(--text-soft);}
   .cal-selector{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}

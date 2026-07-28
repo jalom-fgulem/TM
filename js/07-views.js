@@ -9,6 +9,7 @@ function renderCorreo(){
   const labelTitle=currentEmailQuery==='is:starred'?'Destacados':currentEmailQuery==='in:inbox'?'Recibidos':currentEmailQuery==='in:sent'?'Enviados':currentEmailQuery==='is:unread'?'No leídos':currentEmailQuery.startsWith('label:')?currentEmailQuery.replace('label:',''):'Correo';
   return `<div class="gmail-layout">
     <div class="gmail-sidebar" id="gmailSidebar">${renderGmailSidebarHTML()}</div>
+    <div class="gm-tirador" data-col="sb" title="Arrastra para ajustar el ancho"></div>
     <div class="gmail-list-col">
       <div class="gmail-list-head">
         <span class="gmail-list-head-title">${escapeHtml(labelTitle)}</span>
@@ -25,6 +26,7 @@ function renderCorreo(){
       ${renderFichasEtiqueta().replace('<div class="gm-fichas"','<div class="gm-fichas" id="gmFichas"')}
       <div id="gmailWidget"><p class="empty" style="padding:16px 12px;">Cargando...</p></div>
     </div>
+    <div class="gm-tirador" data-col="list" title="Arrastra para ajustar el ancho"></div>
     <div class="gmail-preview-col" id="gmailPreviewCol">
       <div class="gmail-preview-empty"><i class="ti ti-mail" style="font-size:32px;opacity:.3;" aria-hidden="true"></i><span>Selecciona un correo</span></div>
     </div>

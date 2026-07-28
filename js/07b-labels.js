@@ -215,3 +215,68 @@ async function cargarContadoresEtiqueta(){
   }));
   renderGmailLabelBtns();
 }
+
+// ============================================================
+//  ANCHOS DE COLUMNA AJUSTABLES
+//
+//  Los anchos viven en dos variables de estilo que lee la rejilla, y se
+//  guardan en los ajustes para que se mantengan entre sesiones y dispositivos.
+// ============================================================
+
+const GM_ANCHOS = { sb: { min: 130, max: 420, def: 170 }, list: { min: 220, max: 620, def: 280 } };
+
+function aplicarAnchosCorreo(){
+  const l = state.mailLayout || {};
+  const cap = (v, c) => Math.min(Math.max(v || c.def, c.min), c.max);
+  document.documentElement.style.setProperty('--gm-sb',   cap(l.sb,   GM_ANCHOS.sb)   + 'px');
+  document.documentElement.style.setProperty('--gm-list', cap(l.list, GM_ANCHOS.list) + 'px');
+}
+
+// Un solo escuchador en el documento: los tiradores se repintan con la vista
+document.addEventListener('mousedown', e => {
+  const tirador = e.target.closest('.gm-tirador');
+  if(!tirador) return;
+  e.preventDefault();
+
+  const cual = tirador.dataset.col;
+  const cfg = GM_ANCHOS[cual];
+  const rejilla = tirador.closest('.gmail-layout');
+  if(!rejilla || !cfg) return;
+
+  const inicioX = e.clientX;
+  const actual = parseInt(getComputedStyle(document.documentElement)
+    .getPropertyValue(cual === 'sb' ? '--gm-sb' : '--gm-list')) || cfg.def;
+
+  tirador.classList.add('arrastrando');
+  document.body.classList.add('gm-redimensionando');
+
+  const mover = ev => {
+    const nuevo = Math.min(Math.max(actual + (ev.clientX - inicioX), cfg.min), cfg.max);
+    document.documentElement.style.setProperty(cual === 'sb' ? '--gm-sb' : '--gm-list', nuevo + 'px');
+  };
+  const soltar = () => {
+    document.removeEventListener('mousemove', mover);
+    document.removeEventListener('mouseup', soltar);
+    tirador.classList.remove('arrastrando');
+    document.body.classList.remove('gm-redimensionando');
+    // Se guarda al soltar, no en cada píxel
+    state.mailLayout = state.mailLayout || {};
+    state.mailLayout[cual] = parseInt(getComputedStyle(document.documentElement)
+      .getPropertyValue(cual === 'sb' ? '--gm-sb' : '--gm-list'));
+    saveSettings();
+  };
+  document.addEventListener('mousemove', mover);
+  document.addEventListener('mouseup', soltar);
+});
+
+// Doble clic en un tirador devuelve la columna a su ancho original
+document.addEventListener('dblclick', e => {
+  const tirador = e.target.closest('.gm-tirador');
+  if(!tirador) return;
+  const cual = tirador.dataset.col;
+  state.mailLayout = state.mailLayout || {};
+  delete state.mailLayout[cual];
+  aplicarAnchosCorreo();
+  saveSettings();
+  setStatus('Ancho restablecido.');
+});
