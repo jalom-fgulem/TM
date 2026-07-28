@@ -175,31 +175,35 @@ function pintarCuerpoMensaje(m){
     marco.setAttribute('sandbox', 'allow-popups allow-same-origin');
     cont.appendChild(marco);
     marco.srcdoc = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:system-ui,sans-serif;font-size:13.5px;line-height:1.6;margin:0;padding:4px 0;color:#1A1A18;word-break:break-word;}a{color:#2563EB;}img{max-width:100%;height:auto;}blockquote{border-left:2px solid #ddd;margin:6px 0;padding-left:12px;color:#666;}</style></head><body>${cuerpo.html}</body></html>`;
-    marco.onload = () => {
+    // La altura hay que medirla VARIAS veces: al cargar, las tablas, las
+    // imágenes y las tipografías aún no han terminado de colocarse, y una sola
+    // medida sale corta y recorta el correo.
+    const ajustar = () => {
       try{
-        const alto = marco.contentDocument.body.scrollHeight + 16;
-        marco.style.height = Math.min(alto, 620) + 'px';
-        if(alto > 620) añadirVerMas(cont, marco, alto);
+        const d = marco.contentDocument; if(!d || !d.body) return;
+        const alto = Math.max(d.body.scrollHeight, d.documentElement.scrollHeight) + 24;
+        if(alto > 40) marco.style.height = alto + 'px';
       }catch(e){}
     };
+    marco.onload = () => {
+      ajustar();
+      try{
+        const d = marco.contentDocument;
+        if(window.ResizeObserver){
+          const obs = new ResizeObserver(ajustar);
+          obs.observe(d.body);
+        }
+        d.querySelectorAll('img').forEach(img => {
+          if(!img.complete) img.addEventListener('load', ajustar, { once:true });
+        });
+      }catch(e){}
+    };
+    // Fuera del evento de carga a propósito: si por lo que sea no llega a
+    // dispararse, estas pasadas ajustan la altura igualmente.
+    [120, 400, 1000, 2500].forEach(ms => setTimeout(ajustar, ms));
   } else {
     cont.innerHTML = `<pre class="gm-msg-texto">${escapeHtml(cuerpo.text || '(sin contenido)')}</pre>`;
-    const pre = cont.firstChild;
-    if(pre.scrollHeight > 620){ pre.style.maxHeight = '620px'; añadirVerMas(cont, pre, pre.scrollHeight); }
   }
-}
-function añadirVerMas(cont, elemento, altoReal){
-  const btn = document.createElement('button');
-  btn.className = 'gm-vermas';
-  btn.textContent = 'Ver más';
-  btn.onclick = () => {
-    const desplegado = elemento.dataset.desplegado === '1';
-    elemento.style.height = desplegado ? '620px' : altoReal + 'px';
-    elemento.style.maxHeight = desplegado ? '620px' : 'none';
-    elemento.dataset.desplegado = desplegado ? '0' : '1';
-    btn.textContent = desplegado ? 'Ver más' : 'Ver menos';
-  };
-  cont.appendChild(btn);
 }
 
 function toggleMensajeHilo(id){

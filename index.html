@@ -671,6 +671,7 @@
     .gmail-layout.email-open .gmail-preview-col{
       display:flex!important;
       height:100%;
+      min-height:0;          /* sin esto el hijo desplazable no calcula su alto */
     }
   }
 
@@ -907,6 +908,7 @@
   .gm-avatar{width:34px; height:34px; border-radius:50%; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; color:#fff; font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:13px; font-weight:600; letter-spacing:.02em;}
   .gm-avatar.sm{width:22px; height:22px; font-size:10px;}
 
+  .gmail-preview-head{flex-shrink:0;}
   .gm-th-titulo{flex:1; min-width:0;}
   .gm-th-etiquetas{display:flex; gap:5px; flex-wrap:wrap; margin-top:5px;}
   .gm-th-chip{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:10.5px; padding:2px 8px; border-radius:20px; background:var(--area-bg); color:var(--area-ink);}
@@ -918,7 +920,7 @@
   .gm-acc.peligro:hover{background:var(--alta-bg); color:var(--alta);}
   .gm-acc-sep{width:1px; height:18px; background:var(--border); margin:0 5px;}
 
-  .gm-th-lista{padding:0 0 24px;}
+  .gm-th-lista{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:0 0 40px; min-height:0;}
   .gm-msg{border:1px solid var(--border); border-radius:10px; margin:10px 14px; background:var(--surface); overflow:hidden;}
   .gm-msg.abierto{box-shadow:0 1px 3px rgba(0,0,0,0.05);}
   .gm-msg-cab{display:flex; align-items:center; gap:11px; padding:11px 14px; cursor:pointer;}
