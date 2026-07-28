@@ -178,6 +178,10 @@ async function afterGoogleConnected(){
   if(currentView==='calendario'||currentView==='correo'){ render(); loadAgendaData(); }
   // La app arranca en Correo: hay que cargar la lista, render() solo pinta el marco
   if(currentView==='correo') loadGmailWidget();
+  // La agenda de direcciones se rehace sola si falta o si lleva más de una semana
+  if(typeof construirAgendaCorreo === 'function' && agendaEdadEnDias() > 7) {
+    setTimeout(() => construirAgendaCorreo(false), 4000);   // sin estorbar al arranque
+  }
   checkNewMail(true);      // toma la referencia inicial de cambios
   startMailPolling();      // y a partir de ahí se actualiza solo
 }
