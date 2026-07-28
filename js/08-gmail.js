@@ -168,6 +168,7 @@ function selectNextEmail(removedMsgId){
 }
 function renderEmailPreviewPanel(msg){
   const col=document.getElementById('gmailPreviewCol'); if(!col) return;
+  _currentEmailMsg=msg;   // lo guarda para poder responder/reenviar
   const hdrs=msg.payload?.headers||[];
   const subject=hdrs.find(h=>h.name==='Subject')?.value||'(sin asunto)';
   const from=hdrs.find(h=>h.name==='From')?.value||'';
@@ -179,6 +180,9 @@ function renderEmailPreviewPanel(msg){
     <div class="gmail-preview-subject">${escapeHtml(subject)}</div>
     <div class="gmail-preview-meta"><strong>De:</strong> ${escapeHtml(from)}<br><strong>Fecha:</strong> ${escapeHtml(formatEmailDate(date))}</div>
     <div class="gmail-preview-actions">
+      <button class="btn-primary btn-small" onclick="openCompose('responder')"><i class="ti ti-corner-up-left" aria-hidden="true"></i> Responder</button>
+      <button class="btn-ghost btn-small" onclick="openCompose('responderTodos')" title="Responder a todos"><i class="ti ti-corner-up-left-double" aria-hidden="true"></i> A todos</button>
+      <button class="btn-ghost btn-small" onclick="openCompose('reenviar')"><i class="ti ti-corner-up-right" aria-hidden="true"></i> Reenviar</button>
       <button class="btn-ghost btn-small" onclick="importEmailAsTask('${escapeAttr(subject)}','${escapeAttr(fromClean)}','${escapeAttr(msg.id)}')">+ Tarea</button>
       <button class="btn-ghost btn-small" style="color:#1a73e8;border-color:#c5d8fd;" onclick="addCorreoPendiente('${escapeAttr(subject)}','${escapeAttr(msg.id)}')"><i class="ti ti-mail-forward" aria-hidden="true"></i> Correo pendiente</button>
       <button class="btn-ghost btn-small" onclick="archiveEmail('${escapeAttr(msg.id)}')" title="Archivar"><i class="ti ti-archive" aria-hidden="true"></i> Archivar</button>

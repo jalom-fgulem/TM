@@ -12,7 +12,10 @@ function renderCorreo(){
     <div class="gmail-list-col">
       <div class="gmail-list-head">
         <span class="gmail-list-head-title">${escapeHtml(labelTitle)}</span>
-        <button class="btn-icon" onclick="loadGmailWidget()" title="Actualizar" style="width:26px;height:26px;font-size:13px;"><i class="ti ti-refresh" aria-hidden="true"></i></button>
+        <span style="display:flex;gap:6px;align-items:center;">
+          <button class="btn-primary btn-small" onclick="openCompose('nuevo')" title="Redactar"><i class="ti ti-pencil-plus" aria-hidden="true"></i> Redactar</button>
+          <button class="btn-icon" onclick="loadGmailWidget()" title="Actualizar" style="width:26px;height:26px;font-size:13px;"><i class="ti ti-refresh" aria-hidden="true"></i></button>
+        </span>
       </div>
       <div id="gmailWidget"><p class="empty" style="padding:16px 12px;">Cargando...</p></div>
     </div>
