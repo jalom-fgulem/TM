@@ -773,6 +773,16 @@
   .gm-ficha.on{background:var(--text); color:var(--surface); border-color:var(--text);}
   .gm-fichas-ayuda{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:11px; color:var(--text-muted); font-style:italic;}
 
+  /* Reglas de correo */
+  .regla-item{display:flex; align-items:flex-start; gap:10px; border:1px solid var(--border); border-radius:var(--radius); padding:11px 12px; margin-bottom:8px; background:var(--surface2);}
+  .regla-texto{flex:1; min-width:0; font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:12.5px; line-height:1.6; color:var(--text-soft);}
+  .regla-texto b{color:var(--text); font-weight:600;}
+  .regla-et{display:inline-block; min-width:62px; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--text-muted);}
+  .regla-seccion{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted); margin:16px 0 8px; padding-bottom:5px; border-bottom:1px solid var(--border);}
+  .regla-check{display:flex !important; align-items:center; gap:8px; font-size:13px !important; text-transform:none !important; letter-spacing:0 !important; color:var(--text) !important; font-weight:400 !important; cursor:pointer; margin:0 0 7px !important;}
+  .regla-check input{margin:0;}
+  .regla-acciones{display:flex; flex-direction:column;}
+
   .et-lista{max-height:340px; overflow-y:auto; border:1px solid var(--border); border-radius:var(--radius); padding:6px;}
   .et-op{display:flex; align-items:center; gap:9px; padding:7px 9px; border-radius:6px; cursor:pointer; font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:13px; color:var(--text);}
   .et-op:hover{background:var(--area-bg);}
@@ -1144,6 +1154,19 @@
       </div>
     </details>
 
+    <!-- Reglas de correo -->
+    <details class="cfg-accordion" id="cfgSec-reglas" ontoggle="if(this.open) fetchGmailFiltros()">
+      <summary class="cfg-acc-summary">
+        <span><i class="ti ti-filter" style="margin-right:6px;"></i>Reglas de correo</span>
+        <i class="ti ti-chevron-down cfg-acc-icon"></i>
+      </summary>
+      <div class="cfg-acc-body">
+        <p class="help">Son los filtros de tu cuenta de Gmail: lo que crees aquí funciona igual cuando abras el correo desde cualquier otro sitio.</p>
+        <div id="reglasList" style="margin:10px 0;"></div>
+        <button class="btn-primary btn-small" onclick="abrirEditorRegla()">+ Nueva regla</button>
+      </div>
+    </details>
+
     <!-- Áreas -->
     <details class="cfg-accordion" id="cfgSec-areas">
       <summary class="cfg-acc-summary">
@@ -1203,6 +1226,7 @@
 <script src="js/06-calendar.js"></script>
 <script src="js/07-views.js"></script>
 <script src="js/07b-labels.js"></script>
+<script src="js/07c-reglas.js"></script>
 <script src="js/08-gmail.js"></script>
 <script src="js/08b-thread.js"></script>
 <script src="js/09-gtasks-ui.js"></script>
