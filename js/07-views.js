@@ -17,27 +17,18 @@ function renderCorreo(){
           <button class="btn-icon" onclick="loadGmailWidget()" title="Actualizar" style="width:26px;height:26px;font-size:13px;"><i class="ti ti-refresh" aria-hidden="true"></i></button>
         </span>
       </div>
+      <div class="gm-buscador">
+        <i class="ti ti-search" aria-hidden="true"></i>
+        <input type="text" id="gmBuscar" placeholder="Buscar en el correo…" onkeydown="buscarCorreo(event)">
+        <button class="gm-buscar-x" onclick="limpiarBusqueda()" title="Limpiar"><i class="ti ti-x" aria-hidden="true"></i></button>
+      </div>
+      ${renderFichasEtiqueta().replace('<div class="gm-fichas"','<div class="gm-fichas" id="gmFichas"')}
       <div id="gmailWidget"><p class="empty" style="padding:16px 12px;">Cargando...</p></div>
     </div>
     <div class="gmail-preview-col" id="gmailPreviewCol">
       <div class="gmail-preview-empty"><i class="ti ti-mail" style="font-size:32px;opacity:.3;" aria-hidden="true"></i><span>Selecciona un correo</span></div>
     </div>
   </div>`;
-}
-function renderGmailSidebarHTML(){
-  const sys=[
-    {q:'in:inbox',icon:'ti-inbox',name:'Recibidos'},
-    {q:'is:starred',icon:'ti-star',name:'Destacados'},
-    {q:'is:unread',icon:'ti-mail',name:'No leídos'},
-    {q:'in:sent',icon:'ti-send',name:'Enviados'},
-  ];
-  const sysHtml=sys.map(s=>`<div class="gmail-sb-item ${currentEmailQuery===s.q?'active':''}" onclick="setEmailQuery('${s.q}')"><i class="ti ${s.icon}" aria-hidden="true"></i>${escapeHtml(s.name)}</div>`).join('');
-  const userHtml=gmailUserLabels.map(l=>{
-    const bg=l.color?.backgroundColor;
-    const dot=bg?`<span class="gmail-sb-dot" style="background:${bg};"></span>`:`<i class="ti ti-tag" aria-hidden="true"></i>`;
-    return `<div class="gmail-sb-item ${currentEmailQuery==='label:'+l.name?'active':''}" onclick="setEmailQuery('label:${escapeAttr(l.name)}')">${dot}${escapeHtml(l.name)}</div>`;
-  }).join('');
-  return sysHtml+(userHtml?`<div class="gmail-sb-sep"></div><div class="gmail-sb-section">Etiquetas</div>${userHtml}`:'');
 }
 function setEmailQuery(q){
   currentEmailQuery=q; selectedEmailId=null;

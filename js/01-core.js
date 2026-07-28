@@ -92,7 +92,7 @@ function saveContactRow(c){ return upsertRow('contacts', c.id, c); }
 function deleteContactRow(id){ return deleteRow('contacts', id); }
 function saveNoteRow(n){ return upsertRow('notes', n.id, n); }
 function deleteNoteRow(id){ return deleteRow('notes', id); }
-function saveSettings(){ return upsertRow('board', STORAGE_KEY, { areas: state.areas, tipos: state.tipos, profile: state.profile, calendarSelection: state.calendarSelection||{}, calendarConfig: state.calendarConfig||{}, kanbanOrder: state.kanbanOrder||{}, signatures: state.signatures||[] }); }
+function saveSettings(){ return upsertRow('board', STORAGE_KEY, { areas: state.areas, tipos: state.tipos, profile: state.profile, calendarSelection: state.calendarSelection||{}, calendarConfig: state.calendarConfig||{}, kanbanOrder: state.kanbanOrder||{}, signatures: state.signatures||[], mailFavLabels: state.mailFavLabels||[], mailCollapsed: state.mailCollapsed||[] }); }
 
 async function loadState(){
   setStatus('Cargando...');
@@ -116,6 +116,8 @@ async function loadState(){
       calendarSelection: settings.calendarSelection || {},
       calendarConfig: settings.calendarConfig || {},
       signatures: settings.signatures || [],
+      mailFavLabels: settings.mailFavLabels || [],
+      mailCollapsed: settings.mailCollapsed || [],
       kanbanOrder: settings.kanbanOrder || {}
     };
     state.tasks.forEach(t=>{ if(!t.subtasks) t.subtasks=[]; t.subtasks.forEach(s=>{ if(!s.children) s.children=[]; }); if(!t.linkedTaskIds) t.linkedTaskIds=[]; });

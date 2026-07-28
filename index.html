@@ -736,6 +736,41 @@
   .mobile-back-btn i{font-size:18px;}
 
   /* ============================================================
+     ETIQUETAS: barra lateral en árbol, buscador y fichas
+     ============================================================ */
+  .gmail-sb-item{display:flex; align-items:center; gap:7px; padding:6px 8px; border-radius:6px; cursor:pointer; font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:12.5px; color:var(--text-soft); position:relative;}
+  .gmail-sb-item:hover{background:var(--area-bg); color:var(--text);}
+  .gmail-sb-item.active{background:var(--accent-bg); color:var(--accent); font-weight:600;}
+  .gmail-sb-nombre{flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .gmail-sb-flecha{width:15px; height:15px; flex-shrink:0; border:none; background:transparent; padding:0; cursor:pointer; color:var(--text-muted); display:inline-flex; align-items:center; justify-content:center; font-size:12px; transition:transform .12s;}
+  .gmail-sb-flecha.abierta{transform:rotate(90deg);}
+  .gmail-sb-flecha.hueco{cursor:default;}
+  .gmail-sb-cont{font-size:10.5px; font-weight:600; color:var(--text-muted); background:var(--area-bg); border-radius:20px; padding:1px 7px; flex-shrink:0;}
+  .gmail-sb-item.active .gmail-sb-cont{background:var(--surface); color:var(--accent);}
+  .gmail-sb-fav{width:20px; height:20px; border:none; background:transparent; padding:0; cursor:pointer; color:var(--border-strong); font-size:12px; flex-shrink:0; opacity:0; display:inline-flex; align-items:center; justify-content:center;}
+  .gmail-sb-item:hover .gmail-sb-fav{opacity:1;}
+  .gmail-sb-fav.on{opacity:1; color:var(--media);}
+  .gmail-sb-fav:hover{color:var(--media);}
+  .gmail-sb-dot{width:9px; height:9px; border-radius:2px; flex-shrink:0;}
+
+  .gm-buscador{display:flex; align-items:center; gap:7px; margin:8px 10px 0; padding:6px 10px; background:var(--surface2); border:1px solid var(--border); border-radius:20px; color:var(--text-muted); font-size:13px;}
+  .gm-buscador input{flex:1; border:none; background:transparent; font-size:13px; color:var(--text); padding:1px 0; min-width:0;}
+  .gm-buscador input:focus{outline:none;}
+  .gm-buscar-x{border:none; background:transparent; color:var(--text-muted); cursor:pointer; padding:0 2px; font-size:12px; display:flex; align-items:center;}
+  .gm-buscar-x:hover{color:var(--text);}
+
+  .gm-fichas{display:flex; gap:5px; flex-wrap:wrap; align-items:center; padding:9px 10px 4px;}
+  .gm-ficha{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:11.5px; padding:4px 11px; border-radius:20px; border:1px solid var(--border); background:var(--surface); color:var(--text-soft); cursor:pointer; white-space:nowrap;}
+  .gm-ficha:hover{border-color:var(--text-soft); color:var(--text);}
+  .gm-ficha.on{background:var(--text); color:var(--surface); border-color:var(--text);}
+  .gm-fichas-ayuda{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:11px; color:var(--text-muted); font-style:italic;}
+
+  .et-lista{max-height:340px; overflow-y:auto; border:1px solid var(--border); border-radius:var(--radius); padding:6px;}
+  .et-op{display:flex; align-items:center; gap:9px; padding:7px 9px; border-radius:6px; cursor:pointer; font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:13px; color:var(--text);}
+  .et-op:hover{background:var(--area-bg);}
+  .et-op input{margin:0;}
+
+  /* ============================================================
      PANEL DE LECTURA — conversación completa
      ============================================================ */
   .gm-avatar{width:34px; height:34px; border-radius:50%; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; color:#fff; font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:13px; font-weight:600; letter-spacing:.02em;}
@@ -1159,6 +1194,7 @@
 <script src="js/05-auth-google.js"></script>
 <script src="js/06-calendar.js"></script>
 <script src="js/07-views.js"></script>
+<script src="js/07b-labels.js"></script>
 <script src="js/08-gmail.js"></script>
 <script src="js/08b-thread.js"></script>
 <script src="js/09-gtasks-ui.js"></script>

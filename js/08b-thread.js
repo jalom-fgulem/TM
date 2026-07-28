@@ -93,6 +93,7 @@ function renderThreadPanel(){
         <button class="gm-acc" onclick="archiveEmail('${ultimo.id}')" title="Archivar"><i class="ti ti-archive" aria-hidden="true"></i></button>
         <button class="gm-acc" onclick="marcarComoSpam('${ultimo.id}')" title="Marcar como spam"><i class="ti ti-alert-octagon" aria-hidden="true"></i></button>
         <button class="gm-acc peligro" onclick="deleteEmail('${ultimo.id}')" title="Mover a papelera"><i class="ti ti-trash" aria-hidden="true"></i></button>
+        <button class="gm-acc" onclick="abrirSelectorEtiquetas('${ultimo.id}')" title="Etiquetar"><i class="ti ti-tag" aria-hidden="true"></i></button>
         <span class="gm-acc-sep"></span>
         <button class="gm-acc" onclick="importEmailAsTask('${escapeAttr(asunto)}','${escapeAttr((emHeader(ultimo,'From')||'').replace(/<[^>]+>/,'').trim())}','${escapeAttr(ultimo.id)}')" title="Crear tarea"><i class="ti ti-checkbox" aria-hidden="true"></i></button>
       </div>

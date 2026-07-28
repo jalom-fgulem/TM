@@ -76,7 +76,9 @@ async function fetchGmailLabels(){
     const data=await r.json();
     const systemExclude=['CHAT','SENT','TRASH','SPAM','STARRED','UNREAD','IMPORTANT','CATEGORY_PERSONAL','CATEGORY_SOCIAL','CATEGORY_UPDATES','CATEGORY_FORUMS','CATEGORY_PROMOTIONS'];
     gmailUserLabels=(data.labels||[]).filter(l=>l.type==='user'||(!systemExclude.includes(l.id)&&l.type==='system'&&l.name==='INBOX')).filter(l=>!systemExclude.includes(l.id));
+    _gruposPlegados = new Set(state.mailCollapsed || []);
     renderGmailLabelBtns();
+    cargarContadoresEtiqueta();
   }catch(e){}
 }
 function renderGmailLabelBtns(){
