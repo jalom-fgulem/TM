@@ -386,14 +386,16 @@ function grupoDeDia(fechaStr){
     const hoy=new Date(); hoy.setHours(0,0,0,0);
     const dia=new Date(d); dia.setHours(0,0,0,0);
     const diff=Math.round((hoy-dia)/86400000);
-    // Fecha completa siempre: "Ayer, 27 de julio de 2026"
+    // En el móvil, escueto; en el ordenador, con la fecha completa
+    const corto = (typeof isMobile === 'function') ? isMobile() : window.innerWidth < 820;
     const fecha = d.getDate()+' de '+monthsEs[d.getMonth()]+' de '+d.getFullYear();
-    if(diff<=0) return 'Hoy, '+fecha;
-    if(diff===1) return 'Ayer, '+fecha;
+    if(diff<=0) return corto ? 'Hoy' : 'Hoy, '+fecha;
+    if(diff===1) return corto ? 'Ayer' : 'Ayer, '+fecha;
     if(diff<7){
       const sem = d.toLocaleDateString('es-ES',{weekday:'long'}).replace(/^./,c=>c.toUpperCase());
-      return sem+', '+fecha;
+      return corto ? sem : sem+', '+fecha;
     }
+    if(corto && diff < 30) return 'Este mes';
     return fecha;
   }catch(e){ return 'Sin fecha'; }
 }

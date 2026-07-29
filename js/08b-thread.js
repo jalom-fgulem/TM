@@ -174,7 +174,8 @@ function pintarCuerpoMensaje(m){
     marco.className = 'gmail-preview-iframe';
     marco.setAttribute('sandbox', 'allow-popups allow-same-origin');
     cont.appendChild(marco);
-    marco.srcdoc = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:system-ui,sans-serif;font-size:13.5px;line-height:1.6;margin:0;padding:4px 0;color:#1A1A18;word-break:break-word;}a{color:#2563EB;}img{max-width:100%;height:auto;}blockquote{border-left:2px solid #ddd;margin:6px 0;padding-left:12px;color:#666;}</style></head><body>${cuerpo.html}</body></html>`;
+    marco.srcdoc = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:system-ui,sans-serif;font-size:13.5px;line-height:1.6;margin:0;padding:4px 0;color:#1A1A18;word-break:break-word;}
+      @media(max-width:820px){body{font-size:16px;line-height:1.55;}}a{color:#2563EB;}img{max-width:100%;height:auto;}blockquote{border-left:2px solid #ddd;margin:6px 0;padding-left:12px;color:#666;}</style></head><body>${cuerpo.html}</body></html>`;
     // La altura hay que medirla VARIAS veces: al cargar, las tablas, las
     // imágenes y las tipografías aún no han terminado de colocarse, y una sola
     // medida sale corta y recorta el correo.

@@ -65,31 +65,13 @@ async function initNotifications() {
   scheduleTaskNotifications();
 }
 
-function scheduleTaskNotifications() {
-  const today = todayStr();
-
-  // Tareas vencidas
-  const overdue = state.tasks.filter(t => t.due && t.due < today && t.status !== 'hecha');
-  if (overdue.length) {
-    _swNotify(
-      `⚠️ ${overdue.length} tarea${overdue.length > 1 ? 's vencidas' : ' vencida'}`,
-      overdue.slice(0, 3).map(t => '· ' + t.title).join('\n') + (overdue.length > 3 ? `\n· y ${overdue.length - 3} más…` : ''),
-      { tag: 'tm-overdue', requireInteraction: false }
-    );
-  }
-
-  // Tareas para hoy
-  const dueToday = state.tasks.filter(t => t.due === today && t.status !== 'hecha');
-  if (dueToday.length) {
-    setTimeout(() => {
-      _swNotify(
-        `📋 ${dueToday.length} tarea${dueToday.length > 1 ? 's para hoy' : ' para hoy'}`,
-        dueToday.slice(0, 3).map(t => '· ' + t.title).join('\n') + (dueToday.length > 3 ? `\n· y ${dueToday.length - 3} más…` : ''),
-        { tag: 'tm-today', requireInteraction: false }
-      );
-    }, overdue.length ? 4000 : 1500);
-  }
-}
+// Los avisos de tareas ya no se lanzan al abrir la aplicación.
+//
+// Antes saltaban en CADA arranque, lo que resultaba insistente y molesto.
+// Ahora las tareas se avisan una sola vez al día, desde el servidor y a la
+// hora elegida en Configuración → Notificaciones, donde además se pueden
+// desactivar del todo.
+function scheduleTaskNotifications() { /* intencionadamente vacío */ }
 
 function scheduleMeetingNotification(ev) {
   if (!ev.start?.dateTime) return;
