@@ -192,15 +192,41 @@ document.addEventListener('visibilitychange', ()=>{
 });
 
 // Pantalla de entrada cuando no hay sesión.
+// El diseño saluda por la hora del día en vez de repetir el nombre de la app,
+// que ya está arriba a la izquierda.
+function saludoDelDia(){
+  const h = new Date().getHours();
+  const alias = ((state.profile && state.profile.alias) || '').trim();
+  const quien = alias ? ', ' + alias : '';
+  if(h < 6)  return 'Buenas noches' + quien;
+  if(h < 14) return 'Buenos días' + quien;
+  if(h < 21) return 'Buenas tardes' + quien;
+  return 'Buenas noches' + quien;
+}
+
 function showLoginScreen(){
   document.querySelector('.wrap').style.display='none';
   const el=document.createElement('div');
   el.className='login-screen';
+  // Fondo de la identidad: degradado oscuro y tres bandas inclinadas, las
+  // mismas capas de la marca a muy baja opacidad.
   el.innerHTML=`
+    <div class="login-bandas" aria-hidden="true">
+      <span></span><span></span><span></span>
+    </div>
+    <div class="login-marca">
+      <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect x="6"   y="23.3" width="28" height="7" rx="1.5" fill="rgba(251,252,254,.45)"/>
+        <rect x="8.5" y="14.8" width="23" height="7" rx="1.5" fill="rgba(251,252,254,.75)"/>
+        <rect x="11"  y="6.3"  width="18" height="7" rx="1.5" fill="#FBFCFE"/>
+      </svg>
+      <span>Mi Oficina</span>
+    </div>
     <div class="login-card">
-      <h1>Mi Oficina</h1>
-      <p>Entra con tu cuenta de Google de la Universidad de León para acceder a tu tablero.</p>
+      <h1>${saludoDelDia()}</h1>
+      <p>Correo, tareas, CRM y reuniones en un solo lugar. Entra con tu cuenta de Google de la Universidad de León.</p>
       <button class="btn-primary" onclick="connectGoogle()">Entrar con Google</button>
+      <div class="login-claim">La oficina de JC</div>
     </div>`;
   document.body.appendChild(el);
 }

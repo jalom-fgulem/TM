@@ -7,7 +7,7 @@ let _msgsExpandidos = new Set();  // mensajes desplegados dentro de la conversac
 // ---- Avatares ----
 // La API de Gmail no entrega la foto del remitente, así que se dibuja la
 // inicial sobre un color estable: la misma dirección da siempre el mismo color.
-const AVATAR_COLORES = ['#2563EB','#7C3AED','#DC2626','#D97706','#059669','#0891B2','#DB2777','#4F46E5','#65A30D','#EA580C'];
+const AVATAR_COLORES = ['#1F4B96','#5B4B9B','#C2352F','#B87514','#1C7A5B','#12707F','#A83C6B','#3E5D8C','#5E7A2E','#C05621'];
 
 function avatarColor(email){
   const e = (email || '?').toLowerCase();
@@ -296,7 +296,7 @@ function pintarCuerpoMensaje(m){
     // <base target="_blank">: los enlaces del correo salen a una pestaña nueva.
     // Sin esto intentan cargarse dentro del marco y la mayoría de webs lo rechazan.
     marco.srcdoc = `<!DOCTYPE html><html><head><meta charset="utf-8"><base target="_blank"><style>body{font-family:system-ui,sans-serif;font-size:13.5px;line-height:1.6;margin:0;padding:4px 0;color:#1A1A18;word-break:break-word;}
-      @media(max-width:820px){body{font-size:16px;line-height:1.55;}}a{color:#2563EB;}img{max-width:100%;height:auto;}blockquote{border-left:2px solid #ddd;margin:6px 0;padding-left:12px;color:#666;}</style></head><body>${cuerpo.html}</body></html>`;
+      @media(max-width:820px){body{font-size:16px;line-height:1.55;}}a{color:#1F4B96;}img{max-width:100%;height:auto;}blockquote{border-left:2px solid #ddd;margin:6px 0;padding-left:12px;color:#666;}</style></head><body>${cuerpo.html}</body></html>`;
     // La altura hay que medirla VARIAS veces: al cargar, las tablas, las
     // imágenes y las tipografías aún no han terminado de colocarse, y una sola
     // medida sale corta y recorta el correo.
