@@ -133,8 +133,11 @@ function renderMensajeHilo(m, esUltimo){
     <header class="gm-msg-cab" onclick="toggleMensajeHilo('${m.id}')">
       ${avatarHTML(de)}
       <div class="gm-msg-quien">
-        <div class="gm-msg-de">${escapeHtml(deNombre)}</div>
-        <div class="gm-msg-para">Para: ${escapeHtml((para || '').replace(/<[^>]+>/g, '').trim() || '—')}</div>
+        <div class="gm-msg-de">
+          <button class="persona" onclick="event.stopPropagation();abrirPersonaDeCorreo('${escapeAttr(de)}')"
+                  title="Ver o añadir al CRM">${escapeHtml(deNombre)}${marcaCrm(de)}</button>
+        </div>
+        <div class="gm-msg-para">Para: ${listaPersonasHTML(para, emHeader(m, 'Cc'))}</div>
       </div>
       <div class="gm-msg-meta">
         ${adjuntos.length ? `<i class="ti ti-paperclip" aria-hidden="true"></i>` : ''}
@@ -361,4 +364,28 @@ function fichaCrmHTML(cabeceraFrom){
     </div>
     <button class="btn-ghost btn-small" onclick="altaContactoDesdeCorreo('${escapeAttr(cabeceraFrom)}')">+ Añadir al CRM</button>
   </div>`;
+}
+
+
+// Marca discreta cuando la persona ya está en el CRM
+function marcaCrm(cabecera){
+  if(typeof contactoPorRemitente !== 'function') return '';
+  return contactoPorRemitente(cabecera) ? '<i class="ti ti-address-book persona-crm" aria-hidden="true"></i>' : '';
+}
+
+// Destinatarios y copias, cada uno pulsable
+function listaPersonasHTML(para, cc){
+  const gente = [...emSplitAddresses(para || ''), ...emSplitAddresses(cc || '')];
+  if(!gente.length) return '—';
+  const vistos = new Set();
+  const trozos = [];
+  gente.forEach(a => {
+    const correo = emBareAddress(a);
+    if(!correo || vistos.has(correo)) return;
+    vistos.add(correo);
+    const nombre = a.replace(/<[^>]+>/, '').replace(/"/g, '').trim() || correo;
+    trozos.push(`<button class="persona" onclick="event.stopPropagation();abrirPersonaDeCorreo('${escapeAttr(a)}')"
+      title="${escapeAttr(correo)}">${escapeHtml(nombre)}${marcaCrm(a)}</button>`);
+  });
+  return trozos.join('<span class="persona-sep">·</span>');
 }

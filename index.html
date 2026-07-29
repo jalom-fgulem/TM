@@ -829,6 +829,21 @@
   .gmail-list-item[data-sw-lado="der"]::before{right:100%; justify-content:flex-end;}
   .gmail-list-item.sw-listo::before{opacity:1; font-size:28px;}
 
+  /* Personas pulsables dentro de un correo */
+  .persona{border:none; background:transparent; padding:1px 3px; margin:0 -3px; border-radius:5px; cursor:pointer;
+           font:inherit; color:inherit; display:inline-flex; align-items:center; gap:4px; max-width:100%;
+           white-space:nowrap; overflow:hidden; text-overflow:ellipsis; vertical-align:bottom;}
+  .persona:hover{background:var(--accent-bg); color:var(--accent);}
+  .persona-crm{font-size:11px; color:var(--baja); flex-shrink:0;}
+  .persona-sep{color:var(--text-muted); margin:0 3px;}
+  .gm-msg-para{white-space:normal !important;}
+
+  /* Ventana de una persona */
+  .pers-cab{display:flex; align-items:center; gap:12px; padding:12px 0 14px; border-bottom:1px solid var(--border); margin-bottom:14px;}
+  .pers-datos{display:flex; flex-direction:column; min-width:0;}
+  .pers-nombre{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:15px; font-weight:600; color:var(--text);}
+  .pers-correo{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:12.5px; color:var(--text-soft);}
+
   /* Correspondencia en la ficha de contacto */
   .crm-correo{border:1px solid var(--border); border-left-width:3px; border-radius:var(--radius); padding:9px 11px; margin-bottom:7px; background:var(--surface); cursor:pointer;}
   .crm-correo:hover{border-color:var(--text-soft);}

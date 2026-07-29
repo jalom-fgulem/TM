@@ -606,9 +606,101 @@ function contactoPorRemitente(cabeceraFrom){
 // Alta rápida desde un correo, con nombre y dirección ya puestos
 function altaContactoDesdeCorreo(cabeceraFrom){
   const correo = emBareAddress(cabeceraFrom || '');
-  const completo = (cabeceraFrom || '').replace(/<[^>]+>/, '').replace(/"/g, '').trim();
-  const partes = completo.split(/\s+/).filter(Boolean);
-  const nombre = partes.length > 1 ? partes.slice(0, -1).join(' ') : (partes[0] || correo);
-  const apellidos = partes.length > 1 ? partes.slice(-1)[0] : '';
+  const { nombre, apellidos } = partirNombre(cabeceraFrom, correo);
   openContactModal(null, { nombre, apellidos, email: correo });
+}
+
+// ============================================================
+//  PERSONAS DE UN CORREO → CRM
+//
+//  Al pulsar sobre alguien que aparece en un correo se abre su ficha si ya la
+//  tienes, se ofrece completarla si coincide por nombre pero le falta el
+//  correo, o se da de alta si no está. Lo segundo evita ir creando duplicados
+//  de contactos que ya existen sin dirección guardada.
+// ============================================================
+
+function contactoPorNombre(nombre){
+  const n = (nombre || '').trim().toLowerCase();
+  if(n.length < 4) return null;
+  return (state.contacts || []).find(c => contactFullName(c).toLowerCase() === n) || null;
+}
+
+function partirNombre(completo, correo){
+  const limpio = (completo || '').replace(/<[^>]+>/, '').replace(/"/g, '').trim();
+  if(!limpio || limpio.includes('@')){
+    const base = (correo || '').split('@')[0].replace(/[._-]+/g, ' ').trim();
+    const p = base.split(/\s+/).filter(Boolean);
+    return { nombre: p[0] || correo, apellidos: p.slice(1).join(' ') };
+  }
+  const p = limpio.split(/\s+/).filter(Boolean);
+  return p.length > 1
+    ? { nombre: p.slice(0, -1).join(' '), apellidos: p[p.length - 1] }
+    : { nombre: p[0], apellidos: '' };
+}
+
+function abrirPersonaDeCorreo(cabecera){
+  const correo = emBareAddress(cabecera || '');
+  const visible = (cabecera || '').replace(/<[^>]+>/, '').replace(/"/g, '').trim() || correo;
+  if(!correo){ setStatus('No se ha podido leer la dirección.'); return; }
+
+  const porCorreo = (state.contacts || []).find(c => (c.email || '').toLowerCase() === correo);
+  const porNombre = porCorreo ? null : contactoPorNombre(visible);
+
+  const cabeceraModal = `
+    <div class="pers-cab">
+      ${avatarHTML(cabecera)}
+      <div class="pers-datos">
+        <span class="pers-nombre">${escapeHtml(visible)}</span>
+        <span class="pers-correo">${escapeHtml(correo)}</span>
+      </div>
+    </div>`;
+
+  let cuerpo;
+  if(porCorreo){
+    const detalle = [porCorreo.cargo, porCorreo.empresa].filter(Boolean).join(' · ');
+    cuerpo = `
+      <p class="google-connected">✓ Ya está en tu CRM${detalle ? ' — ' + escapeHtml(detalle) : ''}</p>
+      <div class="modal-actions">
+        <button class="btn-ghost" onclick="closeModal()">Cerrar</button>
+        <button class="btn-ghost" onclick="closeModal(); openContactModal('${porCorreo.id}')">Editar ficha</button>
+        <button class="btn-primary" onclick="closeModal(); currentContactId='${porCorreo.id}'; setView('crm');">Ver ficha</button>
+      </div>`;
+  } else if(porNombre){
+    const detalle = [porNombre.cargo, porNombre.empresa].filter(Boolean).join(' · ');
+    cuerpo = `
+      <p class="google-aviso">Tienes una ficha con ese mismo nombre${detalle ? ` (${escapeHtml(detalle)})` : ''},
+        pero <strong>sin correo guardado</strong>. Si es la misma persona, conviene completarla en vez de
+        crear una ficha repetida.</p>
+      <div class="modal-actions">
+        <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+        <button class="btn-ghost" onclick="closeModal(); altaContactoDesdeCorreo('${escapeAttr(cabecera)}')">No, es otra persona</button>
+        <button class="btn-primary" onclick="completarCorreoDeContacto('${porNombre.id}','${escapeAttr(correo)}')">Sí, guardar el correo en su ficha</button>
+      </div>`;
+  } else {
+    cuerpo = `
+      <p class="help">Todavía no está en tu CRM. Puedes darla de alta con el nombre y la dirección ya puestos.</p>
+      <div class="modal-actions">
+        <button class="btn-ghost" onclick="closeModal()">Cerrar</button>
+        <button class="btn-primary" onclick="closeModal(); altaContactoDesdeCorreo('${escapeAttr(cabecera)}')">+ Añadir al CRM</button>
+      </div>`;
+  }
+
+  document.getElementById('modalRoot').innerHTML = `
+    <div class="modal-bg" onclick="if(event.target===this) closeModal()">
+      <div class="modal" style="max-width:460px;">
+        <h3>Persona del correo</h3>
+        ${cabeceraModal}
+        ${cuerpo}
+      </div>
+    </div>`;
+}
+
+function completarCorreoDeContacto(contactId, correo){
+  const c = (state.contacts || []).find(x => x.id === contactId);
+  if(!c) return;
+  c.email = correo;
+  saveContactRow(c);
+  closeModal();
+  render();
+  setStatus(`Correo guardado en la ficha de ${contactFullName(c)}.`);
 }
