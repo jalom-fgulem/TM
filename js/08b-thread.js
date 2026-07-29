@@ -231,6 +231,26 @@ function renderMensajeHilo(m, esUltimo){
   </article>`;
 }
 
+// Un enlace dentro de un correo se abre siempre fuera, en una pestaña nueva.
+// Si se dejara al marco, la web intentaría cargarse dentro del correo (y casi
+// ninguna lo permite) o, peor, sustituiría a la aplicación entera.
+function abrirEnlaceDeCorreo(ev){
+  const a = ev.target && ev.target.closest ? ev.target.closest('a[href]') : null;
+  if(!a) return;
+  const destino = a.href || '';
+  ev.preventDefault();
+  ev.stopPropagation();
+
+  if(/^mailto:/i.test(destino)){
+    // Escribir a esa dirección con el propio redactor, sin salir de la app
+    const para = decodeURIComponent(destino.replace(/^mailto:/i, '').split('?')[0]);
+    if(typeof openCompose === 'function') openCompose('nuevo', { to: para });
+    return;
+  }
+  if(!/^https?:/i.test(destino)) return;    // nada de javascript:, data:, file:…
+  window.open(destino, '_blank', 'noopener,noreferrer');
+}
+
 // El cuerpo va en un marco aislado para que el HTML del correo no afecte a la app
 function pintarCuerpoMensaje(m){
   const cont = document.getElementById('gm-body-' + m.id);
@@ -240,9 +260,13 @@ function pintarCuerpoMensaje(m){
   if(cuerpo.html){
     const marco = document.createElement('iframe');
     marco.className = 'gmail-preview-iframe';
-    marco.setAttribute('sandbox', 'allow-popups allow-same-origin');
+    // allow-popups-to-escape-sandbox: la pestaña que se abre al pulsar un enlace
+    // se comporta como un navegador normal, sin heredar las restricciones de aquí.
+    marco.setAttribute('sandbox', 'allow-popups allow-popups-to-escape-sandbox allow-same-origin');
     cont.appendChild(marco);
-    marco.srcdoc = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:system-ui,sans-serif;font-size:13.5px;line-height:1.6;margin:0;padding:4px 0;color:#1A1A18;word-break:break-word;}
+    // <base target="_blank">: los enlaces del correo salen a una pestaña nueva.
+    // Sin esto intentan cargarse dentro del marco y la mayoría de webs lo rechazan.
+    marco.srcdoc = `<!DOCTYPE html><html><head><meta charset="utf-8"><base target="_blank"><style>body{font-family:system-ui,sans-serif;font-size:13.5px;line-height:1.6;margin:0;padding:4px 0;color:#1A1A18;word-break:break-word;}
       @media(max-width:820px){body{font-size:16px;line-height:1.55;}}a{color:#2563EB;}img{max-width:100%;height:auto;}blockquote{border-left:2px solid #ddd;margin:6px 0;padding-left:12px;color:#666;}</style></head><body>${cuerpo.html}</body></html>`;
     // La altura hay que medirla VARIAS veces: al cargar, las tablas, las
     // imágenes y las tipografías aún no han terminado de colocarse, y una sola
@@ -265,6 +289,14 @@ function pintarCuerpoMensaje(m){
         d.querySelectorAll('img').forEach(img => {
           if(!img.complete) img.addEventListener('load', ajustar, { once:true });
         });
+        // La web que se abre no debe poder tocar esta pestaña ni saber de dónde viene
+        d.querySelectorAll('a[href]').forEach(a => {
+          a.setAttribute('target', '_blank');
+          a.setAttribute('rel', 'noopener noreferrer');
+        });
+        // Y el clic lo atiende la propia aplicación: así el enlace nunca puede
+        // llevarse por delante la pantalla del correo, pase lo que pase.
+        d.addEventListener('click', abrirEnlaceDeCorreo, true);
       }catch(e){}
     };
     // Fuera del evento de carga a propósito: si por lo que sea no llega a
