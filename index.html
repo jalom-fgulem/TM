@@ -1053,6 +1053,11 @@
   .ed-firma-op.quitar{border-top:1px solid var(--border); border-radius:0 0 6px 6px; margin-top:4px; color:var(--text-soft); font-size:12.5px;}
 
   /* Gestor de firmas en Configuración */
+  .firma-resumen{border:1px solid var(--border); border-radius:var(--radius); padding:10px 12px; margin-bottom:12px; background:var(--surface);}
+  .firma-resumen-fila{display:flex; align-items:center; justify-content:space-between; gap:10px;
+    font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:12.5px; padding:3px 0;}
+  .firma-resumen-fila .fr-dir{color:var(--text-soft); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .firma-resumen-fila .fr-usa{font-weight:600; color:var(--text); flex-shrink:0;}
   .firma-item{border:1px solid var(--border); border-radius:var(--radius); padding:11px 12px; margin-bottom:9px; background:var(--surface2);}
   .firma-item-head{display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin-bottom:7px;}
   .firma-item-nombre{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:13.5px; font-weight:600; color:var(--text);}

@@ -24,8 +24,23 @@ async function fetchSendAsAliases(){
     const d = await r.json();
     // Se descartan los alias pendientes de verificar: Gmail no deja enviar con ellos
     googleSendAs = (d.sendAs || []).filter(a => a.isPrimary || a.verificationStatus === 'accepted');
+    // Gmail suele devolver la dirección principal SIN nombre para mostrar: ahí
+    // usa el de la cuenta de Google, que desde fuera no se ve. Si lo dejáramos
+    // vacío, el destinatario recibiría el correo con la dirección pelada y sin
+    // tu nombre, así que se rellena con el de tu perfil.
+    googleSendAs.forEach(a => { if(!(a.displayName || '').trim()) a.displayName = miNombreParaCorreo(); });
     _sendAsSinPermiso = false;
   }catch(e){}
+}
+
+// Tu nombre, buscándolo donde esté: primero el perfil de la app, luego el de
+// la cuenta de Google con la que has entrado.
+function miNombreParaCorreo(){
+  const p = (typeof state !== 'undefined' && state.profile) || {};
+  const delPerfil = [p.nombre, p.apellidos].filter(Boolean).join(' ').trim();
+  if(delPerfil) return delPerfil;
+  const meta = (sbSession && sbSession.user && sbSession.user.user_metadata) || {};
+  return (meta.full_name || meta.name || '').trim();
 }
 
 // Lista utilizable siempre, aunque no hayamos podido leer los alias
@@ -36,7 +51,7 @@ function composeAliasDisponibles(){
   const meta = (sbSession && sbSession.user && sbSession.user.user_metadata) || {};
   return [{
     sendAsEmail: emMyAddress(),
-    displayName: meta.full_name || meta.name || '',
+    displayName: miNombreParaCorreo() || meta.full_name || meta.name || '',
     signature: '', isDefault: true, isPrimary: true
   }];
 }

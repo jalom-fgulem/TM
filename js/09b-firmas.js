@@ -12,14 +12,38 @@
 
 function firmasLista(){ return state.signatures || (state.signatures = []); }
 
-// Firma que corresponde a una dirección de envío concreta
+// Firma que corresponde a una dirección de envío concreta.
+//
+// Se busca de lo más concreto a lo más general, y NO hace falta marcar nada
+// "por defecto": si sólo tienes una firma, esa es la que se usa. La regla es
+// "una firma por dirección, y si esa dirección no tiene la suya, la principal".
 function firmaParaAlias(email){
   const lista = firmasLista();
   if(!lista.length) return null;
   const e = (email || '').toLowerCase();
-  return lista.find(f => f.porDefecto && (f.alias || '').toLowerCase() === e)
-      || lista.find(f => f.porDefecto && !f.alias)
+  const suya   = f => (f.alias || '').toLowerCase() === e && e;
+  const general = f => !(f.alias || '').trim();
+
+  // Última red: la firma de tu dirección principal. A propósito NO se recurre a
+  // la de otro alias cualquiera: firmarías como FGULEM un correo salido de la
+  // dirección de la Universidad, o al revés.
+  const principal = (typeof emMyAddress === 'function' ? emMyAddress() : '').toLowerCase();
+  const deLaPrincipal = f => principal && (f.alias || '').toLowerCase() === principal;
+
+  return lista.find(f => suya(f) && f.porDefecto)         // la de esta dirección, preferida
+      || lista.find(suya)                                  // la de esta dirección
+      || lista.find(f => general(f) && f.porDefecto)        // la general preferida
+      || lista.find(general)                                // cualquier general
+      || lista.find(f => deLaPrincipal(f) && f.porDefecto)  // la de tu cuenta principal
+      || lista.find(deLaPrincipal)
       || null;
+}
+
+// Qué firma se usaría para cada una de tus direcciones. Se enseña en los
+// ajustes para que se vea de un vistazo, sin tener que probar escribiendo.
+function resumenFirmasPorAlias(){
+  const alias = (typeof composeAliasDisponibles === 'function') ? composeAliasDisponibles() : [];
+  return alias.map(a => ({ email: a.sendAsEmail, firma: firmaParaAlias(a.sendAsEmail) }));
 }
 
 // ---- Panel de configuración ----
@@ -30,17 +54,27 @@ function renderFirmasConfig(){
     el.innerHTML = '<p class="help">No hay firmas todavía. Crea una, o impórtala de Gmail si ya la tienes allí.</p>';
     return;
   }
-  el.innerHTML = lista.map(f => `
+  const resumen = resumenFirmasPorAlias();
+  const cabecera = resumen.length ? `
+    <div class="firma-resumen">
+      <p class="sect-h" style="margin:0 0 7px;">Qué firma se usa en cada dirección</p>
+      ${resumen.map(r => `<div class="firma-resumen-fila">
+        <span class="fr-dir">${escapeHtml(r.email)}</span>
+        <span class="fr-usa">${r.firma ? escapeHtml(r.firma.nombre || 'Sin nombre') : '— ninguna —'}</span>
+      </div>`).join('')}
+    </div>` : '';
+
+  el.innerHTML = cabecera + lista.map(f => `
     <div class="firma-item">
       <div class="firma-item-head">
         <span class="firma-item-nombre">${escapeHtml(f.nombre || 'Sin nombre')}</span>
-        ${f.porDefecto ? '<span class="firma-badge">Por defecto</span>' : ''}
-        ${f.alias ? `<span class="firma-badge alias">${escapeHtml(f.alias)}</span>` : ''}
+        ${f.porDefecto ? '<span class="firma-badge">Preferida</span>' : ''}
+        <span class="firma-badge alias">${f.alias ? escapeHtml(f.alias) : 'Cualquier dirección'}</span>
       </div>
       <div class="firma-item-previa">${f.html || ''}</div>
       <div class="firma-item-acciones">
         <button class="btn-ghost btn-small" onclick="editarFirma('${f.id}')">Editar</button>
-        ${f.porDefecto ? '' : `<button class="btn-ghost btn-small" onclick="marcarFirmaPorDefecto('${f.id}')">Usar por defecto</button>`}
+        ${f.porDefecto ? '' : `<button class="btn-ghost btn-small" onclick="marcarFirmaPorDefecto('${f.id}')">Preferir esta</button>`}
         <button class="btn-ghost btn-small" onclick="borrarFirma('${f.id}')">Eliminar</button>
       </div>
     </div>`).join('');
@@ -61,13 +95,15 @@ function editarFirma(id){
         <div class="field">
           <label>Dirección de envío asociada</label>
           <select id="fmAlias">
-            <option value="">Cualquiera</option>
+            <option value="">Cualquiera (firma general)</option>
             ${alias.map(a => `<option value="${escapeAttr(a.sendAsEmail)}" ${f && f.alias === a.sendAsEmail ? 'selected' : ''}>${escapeHtml(a.sendAsEmail)}</option>`).join('')}
           </select>
-          <p class="help" style="margin-top:5px;">Si eliges una dirección, esta firma se usará cuando escribas desde ella.</p>
+          <p class="help" style="margin-top:5px;">Si eliges una dirección, esta firma se usará al escribir desde ella.
+            Si la dejas en «Cualquiera», servirá para las direcciones que no tengan firma propia.</p>
         </div>
         <div class="field">
-          <label><input type="checkbox" id="fmDefecto" ${f && f.porDefecto ? 'checked' : ''}> Insertarla automáticamente al escribir</label>
+          <label><input type="checkbox" id="fmDefecto" ${f && f.porDefecto ? 'checked' : ''}> Preferir esta si hay varias para la misma dirección</label>
+          <p class="help" style="margin-top:5px;">No hace falta marcarlo para que la firma se use: sólo decide cuál gana si tienes más de una.</p>
         </div>
         <div class="field">
           <label>Contenido</label>
@@ -166,8 +202,8 @@ function importarFirmasDeGmail(){
   const conFirma = alias.filter(a => a.signature && a.signature.trim());
   if(!conFirma.length){
     setStatus(typeof _sendAsSinPermiso !== 'undefined' && _sendAsSinPermiso
-      ? 'Falta autorizar el acceso a tus firmas de Gmail.'
-      : 'Gmail no devuelve ninguna firma para tus direcciones.');
+      ? 'Falta autorizar el acceso a tus firmas de Gmail. Vuelve a conectar con Google.'
+      : 'En Gmail no hay ninguna firma guardada para tus direcciones. Créala aquí con «+ Nueva firma».');
     return;
   }
   const lista = firmasLista();
