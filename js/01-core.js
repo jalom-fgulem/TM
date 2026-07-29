@@ -92,7 +92,7 @@ function saveContactRow(c){ return upsertRow('contacts', c.id, c); }
 function deleteContactRow(id){ return deleteRow('contacts', id); }
 function saveNoteRow(n){ return upsertRow('notes', n.id, n); }
 function deleteNoteRow(id){ return deleteRow('notes', id); }
-function saveSettings(){ return upsertRow('board', STORAGE_KEY, { areas: state.areas, tipos: state.tipos, profile: state.profile, calendarSelection: state.calendarSelection||{}, calendarConfig: state.calendarConfig||{}, kanbanOrder: state.kanbanOrder||{}, signatures: state.signatures||[], mailFavLabels: state.mailFavLabels||[], mailCollapsed: state.mailCollapsed||[], mailLayout: state.mailLayout||{}, mailAgenda: state.mailAgenda||[], mailAgendaFecha: state.mailAgendaFecha||null, mailSwipe: state.mailSwipe||{}, notifPrefs: state.notifPrefs||{} }); }
+function saveSettings(){ return upsertRow('board', STORAGE_KEY, { areas: state.areas, tipos: state.tipos, profile: state.profile, calendarSelection: state.calendarSelection||{}, calendarConfig: state.calendarConfig||{}, kanbanOrder: state.kanbanOrder||{}, signatures: state.signatures||[], mailFavLabels: state.mailFavLabels||[], mailCollapsed: state.mailCollapsed||[], mailLayout: state.mailLayout||{}, mailAgenda: state.mailAgenda||[], mailAgendaFecha: state.mailAgendaFecha||null, mailSwipe: state.mailSwipe||{}, mailLogos: state.mailLogos !== false, notifPrefs: state.notifPrefs||{} }); }
 
 async function loadState(){
   setStatus('Cargando...');
@@ -122,6 +122,7 @@ async function loadState(){
       mailAgenda: settings.mailAgenda || [],
       mailAgendaFecha: settings.mailAgendaFecha || null,
       mailSwipe: settings.mailSwipe || {},
+      mailLogos: settings.mailLogos !== false,
       notifPrefs: settings.notifPrefs || {},
       kanbanOrder: settings.kanbanOrder || {}
     };

@@ -95,6 +95,7 @@ async function fetchGmailLabels(){
     gmailUserLabels=(data.labels||[]).filter(l=>l.type==='user'||(!systemExclude.includes(l.id)&&l.type==='system'&&l.name==='INBOX')).filter(l=>!systemExclude.includes(l.id));
     _gruposPlegados = new Set(state.mailCollapsed || []);
     renderGmailLabelBtns();
+    actualizarFichasEtiqueta();   // las fichas de arriba también dependen de esto
     cargarContadoresEtiqueta();
   }catch(e){}
 }

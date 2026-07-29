@@ -117,14 +117,20 @@ function renderGmailSidebarHTML(){
 
 // ---- Fichas rápidas sobre la lista ----
 function renderFichasEtiqueta(){
-  const fav = favoritasLista().filter(n => (gmailUserLabels || []).some(l => l.name === n));
+  // Mientras Gmail no haya devuelto la lista de etiquetas no se puede comprobar
+  // si las favoritas siguen existiendo. Antes se filtraban igualmente y las
+  // fichas desaparecían hasta que llegaba la respuesta: por eso "iban y venían".
+  const etiquetasCargadas = (gmailUserLabels || []).length > 0;
+  const fav = etiquetasCargadas
+    ? favoritasLista().filter(n => gmailUserLabels.some(l => l.name === n))
+    : favoritasLista().slice();
   const todas = `<button class="gm-ficha ${currentEmailQuery === 'in:inbox' ? 'on' : ''}" onclick="setEmailQuery('in:inbox')">Todo</button>`;
   if(!fav.length){
     return `<div class="gm-fichas">${todas}<span class="gm-fichas-ayuda">Marca etiquetas con la estrella para tenerlas aquí</span></div>`;
   }
   return `<div class="gm-fichas">${todas}${fav.map(n => `
     <button class="gm-ficha ${currentEmailQuery === 'label:' + n ? 'on' : ''}"
-      data-label-id="${escapeAttr((gmailUserLabels.find(l=>l.name===n)||{}).id||'')}" data-label-name="${escapeAttr(n.split('/').pop())}"
+      data-label-id="${escapeAttr(((gmailUserLabels||[]).find(l=>l.name===n)||{}).id||'')}" data-label-name="${escapeAttr(n.split('/').pop())}"
       onclick="setEmailQuery('label:${escapeAttr(n)}')">${escapeHtml(n.split('/').pop())}</button>`).join('')}</div>`;
 }
 function actualizarFichasEtiqueta(){

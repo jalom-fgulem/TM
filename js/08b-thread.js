@@ -26,11 +26,40 @@ function avatarInicial(nombre, email){
   }
   return limpio[0].toUpperCase();
 }
+// Correos de particulares: ahí no hay logotipo de empresa que valga
+const DOMINIOS_PERSONALES = new Set(['gmail.com','googlemail.com','hotmail.com','hotmail.es',
+  'outlook.com','outlook.es','live.com','yahoo.com','yahoo.es','icloud.com','me.com','mac.com',
+  'protonmail.com','proton.me','aol.com','msn.com','terra.es','telefonica.net','ono.com','wanadoo.es']);
+
+function mostrarLogotipos(){ return state.mailLogos !== false; }   // activado salvo que se apague
+
+// El logotipo se pide como el icono del sitio web del remitente. Se usa el
+// servicio de Google, que es el mismo sitio donde ya está tu correo: así no
+// entra en juego ninguna empresa nueva que no supiera ya con quién te escribes.
+function logoDeRemitente(email){
+  if(!mostrarLogotipos()) return '';
+  const dom = ((email || '').split('@')[1] || '').trim().toLowerCase();
+  if(!dom || dom.indexOf('.') < 0 || DOMINIOS_PERSONALES.has(dom)) return '';
+  return 'https://www.google.com/s2/favicons?sz=64&domain=' + encodeURIComponent(dom);
+}
+
+function cambiarLogotipos(activado){
+  state.mailLogos = !!activado;
+  saveSettings();
+  if(currentView === 'correo'){ render(); loadGmailWidget(); }
+  setStatus(activado ? 'Se mostrarán los logotipos de los remitentes.' : 'Se mostrarán solo las iniciales.');
+}
+
 function avatarHTML(from, tam){
   const nombre = (from || '').replace(/<[^>]+>/, '').replace(/"/g, '').trim();
   const email = emBareAddress(from || '');
   const clase = tam === 'sm' ? 'gm-avatar sm' : 'gm-avatar';
-  return `<span class="${clase}" style="background:${avatarColor(email)};" title="${escapeAttr(from || '')}">${escapeHtml(avatarInicial(nombre, email))}</span>`;
+  const logo = logoDeRemitente(email);
+  // El logotipo sólo se hace visible cuando ha llegado de verdad: hasta entonces
+  // (y si no llega nunca) se siguen viendo las iniciales de colores.
+  const img = logo ? `<img class="gm-avatar-logo" src="${escapeAttr(logo)}" alt="" referrerpolicy="no-referrer"
+    onload="this.classList.add('ok')" onerror="this.remove()">` : '';
+  return `<span class="${clase}" style="background:${avatarColor(email)};" title="${escapeAttr(from || '')}">${escapeHtml(avatarInicial(nombre, email))}${img}</span>`;
 }
 
 // ---- Apertura de una conversación ----

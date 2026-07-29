@@ -14,16 +14,18 @@ function renderCorreo(){
       <div class="gmail-list-head">
         <span class="gmail-list-head-title">${escapeHtml(labelTitle)}</span>
         <span style="display:flex;gap:6px;align-items:center;">
-          <button class="btn-primary btn-small" onclick="openCompose('nuevo')" title="Redactar"><i class="ti ti-pencil-plus" aria-hidden="true"></i> Redactar</button>
-          <button class="btn-icon" onclick="loadGmailWidget()" title="Actualizar" style="width:26px;height:26px;font-size:13px;"><i class="ti ti-refresh" aria-hidden="true"></i></button>
+          <button class="btn-primary btn-small gm-redactar" onclick="openCompose('nuevo')" title="Redactar" aria-label="Redactar"><i class="ti ti-pencil-plus" aria-hidden="true"></i><span>Redactar</span></button>
+          <button class="btn-icon" onclick="loadGmailWidget()" title="Actualizar" aria-label="Actualizar" style="width:26px;height:26px;font-size:13px;"><i class="ti ti-refresh" aria-hidden="true"></i></button>
         </span>
       </div>
-      <div class="gm-buscador">
-        <i class="ti ti-search" aria-hidden="true"></i>
-        <input type="text" id="gmBuscar" placeholder="Buscar en el correo…" onkeydown="buscarCorreo(event)">
-        <button class="gm-buscar-x" onclick="limpiarBusqueda()" title="Limpiar"><i class="ti ti-x" aria-hidden="true"></i></button>
+      <div class="gm-barra-buscar">
+        <div class="gm-buscador">
+          <i class="ti ti-search" aria-hidden="true"></i>
+          <input type="text" id="gmBuscar" placeholder="${(typeof isMobile==='function' && isMobile()) ? 'Buscar…' : 'Buscar en el correo…'}" onkeydown="buscarCorreo(event)">
+          <button class="gm-buscar-x" onclick="limpiarBusqueda()" title="Limpiar" aria-label="Limpiar la búsqueda"><i class="ti ti-x" aria-hidden="true"></i></button>
+        </div>
+        ${renderFichasEtiqueta().replace('<div class="gm-fichas"','<div class="gm-fichas" id="gmFichas"')}
       </div>
-      ${renderFichasEtiqueta().replace('<div class="gm-fichas"','<div class="gm-fichas" id="gmFichas"')}
       <div id="gmailWidget"><p class="empty" style="padding:16px 12px;">Cargando...</p></div>
     </div>
     <div class="gm-tirador" data-col="list" title="Arrastra para ajustar el ancho"></div>

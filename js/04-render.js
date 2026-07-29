@@ -136,6 +136,8 @@ function openConfigDrawer(){
   document.getElementById('cfgAlias').value     = p.alias     || '';
   document.getElementById('cfgCargo').value     = p.cargo     || '';
   document.getElementById('cfgEmail').value     = p.email     || '';
+  const logos = document.getElementById('cfgLogos');
+  if(logos) logos.checked = state.mailLogos !== false;
 }
 function closeConfigDrawer(){
   document.getElementById('configDrawer').classList.remove('open');
