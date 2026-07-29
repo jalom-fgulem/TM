@@ -230,6 +230,29 @@ async function reglaDesdeLista(msgId){
 
 const SWIPE_UMBRAL = 90;          // píxeles a partir de los cuales se ejecuta
 let _sw = null;
+const _iconoCache = {};
+
+// Los iconos son un tipo de letra: se le pregunta a él cuál es el carácter y la
+// familia, así no hay que codificar códigos internos que cambian con las
+// actualizaciones de la librería.
+function iconoComoTexto(clase){
+  if(_iconoCache[clase]) return _iconoCache[clase];
+  try{
+    const sonda = document.createElement('i');
+    sonda.className = 'ti ' + clase;
+    sonda.style.cssText = 'position:absolute;left:-9999px;top:0;';
+    document.body.appendChild(sonda);
+    const est = getComputedStyle(sonda, '::before');
+    const car = (est.content || '').replace(/^["']|["']$/g, '');
+    const familia = est.fontFamily || getComputedStyle(sonda).fontFamily;
+    sonda.remove();
+    if(car && car !== 'none'){
+      _iconoCache[clase] = { car, familia };
+      return _iconoCache[clase];
+    }
+  }catch(e){}
+  return { car: '', familia: '' };
+}
 
 function accionDeslizar(direccion){
   const cfg = state.mailSwipe || {};
@@ -269,11 +292,12 @@ document.addEventListener('touchmove', e => {
   const meta = _swMeta[accion] || _swMeta.papelera;
   const pasado = Math.abs(dx) >= SWIPE_UMBRAL;
 
+  const ico = iconoComoTexto(meta.icono);
   _sw.fila.style.transform = `translateX(${dx}px)`;
   _sw.fila.style.setProperty('--sw-color', meta.color);
+  _sw.fila.style.setProperty('--sw-fuente', ico.familia || 'inherit');
   _sw.fila.dataset.swLado = dx < 0 ? 'izq' : 'der';
-  _sw.fila.dataset.swTexto = meta.texto;
-  _sw.fila.dataset.swIcono = meta.icono;
+  _sw.fila.dataset.swChar = ico.car || (meta.texto || '').slice(0, 1);
   _sw.fila.classList.toggle('sw-listo', pasado);
 }, { passive: true });
 

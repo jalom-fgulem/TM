@@ -817,15 +817,15 @@
   .gmail-list-item{position:relative; touch-action:pan-y;}
   .gmail-list-item.deslizando{transition:none; z-index:3;}
   .gmail-list-item[data-sw-lado]::before{
-    content:attr(data-sw-texto); position:absolute; top:0; bottom:0; width:100vw;
-    display:flex; align-items:center; padding:0 22px; z-index:-1;
+    content:attr(data-sw-char); position:absolute; top:0; bottom:0; width:100vw;
+    display:flex; align-items:center; padding:0 26px; z-index:-1;
     background:var(--sw-color, var(--alta)); color:#fff;
-    font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:13px; font-weight:700;
-    text-transform:uppercase; letter-spacing:.05em; opacity:.55;
+    font-family:var(--sw-fuente, inherit); font-size:24px; line-height:1;
+    opacity:.6; transition:opacity .12s, font-size .12s;
   }
   .gmail-list-item[data-sw-lado="izq"]::before{left:100%; justify-content:flex-start;}
   .gmail-list-item[data-sw-lado="der"]::before{right:100%; justify-content:flex-end;}
-  .gmail-list-item.sw-listo::before{opacity:1;}
+  .gmail-list-item.sw-listo::before{opacity:1; font-size:28px;}
 
   /* Correspondencia en la ficha de contacto */
   .crm-correo{border:1px solid var(--border); border-left-width:3px; border-radius:var(--radius); padding:9px 11px; margin-bottom:7px; background:var(--surface); cursor:pointer;}
