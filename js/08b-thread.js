@@ -87,20 +87,23 @@ function renderThreadPanel(){
         <div class="gm-th-etiquetas">${etiquetas.map(id => `<span class="gm-th-chip">${escapeHtml(nombreEtiqueta(id))}</span>`).join('')}</div>
       </div>
       <div class="gm-acciones">
-        <button class="gm-acc" onclick="openCompose('responder')" title="Responder"><i class="ti ti-corner-up-left" aria-hidden="true"></i></button>
-        <button class="gm-acc" onclick="openCompose('responderTodos')" title="Responder a todos"><i class="ti ti-corner-up-left-double" aria-hidden="true"></i></button>
-        <button class="gm-acc" onclick="openCompose('reenviar')" title="Reenviar"><i class="ti ti-corner-up-right" aria-hidden="true"></i></button>
+        <div class="gm-acc-principales">
+          <button class="gm-acc grande azul" onclick="openCompose('responder')" title="Responder" aria-label="Responder"><i class="ti ti-corner-up-left" aria-hidden="true"></i>Responder</button>
+          <button class="gm-acc grande verde" onclick="archiveEmail('${_currentThread.id}')" title="Archivar toda la conversación" aria-label="Archivar toda la conversación"><i class="ti ti-archive" aria-hidden="true"></i>Archivar</button>
+          <button class="gm-acc grande rojo" onclick="deleteEmail('${_currentThread.id}')" title="Mover toda la conversación a la papelera" aria-label="Mover toda la conversación a la papelera"><i class="ti ti-trash" aria-hidden="true"></i>Borrar</button>
+        </div>
         <span class="gm-acc-sep"></span>
-        <button class="gm-acc ${destacado ? 'on' : ''}" onclick="toggleStarEmail('${ultimo.id}')" title="${destacado ? 'Quitar destacado' : 'Destacar'}"><i class="ti ti-star${destacado ? '-filled' : ''}" aria-hidden="true"></i></button>
-        <button class="gm-acc" onclick="archiveEmail('${_currentThread.id}')" title="Archivar toda la conversación"><i class="ti ti-archive" aria-hidden="true"></i></button>
-        <button class="gm-acc" onclick="marcarComoSpam('${_currentThread.id}')" title="Marcar como spam"><i class="ti ti-alert-octagon" aria-hidden="true"></i></button>
-        <button class="gm-acc peligro" onclick="deleteEmail('${_currentThread.id}')" title="Mover toda la conversación a la papelera"><i class="ti ti-trash" aria-hidden="true"></i></button>
-        <button class="gm-acc" onclick="abrirSelectorEtiquetas('${ultimo.id}')" title="Etiquetar"><i class="ti ti-tag" aria-hidden="true"></i></button>
-        <button class="gm-acc" onclick="crearReglaDesdeCorreo('${ultimo.id}')" title="Crear regla con este remitente"><i class="ti ti-filter" aria-hidden="true"></i></button>
-        <button class="gm-acc" onclick="${_lecturaAmpliada ? 'cerrarLecturaAmpliada()' : 'ampliarLectura()'}" title="${_lecturaAmpliada ? 'Volver al panel' : 'Ver a pantalla completa'}"><i class="ti ti-${_lecturaAmpliada ? 'arrows-minimize' : 'arrows-maximize'}" aria-hidden="true"></i></button>
+        <button class="gm-acc azul" onclick="openCompose('responderTodos')" title="Responder a todos" aria-label="Responder a todos"><i class="ti ti-corner-up-left-double" aria-hidden="true"></i></button>
+        <button class="gm-acc azul" onclick="openCompose('reenviar')" title="Reenviar" aria-label="Reenviar"><i class="ti ti-corner-up-right" aria-hidden="true"></i></button>
         <span class="gm-acc-sep"></span>
-        <button class="gm-acc" onclick="reunionDesdeCorreo('${ultimo.id}')" title="Crear ficha de reunión"><i class="ti ti-users" aria-hidden="true"></i></button>
-        <button class="gm-acc" onclick="importEmailAsTask('${escapeAttr(asunto)}','${escapeAttr((emHeader(ultimo,'From')||'').replace(/<[^>]+>/,'').trim())}','${escapeAttr(ultimo.id)}')" title="Crear tarea"><i class="ti ti-checkbox" aria-hidden="true"></i></button>
+        <button class="gm-acc ambar ${destacado ? 'on' : ''}" onclick="toggleStarEmail('${ultimo.id}')" title="${destacado ? 'Quitar destacado' : 'Destacar'}" aria-label="${destacado ? 'Quitar destacado' : 'Destacar'}"><i class="ti ti-star${destacado ? '-filled' : ''}" aria-hidden="true"></i></button>
+        <button class="gm-acc morado" onclick="abrirSelectorEtiquetas('${ultimo.id}')" title="Etiquetar" aria-label="Etiquetar"><i class="ti ti-tag" aria-hidden="true"></i></button>
+        <button class="gm-acc morado" onclick="crearReglaDesdeCorreo('${ultimo.id}')" title="Crear regla con este remitente" aria-label="Crear regla con este remitente"><i class="ti ti-filter" aria-hidden="true"></i></button>
+        <button class="gm-acc naranja" onclick="marcarComoSpam('${_currentThread.id}')" title="Marcar como spam" aria-label="Marcar como spam"><i class="ti ti-alert-octagon" aria-hidden="true"></i></button>
+        <button class="gm-acc" onclick="${_lecturaAmpliada ? 'cerrarLecturaAmpliada()' : 'ampliarLectura()'}" title="${_lecturaAmpliada ? 'Volver al panel' : 'Ver a pantalla completa'}" aria-label="${_lecturaAmpliada ? 'Volver al panel' : 'Ver a pantalla completa'}"><i class="ti ti-${_lecturaAmpliada ? 'arrows-minimize' : 'arrows-maximize'}" aria-hidden="true"></i></button>
+        <span class="gm-acc-sep"></span>
+        <button class="gm-acc turquesa" onclick="reunionDesdeCorreo('${ultimo.id}')" title="Crear ficha de reunión" aria-label="Crear ficha de reunión"><i class="ti ti-users" aria-hidden="true"></i></button>
+        <button class="gm-acc verde" onclick="importEmailAsTask('${escapeAttr(asunto)}','${escapeAttr((emHeader(ultimo,'From')||'').replace(/<[^>]+>/,'').trim())}','${escapeAttr(ultimo.id)}')" title="Crear tarea" aria-label="Crear tarea"><i class="ti ti-checkbox" aria-hidden="true"></i></button>
       </div>
     </div>
     ${fichaCrmHTML(emHeader(msgs[0], 'From'))}

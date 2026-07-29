@@ -47,13 +47,13 @@ async function loadGmailWidget(){
       <div class="gli-fila2">
         <div class="gli-subject${unread?' bold':''}">${escapeHtml(subject)}</div>
         <div class="gli-acciones">
-          <button class="gli-acc${(main.labelIds||[]).includes('STARRED')?' on':''}" title="Destacar"
+          <button class="gli-acc ambar${(main.labelIds||[]).includes('STARRED')?' on':''}" title="Destacar" aria-label="Destacar"
             onclick="event.stopPropagation();destacarDesdeLista('${main.id}','${tid}')"><i class="ti ti-star${(main.labelIds||[]).includes('STARRED')?'-filled':''}" aria-hidden="true"></i></button>
-          <button class="gli-acc" title="Etiquetar" onclick="event.stopPropagation();etiquetarDesdeLista('${main.id}','${tid}')"><i class="ti ti-tag" aria-hidden="true"></i></button>
-          <button class="gli-acc" title="Crear regla con este remitente" onclick="event.stopPropagation();reglaDesdeLista('${main.id}')"><i class="ti ti-filter" aria-hidden="true"></i></button>
-          <button class="gli-acc" title="Archivar" onclick="event.stopPropagation();archiveEmail('${tid}')"><i class="ti ti-archive" aria-hidden="true"></i></button>
-          <button class="gli-acc" title="Marcar como spam" onclick="event.stopPropagation();marcarComoSpam('${tid}')"><i class="ti ti-alert-octagon" aria-hidden="true"></i></button>
-          <button class="gli-acc peligro" title="Mover a papelera" onclick="event.stopPropagation();deleteEmail('${tid}')"><i class="ti ti-trash" aria-hidden="true"></i></button>
+          <button class="gli-acc morado" title="Etiquetar" aria-label="Etiquetar" onclick="event.stopPropagation();etiquetarDesdeLista('${main.id}','${tid}')"><i class="ti ti-tag" aria-hidden="true"></i></button>
+          <button class="gli-acc morado" title="Crear regla con este remitente" aria-label="Crear regla con este remitente" onclick="event.stopPropagation();reglaDesdeLista('${main.id}')"><i class="ti ti-filter" aria-hidden="true"></i></button>
+          <button class="gli-acc naranja" title="Marcar como spam" aria-label="Marcar como spam" onclick="event.stopPropagation();marcarComoSpam('${tid}')"><i class="ti ti-alert-octagon" aria-hidden="true"></i></button>
+          <button class="gli-acc verde grande" title="Archivar" aria-label="Archivar" onclick="event.stopPropagation();archiveEmail('${tid}')"><i class="ti ti-archive" aria-hidden="true"></i></button>
+          <button class="gli-acc rojo grande" title="Mover a papelera" aria-label="Mover a papelera" onclick="event.stopPropagation();deleteEmail('${tid}')"><i class="ti ti-trash" aria-hidden="true"></i></button>
         </div>
       </div>
       <div class="gli-snippet">${escapeHtml(main.snippet||'')}</div>

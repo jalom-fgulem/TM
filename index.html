@@ -801,7 +801,16 @@
   .gli-acc{width:24px; height:24px; padding:0; border:none; background:transparent; border-radius:5px; cursor:pointer; color:var(--text-muted); font-size:12.5px; display:inline-flex; align-items:center; justify-content:center;}
   .gli-acc:hover{background:var(--surface); color:var(--text); box-shadow:0 1px 2px rgba(0,0,0,.08);}
   .gli-acc.on{color:var(--media); opacity:1;}
-  .gli-acc.peligro:hover{background:var(--alta-bg); color:var(--alta);}
+  /* Mismos colores que la barra de lectura, para no tener que reaprenderlos */
+  .gli-acc.ambar{color:var(--media);}   .gli-acc.ambar:hover{background:var(--media-bg); color:#B45309;}
+  .gli-acc.morado{color:#7C3AED;}       .gli-acc.morado:hover{background:#F3EEFE; color:#6D28D9;}
+  .gli-acc.verde{color:var(--baja);}    .gli-acc.verde:hover{background:var(--baja-bg); color:#047857;}
+  .gli-acc.naranja{color:#EA580C;}      .gli-acc.naranja:hover{background:#FFF3EA; color:#C2410C;}
+  .gli-acc.rojo{color:var(--alta);}     .gli-acc.rojo:hover{background:var(--alta-bg); color:#B91C1C;}
+  /* Archivar y borrar, algo mayores y ya teñidos: son los de uso diario */
+  .gli-acc.grande{width:28px; height:28px; font-size:14px; margin-left:2px;}
+  .gli-acc.verde.grande{background:var(--baja-bg);}
+  .gli-acc.rojo.grande{background:var(--alta-bg);}
   /* En pantallas táctiles no hay "pasar por encima": se dejan siempre visibles */
   @media (hover:none){ .gli-acciones{opacity:1;} }
 
@@ -930,12 +939,34 @@
   .gm-th-etiquetas{display:flex; gap:5px; flex-wrap:wrap; margin-top:5px;}
   .gm-th-chip{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:10.5px; padding:2px 8px; border-radius:20px; background:var(--area-bg); color:var(--area-ink);}
 
-  .gm-acciones{display:flex; align-items:center; gap:2px; flex-wrap:wrap; margin-top:10px;}
-  .gm-acc{width:32px; height:32px; padding:0; border:none; background:transparent; border-radius:7px; cursor:pointer; color:var(--text-soft); font-size:15px; display:inline-flex; align-items:center; justify-content:center;}
+  .gm-acciones{display:flex; align-items:center; gap:3px; flex-wrap:wrap; margin-top:10px;}
+  .gm-acc{width:32px; height:32px; padding:0; border:1px solid transparent; background:transparent; border-radius:8px;
+    cursor:pointer; color:var(--text-soft); font-size:15px; display:inline-flex; align-items:center;
+    justify-content:center; transition:background .12s, color .12s, border-color .12s;}
   .gm-acc:hover{background:var(--area-bg); color:var(--text);}
+  .gm-acc:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+  .gm-acc-sep{width:1px; height:18px; background:var(--border); margin:0 6px;}
+
+  /* Cada acción con su color, para reconocerla sin leer */
+  .gm-acc.azul{color:var(--accent);}         .gm-acc.azul:hover{background:#E8EFFD; color:#1D4ED8;}
+  .gm-acc.ambar{color:var(--media);}         .gm-acc.ambar:hover{background:var(--media-bg); color:#B45309;}
+  .gm-acc.verde{color:var(--baja);}          .gm-acc.verde:hover{background:var(--baja-bg); color:#047857;}
+  .gm-acc.rojo{color:var(--alta);}           .gm-acc.rojo:hover{background:var(--alta-bg); color:#B91C1C;}
+  .gm-acc.naranja{color:#EA580C;}            .gm-acc.naranja:hover{background:#FFF3EA; color:#C2410C;}
+  .gm-acc.morado{color:#7C3AED;}             .gm-acc.morado:hover{background:#F3EEFE; color:#6D28D9;}
+  .gm-acc.turquesa{color:#0891B2;}           .gm-acc.turquesa:hover{background:#E6F7FB; color:#0E7490;}
   .gm-acc.on{color:var(--media);}
-  .gm-acc.peligro:hover{background:var(--alta-bg); color:var(--alta);}
-  .gm-acc-sep{width:1px; height:18px; background:var(--border); margin:0 5px;}
+
+  .gm-acc-principales{display:flex; align-items:center; gap:4px;}
+  /* Las tres que más se usan: botón grande con su nombre escrito */
+  .gm-acc.grande{width:auto; height:34px; padding:0 13px; gap:6px;
+    font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:12.5px; font-weight:600; letter-spacing:.01em;}
+  .gm-acc.grande.azul{background:#EEF3FE; border-color:#CFDEFB;}
+  .gm-acc.grande.azul:hover{background:#DEE9FC;}
+  .gm-acc.grande.verde{background:var(--baja-bg); border-color:var(--baja-border);}
+  .gm-acc.grande.verde:hover{background:#D6F7E8;}
+  .gm-acc.grande.rojo{background:var(--alta-bg); border-color:var(--alta-border);}
+  .gm-acc.grande.rojo:hover{background:#FDE3E3;}
 
   .gm-th-lista{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:0 0 40px; min-height:0;}
   .gm-msg{border:1px solid var(--border); border-radius:10px; margin:10px 14px; background:var(--surface); overflow:hidden;}
@@ -943,14 +974,16 @@
   /* Lo que he enviado yo: sangrado, fondo azulado y una franja de color */
   .gm-msg.mio{margin-left:44px; background:#F3F7FF; border-color:#D5E2FB; border-left:3px solid var(--accent);}
   .gm-msg.mio .gm-msg-cab:hover{background:#E9F0FE;}
-  .gm-msg-yo{display:inline-flex; align-items:center; gap:4px; margin-left:8px; padding:1px 8px 2px;
+  .gm-msg-yo{display:inline-flex; align-items:center; flex-shrink:0; gap:4px; margin-left:8px; padding:1px 8px 2px;
     border-radius:20px; background:var(--accent); color:#fff; font-size:10.5px; font-weight:600;
     letter-spacing:.02em; vertical-align:1px;}
   .gm-msg-yo .ti{font-size:11px;}
   .gm-msg-cab{display:flex; align-items:center; gap:11px; padding:11px 14px; cursor:pointer;}
   .gm-msg-cab:hover{background:var(--surface2);}
   .gm-msg-quien{flex:1; min-width:0;}
-  .gm-msg-de{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:13.5px; font-weight:600; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  /* El nombre se recorta si no cabe, pero la etiqueta «Enviado por ti» nunca */
+  .gm-msg-de{display:flex; align-items:center; min-width:0; font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:13.5px; font-weight:600; color:var(--text);}
+  .gm-msg-de .persona{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .gm-msg-para{font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:11.5px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .gm-msg-meta{display:flex; align-items:center; gap:7px; flex-shrink:0; font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:11.5px; color:var(--text-muted);}
   .gm-msg-flecha{font-size:13px;}
@@ -1126,7 +1159,11 @@
     /* Lectura: asunto grande y cuerpo legible */
     .gmail-preview-subject{font-size:21px; line-height:1.25; font-weight:700;}
     .gm-acciones{gap:4px; margin-top:12px;}
-    .gm-acc{width:40px; height:40px; font-size:19px;}
+    .gm-acc{width:44px; height:44px; font-size:19px;}
+    /* Responder / Archivar / Borrar ocupan una fila entera y se reparten el ancho */
+    .gm-acc-principales{flex:1 1 100%; gap:6px; margin-bottom:2px;}
+    .gm-acc-principales .gm-acc.grande{flex:1; min-width:0; width:auto; height:46px; padding:0 8px; font-size:14px;}
+    .gm-acciones > .gm-acc-sep:first-of-type{display:none;}
     .gm-msg-de{font-size:16px;}
     .gm-msg-para{font-size:13px;}
     .gm-msg-meta{font-size:13px;}
