@@ -1,7 +1,7 @@
 {
-  "name": "Gestor de Tareas",
-  "short_name": "TM",
-  "description": "Gestor personal de tareas, proyectos y contactos",
+  "name": "Mi Oficina",
+  "short_name": "Mi Oficina",
+  "description": "Correo, agenda, reuniones, proyectos y contactos en un solo sitio",
   "start_url": "/TM/",
   "scope": "/TM/",
   "display": "standalone",

@@ -198,7 +198,7 @@ function showLoginScreen(){
   el.className='login-screen';
   el.innerHTML=`
     <div class="login-card">
-      <h1>Gestor de tareas</h1>
+      <h1>Mi Oficina</h1>
       <p>Entra con tu cuenta de Google de la Universidad de León para acceder a tu tablero.</p>
       <button class="btn-primary" onclick="connectGoogle()">Entrar con Google</button>
     </div>`;

@@ -364,7 +364,7 @@ function renameTipo(idx, newVal){
 }
 function updateAppTitle(){
   const alias = (state.profile && state.profile.alias) ? state.profile.alias : '';
-  document.getElementById('appTitle').textContent = 'Gestor de tareas';
+  document.getElementById('appTitle').textContent = 'Mi Oficina';
   const aliasEl = document.getElementById('headerAliasTag');
   if(aliasEl) aliasEl.textContent = alias ? `· ${alias}` : '';
 }

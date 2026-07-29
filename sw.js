@@ -1,5 +1,5 @@
 // Service Worker — network-first con soporte de notificaciones en segundo plano
-const CACHE = 'tm-v5';
+const CACHE = 'tm-v6';   // se sube al cambiar el nombre: así se tira la copia vieja
 
 self.addEventListener('install', e => {
   self.skipWaiting();
@@ -81,9 +81,9 @@ self.addEventListener('message', e => {
 // Aviso llegado desde el servidor (funciona con la app cerrada)
 self.addEventListener('push', e => {
   let d = {};
-  try { d = e.data ? e.data.json() : {}; } catch (err) { d = { title: 'Gestor de tareas', body: e.data ? e.data.text() : '' }; }
+  try { d = e.data ? e.data.json() : {}; } catch (err) { d = { title: 'Mi Oficina', body: e.data ? e.data.text() : '' }; }
   e.waitUntil(
-    self.registration.showNotification(d.title || 'Gestor de tareas', {
+    self.registration.showNotification(d.title || 'Mi Oficina', {
       body: d.body || '',
       icon: '/TM/icon-192.png',
       badge: '/TM/icon-192.png',
