@@ -120,8 +120,22 @@ function nombreEtiqueta(id){
   return l ? l.name : id;
 }
 
+// ¿Este mensaje lo he escrito yo? Gmail lo marca con la etiqueta SENT, pero eso
+// falla cuando el correo llega de vuelta por una lista o un reenvío, así que
+// además se compara el remitente con mi dirección y con todos mis alias.
+function esMensajeMio(m){
+  const etiquetas = m.labelIds || [];
+  if(etiquetas.includes('SENT') || etiquetas.includes('DRAFT')) return true;
+  const de = emBareAddress(emHeader(m, 'From') || '').toLowerCase();
+  if(!de) return false;
+  if(de === (emMyAddress() || '').toLowerCase()) return true;
+  return (typeof composeAliasDisponibles === 'function' ? composeAliasDisponibles() : [])
+    .some(a => (a.sendAsEmail || '').toLowerCase() === de);
+}
+
 function renderMensajeHilo(m, esUltimo){
   const de = emHeader(m, 'From');
+  const mio = esMensajeMio(m);
   const deNombre = (de || '').replace(/<[^>]+>/, '').replace(/"/g, '').trim() || emBareAddress(de);
   const para = emHeader(m, 'To');
   const fecha = emHeader(m, 'Date');
@@ -129,13 +143,14 @@ function renderMensajeHilo(m, esUltimo){
   const adjuntos = extractAttachments(m.payload);
 
   return `
-  <article class="gm-msg ${abierto ? 'abierto' : ''}" id="gm-msg-${m.id}">
+  <article class="gm-msg ${abierto ? 'abierto' : ''} ${mio ? 'mio' : ''}" id="gm-msg-${m.id}">
     <header class="gm-msg-cab" onclick="toggleMensajeHilo('${m.id}')">
       ${avatarHTML(de)}
       <div class="gm-msg-quien">
         <div class="gm-msg-de">
           <button class="persona" onclick="event.stopPropagation();abrirPersonaDeCorreo('${escapeAttr(de)}')"
                   title="Ver o añadir al CRM">${escapeHtml(deNombre)}${marcaCrm(de)}</button>
+          ${mio ? '<span class="gm-msg-yo"><i class="ti ti-corner-up-right" aria-hidden="true"></i>Enviado por ti</span>' : ''}
         </div>
         <div class="gm-msg-para">Para: ${listaPersonasHTML(para, emHeader(m, 'Cc'))}</div>
       </div>

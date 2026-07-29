@@ -940,6 +940,13 @@
   .gm-th-lista{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:0 0 40px; min-height:0;}
   .gm-msg{border:1px solid var(--border); border-radius:10px; margin:10px 14px; background:var(--surface); overflow:hidden;}
   .gm-msg.abierto{box-shadow:0 1px 3px rgba(0,0,0,0.05);}
+  /* Lo que he enviado yo: sangrado, fondo azulado y una franja de color */
+  .gm-msg.mio{margin-left:44px; background:#F3F7FF; border-color:#D5E2FB; border-left:3px solid var(--accent);}
+  .gm-msg.mio .gm-msg-cab:hover{background:#E9F0FE;}
+  .gm-msg-yo{display:inline-flex; align-items:center; gap:4px; margin-left:8px; padding:1px 8px 2px;
+    border-radius:20px; background:var(--accent); color:#fff; font-size:10.5px; font-weight:600;
+    letter-spacing:.02em; vertical-align:1px;}
+  .gm-msg-yo .ti{font-size:11px;}
   .gm-msg-cab{display:flex; align-items:center; gap:11px; padding:11px 14px; cursor:pointer;}
   .gm-msg-cab:hover{background:var(--surface2);}
   .gm-msg-quien{flex:1; min-width:0;}
@@ -957,6 +964,7 @@
 
   @media (max-width:820px){
     .gm-msg{margin:8px 10px;}
+    .gm-msg.mio{margin-left:22px;}
     .gm-msg-resumen{padding-left:14px;}
     .gm-acciones{gap:0;}
   }
