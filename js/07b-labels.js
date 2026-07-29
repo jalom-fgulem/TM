@@ -235,7 +235,36 @@ function aplicarAnchosCorreo(){
   const cap = (v, c) => Math.min(Math.max(v || c.def, c.min), c.max);
   document.documentElement.style.setProperty('--gm-sb',   cap(l.sb,   GM_ANCHOS.sb)   + 'px');
   document.documentElement.style.setProperty('--gm-list', cap(l.list, GM_ANCHOS.list) + 'px');
+  ajustarAltoCorreo();
 }
+
+// El correo ocupa lo que sobra de pantalla. Se mide en vez de darlo por
+// supuesto: la cabecera cambia de alto según lleve o no la tira de la agenda.
+function ajustarAltoCorreo(){
+  const zona = document.querySelector('.wrap');
+  const raiz = document.getElementById('viewRoot');
+  if(!zona || !raiz) return;
+  const rz = zona.getBoundingClientRect(), rr = raiz.getBoundingClientRect();
+  // Lo que hay encima de la vista (la cabecera) y lo que hay debajo (el margen
+  // de la página y la línea de avisos). Se mide en lugar de suponerlo.
+  const encima = rr.top - rz.top;
+  const debajo = (rz.top + rz.height) - (rr.top + rr.height);
+  const alto = Math.round(encima + debajo);
+  if(alto > 0 && alto < window.innerHeight) document.documentElement.style.setProperty('--gm-chrome', alto + 'px');
+}
+
+// La tira de la agenda aparece y desaparece sola y cambia el alto de la
+// cabecera, así que se vuelve a medir cuando eso ocurra. Se vigila el contenido
+// de la tira (no su tamaño): resulta ser lo único que avisa de forma fiable.
+let _vigilanteCabecera = null;
+(function vigilarCabecera(){
+  const tira = document.getElementById('headerEvents');
+  if(!tira){ setTimeout(vigilarCabecera, 300); return; }
+  _vigilanteCabecera = new MutationObserver(() => setTimeout(ajustarAltoCorreo, 0));
+  _vigilanteCabecera.observe(tira, { childList:true, subtree:true, characterData:true });
+  ajustarAltoCorreo();
+})();
+window.addEventListener('resize', ajustarAltoCorreo);
 
 // Eventos de puntero (no de ratón): valen igual para ratón, dedo y lápiz.
 // La captura evita perder el arrastre si mueves rápido y sales del tirador.

@@ -30,6 +30,12 @@
   *{box-sizing:border-box;}
   body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased;font-size:14px;scrollbar-gutter:stable;}
   .wrap{max-width:100%;margin:0 auto;padding:20px 20px 60px;}
+  /* En el correo el panel ya ocupa toda la altura: no hace falta margen abajo */
+  .wrap:has(.gmail-layout){padding-bottom:20px;}
+  /* En el correo, el separador y la línea de avisos no deben robarle alto al
+     panel: el hueco de abajo ya les deja sitio de sobra. */
+  .wrap:has(.gmail-layout) #viewSpacer{display:none;}
+  .wrap:has(.gmail-layout) .status-msg{position:fixed;left:20px;bottom:2px;margin:0;z-index:40;pointer-events:none;}
   /* ── HEADER ──────────────────────────────── */
   .app-header{
     position:sticky;top:0;z-index:30;
@@ -42,7 +48,7 @@
   }
   .app-header-row1{display:flex;align-items:center;gap:11px;padding:11px 0 9px;}
   .header-logo-icon{width:36px;height:36px;flex-shrink:0;display:block;}
-  .header-brand{flex:1;min-width:0;}
+  .header-brand{flex:0 0 auto;min-width:0;max-width:230px;}
   .header-title{display:flex;align-items:baseline;gap:7px;line-height:1;}
   .header-title-main{font-size:16px;font-weight:700;letter-spacing:-0.02em;color:var(--text);}
   .header-title-alias{font-size:12px;font-weight:400;color:var(--text-soft);}
@@ -78,15 +84,17 @@
   .rsvp-btn.declined{background:#fee2e2;border-color:#fca5a5;color:#991b1b;}
   .rsvp-btn.tentative{background:#fef9c3;border-color:#fde047;color:#854d0e;}
 
-  /* Space after sticky header */
-  .viewtabs{margin-top:14px;}
-
-  /* Nav tabs */
-  .viewtabs{display:flex;gap:0;margin-bottom:16px;border-bottom:1px solid var(--border);overflow-x:auto;overflow-y:hidden;scrollbar-width:none;}
+  /* Pestañas de sección: van en la misma fila que el título, para no gastar
+     una línea entera de pantalla. Si no caben, esa tira se desplaza sola. */
+  .viewtabs{display:flex;gap:2px;flex:1;min-width:0;margin:0 6px;
+    overflow-x:auto;overflow-y:hidden;scrollbar-width:none;}
   .viewtabs::-webkit-scrollbar{display:none;}
-  .viewtabs button{background:transparent;border:none;border-bottom:2px solid transparent;color:var(--text-soft);font-weight:500;font-size:13px;padding:8px 13px;cursor:pointer;display:flex;align-items:center;gap:5px;margin-bottom:-1px;white-space:nowrap;transition:color .12s;}
-  .viewtabs button:hover{color:var(--text);}
-  .viewtabs button.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600;}
+  .viewtabs button{background:transparent;border:none;border-radius:8px;color:var(--text-soft);
+    font-weight:500;font-size:13px;padding:7px 11px;cursor:pointer;display:flex;align-items:center;
+    gap:5px;white-space:nowrap;transition:color .12s, background .12s;}
+  .viewtabs button:hover{color:var(--text);background:var(--area-bg);}
+  .viewtabs button.active{color:var(--accent);background:var(--accent-bg);font-weight:600;}
+  .viewtabs button:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
   .viewtabs button i{font-size:15px;}
 
   /* Buttons */
@@ -269,7 +277,7 @@
   .agenda-event-time{font-size:11.5px;color:var(--text-soft);white-space:nowrap;min-width:52px;}
   .agenda-event-title{font-size:13px;font-weight:500;}
   /* Gmail 3-column layout */
-  .gmail-layout{display:grid;grid-template-columns:var(--gm-sb,170px) 6px var(--gm-list,280px) 6px 1fr;border:1px solid var(--border);border-radius:10px;overflow:hidden;height:calc(100dvh - 158px);min-height:360px;background:var(--surface);}
+  .gmail-layout{display:grid;grid-template-columns:var(--gm-sb,170px) 6px var(--gm-list,280px) 6px 1fr;border:1px solid var(--border);border-radius:10px;overflow:hidden;height:calc(100dvh - var(--gm-chrome, 109px));min-height:360px;background:var(--surface);}
   /* Tiradores para ajustar el ancho de las columnas */
   .gm-tirador{cursor:col-resize; background:transparent; position:relative; z-index:6; touch-action:none;}
   /* Zona de agarre invisible de 16px: 6px reales son casi imposibles de acertar */
@@ -339,7 +347,7 @@
   .drive-result-item:last-child{border-bottom:none;}
   .drive-result-item:hover{background:var(--accent-bg);}
   .drive-result-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  @media(max-width:860px){.gmail-layout{grid-template-columns:150px 0 1fr 0 0;height:calc(100dvh - 148px);} .gmail-preview-col{display:none;} .gm-tirador{display:none;}}
+  @media(max-width:860px){.gmail-layout{grid-template-columns:150px 0 1fr 0 0;height:calc(100dvh - var(--gm-chrome, 99px));} .gmail-preview-col{display:none;} .gm-tirador{display:none;}}
   @media(max-width:600px){.gmail-layout{grid-template-columns:1fr;height:auto;min-height:0;} .gmail-sidebar{display:none;} .gm-tirador{display:none;} .gmail-list-col{border-right:none;max-height:60vh;}}
   .agenda-connect{text-align:center;padding:48px 20px;}
   .agenda-connect p{margin-bottom:14px;font-size:14px;color:var(--text-soft);}
@@ -1243,6 +1251,20 @@
         <div class="datebar" id="datebar"></div>
       </div>
 
+    <div class="viewtabs">
+      <button id="tab-correo" class="active" onclick="setView('correo')"><i class="ti ti-mail" aria-hidden="true"></i> Correo</button>
+      <button id="tab-panel" onclick="setView('panel')"><i class="ti ti-layout-kanban" aria-hidden="true"></i> Panel</button>
+      <button id="tab-lista" onclick="setView('lista')"><i class="ti ti-list" aria-hidden="true"></i> Lista</button>
+      <button id="tab-proyectos" onclick="setView('proyectos')"><i class="ti ti-folder" aria-hidden="true"></i> Proyectos</button>
+      <button id="tab-reuniones" onclick="setView('reuniones')"><i class="ti ti-users" aria-hidden="true"></i> Reuniones</button>
+      <button id="tab-crm" onclick="setView('crm')"><i class="ti ti-address-book" aria-hidden="true"></i> CRM</button>
+      <button id="tab-desarrollo" onclick="setView('desarrollo')"><i class="ti ti-code" aria-hidden="true"></i> Desarrollo</button>
+      <button id="tab-calendario" onclick="setView('calendario')"><i class="ti ti-calendar" aria-hidden="true"></i> Calendario</button>
+      <button id="tab-gtasks" onclick="setView('gtasks')"><i class="ti ti-checkbox" aria-hidden="true"></i> G Tasks</button>
+      <button id="btnToggleDone" style="margin-left:auto;display:none;" onclick="showDoneTasks=!showDoneTasks;render();">Mostrar cerradas</button>
+      <button id="btnInstallApp" style="display:none;margin-left:6px;" class="btn-primary btn-small" onclick="installApp()" title="Instalar como aplicación"><i class="ti ti-device-mobile-down"></i> Instalar app</button>
+    </div>
+
       <!-- Buttons -->
       <div class="header-btns">
         <button class="btn-icon" onclick="openNotesDrawer()" title="Notas" style="position:relative;">
@@ -1258,23 +1280,10 @@
     <div class="header-events" id="headerEvents"></div>
   </div>
 
-  <div class="viewtabs">
-    <button id="tab-correo" class="active" onclick="setView('correo')"><i class="ti ti-mail" aria-hidden="true"></i> Correo</button>
-    <button id="tab-panel" onclick="setView('panel')"><i class="ti ti-layout-kanban" aria-hidden="true"></i> Panel</button>
-    <button id="tab-lista" onclick="setView('lista')"><i class="ti ti-list" aria-hidden="true"></i> Lista</button>
-    <button id="tab-proyectos" onclick="setView('proyectos')"><i class="ti ti-folder" aria-hidden="true"></i> Proyectos</button>
-    <button id="tab-reuniones" onclick="setView('reuniones')"><i class="ti ti-users" aria-hidden="true"></i> Reuniones</button>
-    <button id="tab-crm" onclick="setView('crm')"><i class="ti ti-address-book" aria-hidden="true"></i> CRM</button>
-    <button id="tab-desarrollo" onclick="setView('desarrollo')"><i class="ti ti-code" aria-hidden="true"></i> Desarrollo</button>
-    <button id="tab-calendario" onclick="setView('calendario')"><i class="ti ti-calendar" aria-hidden="true"></i> Calendario</button>
-    <button id="tab-gtasks" onclick="setView('gtasks')"><i class="ti ti-checkbox" aria-hidden="true"></i> G Tasks</button>
-    <button id="btnToggleDone" style="margin-left:auto;display:none;" onclick="showDoneTasks=!showDoneTasks;render();">Mostrar cerradas</button>
-    <button id="btnInstallApp" style="display:none;margin-left:6px;" class="btn-primary btn-small" onclick="installApp()" title="Instalar como aplicación"><i class="ti ti-device-mobile-down"></i> Instalar app</button>
-  </div>
 
   <div id="viewRoot"></div>
 
-  <div style="margin-top:8px; min-height:8px;"></div>
+  <div id="viewSpacer" style="margin-top:8px; min-height:8px;"></div>
   <input type="file" id="importFile" accept=".json" style="display:none;" onchange="importBackup(this)">
   <div class="status-msg" id="statusMsg"></div>
 </div>
