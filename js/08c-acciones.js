@@ -63,6 +63,24 @@ function sacarDeLaLista(threadId){
     if(selectedEmailId === idMostrado) selectNextEmail(idMostrado);
     fila.remove();
   }
+  cerrarLecturaSiEsEsta(threadId);
+}
+
+// Si acabas de archivar o borrar el correo que tienes abierto, no tiene sentido
+// seguir mirándolo. Pasa sobre todo al llegar desde una notificación: la lista
+// aún no está detrás, así que hay que devolverte a ella a mano.
+function cerrarLecturaSiEsEsta(threadId){
+  if(!_currentThread || _currentThread.id !== threadId) return;
+  _currentThread = null;
+  _currentEmailMsg = null;
+  selectedEmailId = null;
+  if(_lecturaAmpliada && typeof cerrarLecturaAmpliada === 'function') cerrarLecturaAmpliada();
+  if(isMobile()){
+    closeMobileEmailDetail();
+    if(!document.querySelector('.gmail-list-item')) loadGmailWidget();
+  }
+  const col = document.getElementById('gmailPreviewCol');
+  if(col) col.innerHTML = '<div class="gmail-preview-empty"><i class="ti ti-mail" style="font-size:32px;opacity:.3;" aria-hidden="true"></i><span>Selecciona un correo</span></div>';
 }
 
 // ---- Archivar ----

@@ -188,6 +188,12 @@ async function renderEstadoPush(){
 //  arrancar; si ya estaba abierta, como mensaje del servicio en segundo plano.
 // ============================================================
 
+async function esperarPaseDeGoogle(msMax){
+  const hasta = Date.now() + (msMax || 15000);
+  while(!googleToken && Date.now() < hasta) await new Promise(r => setTimeout(r, 250));
+  return !!googleToken;
+}
+
 async function abrirDestino(destino){
   if(!destino) return;
   const partes = destino.split(':');
@@ -196,15 +202,26 @@ async function abrirDestino(destino){
   if(tipo === 'correo'){
     const hilo = partes[1] || '', mensaje = partes[2] || '';
     setView('correo');
-    // Si aún no hay pase de Google, se espera a que lo haya
-    for(let i = 0; i < 20 && !googleToken; i++) await new Promise(r => setTimeout(r, 300));
-    if(mensaje) selectEmail(mensaje, hilo);
+    // Arrancando en frío, el pase de Google puede tardar: se espera hasta 15
+    // segundos avisando, en vez de rendirse a los 6 y dejarte en la bandeja
+    // sin explicación.
+    if(!googleToken) setStatus('Abriendo el correo…');
+    if(!(await esperarPaseDeGoogle(15000))){
+      setStatus('No se pudo abrir ese correo: vuelve a conectar con Google.');
+      return;
+    }
+    // Al llegar sin pase, la vista se dibujó con el cartel de "Conecta con
+    // Google" y no existe el panel de lectura. Hay que volver a dibujarla.
+    render();
+    await new Promise(r => setTimeout(r, 0));
+    if(mensaje) await selectEmail(mensaje, hilo);
     return;
   }
   if(tipo === 'reunion'){
     const idEvento = partes.slice(1).join(':');
     setView('calendario');
-    for(let i = 0; i < 20 && !googleToken; i++) await new Promise(r => setTimeout(r, 300));
+    if(!(await esperarPaseDeGoogle(15000))) return;
+    render();
     await refreshHeaderEvents();
     if(typeof openCalEventModal === 'function' && _findCalEvent(idEvento)) openCalEventModal(idEvento);
     return;

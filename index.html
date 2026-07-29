@@ -71,7 +71,8 @@
   .header-title-main{font-size:16px;font-weight:700;letter-spacing:-0.02em;color:var(--text);}
   .header-title-alias{font-size:12px;font-weight:400;color:var(--text-soft);}
   h1{font-size:16px;font-weight:700;margin:0;letter-spacing:-0.02em;}
-  .datebar{font-size:11px;color:var(--text-muted);text-transform:capitalize;margin-top:2px;}
+  .datebar{font-size:11px;color:var(--text-muted);text-transform:capitalize;margin-top:2px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .header-btns{display:flex;gap:6px;align-items:center;flex-shrink:0;}
   .notes-btn-badge{background:var(--alta);color:#fff;border-radius:99px;padding:1px 6px;font-size:10px;font-weight:700;position:absolute;top:-5px;right:-5px;pointer-events:none;}
 
@@ -607,6 +608,8 @@
     .header-title-alias{font-size:11px;}
     .app-header{margin:-12px -12px 0;padding:0 12px;}
     .app-header-row1{padding:9px 0 7px;}
+    /* La marca cede ancho: la fecha se recorta antes que empujar los botones */
+    .header-brand{flex:1 1 auto; min-width:0; max-width:none;}
     .header-logo-icon{width:30px;height:30px;}
 
     /* Tabs: solo iconos */
@@ -928,11 +931,12 @@
   .gm-dia{position:sticky; top:0; z-index:2; background:var(--bg); padding:9px 12px 5px; font-family:var(--fuente); font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--text-muted); border-bottom:1px solid var(--border);}
 
   /* Aviso de deshacer */
-  .undo-toast{position:fixed; left:50%; bottom:26px; transform:translateX(-50%); z-index:300; display:flex; align-items:center; gap:12px; background:var(--text); color:var(--surface); padding:11px 16px; border-radius:26px; box-shadow:0 8px 28px rgba(0,0,0,0.24); font-family:var(--fuente); font-size:13px; animation:undoSube .18s ease-out;}
+  .undo-toast{position:fixed; left:50%; bottom:26px; max-width:calc(100vw - 28px); transform:translateX(-50%); z-index:300; display:flex; align-items:center; gap:12px; background:var(--text); color:var(--surface); padding:11px 16px; border-radius:26px; box-shadow:0 8px 28px rgba(0,0,0,0.24); font-family:var(--fuente); font-size:13px; animation:undoSube .18s ease-out;}
   @keyframes undoSube{from{opacity:0; transform:translate(-50%,10px);} to{opacity:1; transform:translate(-50%,0);}}
   .undo-btn{background:transparent; border:none; color:#8AB4F8; font-weight:700; font-size:13px; cursor:pointer; padding:2px 4px;}
   .undo-btn:hover{text-decoration:underline;}
-  .undo-seg{min-width:20px; text-align:center; font-size:11.5px; opacity:.65; border:1px solid rgba(255,255,255,.28); border-radius:20px; padding:1px 6px;}
+  .undo-txt{min-width:0;}
+  .undo-seg{flex-shrink:0; min-width:20px; text-align:center; font-size:11.5px; opacity:.65; border:1px solid rgba(255,255,255,.28); border-radius:20px; padding:1px 6px;}
 
   /* Arrastrar correos a las etiquetas */
   .gmail-list-item[draggable]{cursor:grab;}
@@ -1262,6 +1266,9 @@
     .gm-msg-de{font-size:16px;}
     .gm-msg-para{font-size:13px;}
     /* En el móvil la etiqueta se abrevia para no comerse el nombre */
+    /* La barra de deshacer, por encima de la navegación inferior */
+    .undo-toast{bottom:calc(74px + env(safe-area-inset-bottom,0px)); padding:10px 14px; gap:9px;}
+    .undo-txt{font-size:13px;}
     .gm-msg-yo .yo-largo{display:none;}
     .gm-msg-yo .yo-corto{display:inline;}
     /* En un correo plegado el "Para:" no aporta y se lleva dos líneas */

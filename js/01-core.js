@@ -37,7 +37,16 @@ function taskSpanPos(t, dateStr){
   if(dateStr === t.due) return 'end';
   return 'mid';
 }
-document.getElementById('datebar').textContent = new Date().toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+// En el móvil se quita el año: con la fecha completa no cabían los botones
+function pintarFecha(){
+  const el = document.getElementById('datebar'); if(!el) return;
+  const corta = window.innerWidth <= 820;
+  el.textContent = new Date().toLocaleDateString('es-ES',
+    corta ? {weekday:'long',day:'numeric',month:'long'}
+          : {weekday:'long',day:'numeric',month:'long',year:'numeric'});
+}
+pintarFecha();
+window.addEventListener('resize', pintarFecha);
 
 function setStatus(msg){
   const el=document.getElementById('statusMsg'); el.textContent=msg;
