@@ -957,7 +957,22 @@
   .gm-acc.turquesa{color:#0891B2;}           .gm-acc.turquesa:hover{background:#E6F7FB; color:#0E7490;}
   .gm-acc.on{color:var(--media);}
 
+  .gm-th-fila1{display:flex; align-items:flex-start; gap:9px; min-width:0;}
   .gm-acc-principales{display:flex; align-items:center; gap:4px;}
+  .gm-acc-secundarias{display:flex; align-items:center; gap:3px; flex-wrap:wrap;}
+  .gm-acc.mas{display:none;}   /* sólo aparece en el móvil */
+
+  /* Hoja de "Más acciones" del móvil */
+  .acc-menu{display:flex; flex-direction:column; gap:2px; margin:4px 0 2px;}
+  .acc-menu-item{display:flex; align-items:center; gap:12px; width:100%; padding:13px 10px;
+    border:none; background:transparent; border-radius:9px; cursor:pointer; text-align:left;
+    font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:15px; font-weight:500; color:var(--text);}
+  .acc-menu-item:hover, .acc-menu-item:active{background:var(--surface2);}
+  .acc-menu-item i{font-size:20px; width:24px; text-align:center; flex-shrink:0;}
+  .acc-menu-item.azul i{color:var(--accent);}      .acc-menu-item.ambar i{color:var(--media);}
+  .acc-menu-item.verde i{color:var(--baja);}       .acc-menu-item.rojo i{color:var(--alta);}
+  .acc-menu-item.naranja i{color:#EA580C;}         .acc-menu-item.morado i{color:#7C3AED;}
+  .acc-menu-item.turquesa i{color:#0891B2;}        .acc-menu-item.gris i{color:var(--text-soft);}
   /* Las tres que más se usan: botón grande con su nombre escrito */
   .gm-acc.grande{width:auto; height:34px; padding:0 13px; gap:6px;
     font-family:-apple-system,Helvetica,Arial,sans-serif; font-size:12.5px; font-weight:600; letter-spacing:.01em;}
@@ -978,6 +993,7 @@
     border-radius:20px; background:var(--accent); color:#fff; font-size:10.5px; font-weight:600;
     letter-spacing:.02em; vertical-align:1px;}
   .gm-msg-yo .ti{font-size:11px;}
+  .gm-msg-yo .yo-corto{display:none;}
   .gm-msg-cab{display:flex; align-items:center; gap:11px; padding:11px 14px; cursor:pointer;}
   .gm-msg-cab:hover{background:var(--surface2);}
   .gm-msg-quien{flex:1; min-width:0;}
@@ -1156,16 +1172,31 @@
     .gm-buscador input{font-size:15px;}
     .gmail-list-head-title{font-size:17px;}
 
-    /* Lectura: asunto grande y cuerpo legible */
-    .gmail-preview-subject{font-size:21px; line-height:1.25; font-weight:700;}
-    .gm-acciones{gap:4px; margin-top:12px;}
+    /* Lectura: la cabecera ocupa lo mínimo para dejar sitio al correo.
+       Volver + asunto en una fila, y una sola fila de botones. */
+    .gmail-preview-head{padding:9px 12px 9px;}
+    .mobile-back-btn{padding:0; flex-shrink:0; align-self:center;}
+    .mobile-back-btn span{display:none;}
+    .mobile-back-btn i{font-size:22px;}
+    .gmail-preview-subject{font-size:17px; line-height:1.25; font-weight:700;
+      display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;}
+    .gm-acciones{gap:5px; margin-top:9px; flex-wrap:nowrap;}
     .gm-acc{width:44px; height:44px; font-size:19px;}
-    /* Responder / Archivar / Borrar ocupan una fila entera y se reparten el ancho */
-    .gm-acc-principales{flex:1 1 100%; gap:6px; margin-bottom:2px;}
-    .gm-acc-principales .gm-acc.grande{flex:1; min-width:0; width:auto; height:46px; padding:0 8px; font-size:14px;}
-    .gm-acciones > .gm-acc-sep:first-of-type{display:none;}
+    /* Responder / Archivar / Borrar se reparten el ancho; el resto, en "Más" */
+    .gm-acc-secundarias{display:none;}
+    .gm-acc-principales{flex:1; gap:6px; min-width:0;}
+    .gm-acc-principales .gm-acc.grande{flex:1; min-width:0; width:auto; height:42px; padding:0 6px; font-size:13.5px;}
+    .gm-acc.mas{display:inline-flex; width:42px; height:42px; flex-shrink:0;
+      background:var(--surface2); border-color:var(--border);}
     .gm-msg-de{font-size:16px;}
     .gm-msg-para{font-size:13px;}
+    /* En el móvil la etiqueta se abrevia para no comerse el nombre */
+    .gm-msg-yo .yo-largo{display:none;}
+    .gm-msg-yo .yo-corto{display:inline;}
+    /* En un correo plegado el "Para:" no aporta y se lleva dos líneas */
+    .gm-msg:not(.abierto) .gm-msg-para{display:none;}
+    .crm-tarjeta{margin:8px 10px 0; padding:7px 10px; gap:9px;}
+    .crm-tarjeta .gm-avatar.sm{width:34px; height:34px; font-size:13px;}
     .gm-msg-meta{font-size:13px;}
     .gm-msg-resumen{font-size:14px; padding-left:14px;}
     .gm-avatar{width:42px; height:42px; font-size:15px;}

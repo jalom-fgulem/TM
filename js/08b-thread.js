@@ -76,22 +76,27 @@ function renderThreadPanel(){
   _currentEmailMsg = ultimo;   // responder/reenviar actúan sobre el más reciente
   const asunto = emHeader(ultimo, 'Subject') || '(sin asunto)';
   const destacado = (ultimo.labelIds || []).includes('STARRED');
+  // INBOX no se enseña: estando en la bandeja no aporta nada y roba una fila
   const etiquetas = (ultimo.labelIds || []).filter(id => !id.startsWith('CATEGORY_') &&
-    !['UNREAD','IMPORTANT','SENT','DRAFT'].includes(id));
+    !['UNREAD','IMPORTANT','SENT','DRAFT','INBOX'].includes(id));
 
   col.innerHTML = `
     <div class="gmail-preview-head">
-      <button class="mobile-back-btn" onclick="closeMobileEmailDetail()"><i class="ti ti-arrow-left" aria-hidden="true"></i> Volver</button>
-      <div class="gm-th-titulo">
-        <span class="gmail-preview-subject">${escapeHtml(asunto)}</span>
-        <div class="gm-th-etiquetas">${etiquetas.map(id => `<span class="gm-th-chip">${escapeHtml(nombreEtiqueta(id))}</span>`).join('')}</div>
+      <div class="gm-th-fila1">
+        <button class="mobile-back-btn" onclick="closeMobileEmailDetail()" aria-label="Volver a la lista"><i class="ti ti-arrow-left" aria-hidden="true"></i><span>Volver</span></button>
+        <div class="gm-th-titulo">
+          <span class="gmail-preview-subject">${escapeHtml(asunto)}</span>
+          ${etiquetas.length ? `<div class="gm-th-etiquetas">${etiquetas.map(id => `<span class="gm-th-chip">${escapeHtml(nombreEtiqueta(id))}</span>`).join('')}</div>` : ''}
+        </div>
       </div>
       <div class="gm-acciones">
         <div class="gm-acc-principales">
           <button class="gm-acc grande azul" onclick="openCompose('responder')" title="Responder" aria-label="Responder"><i class="ti ti-corner-up-left" aria-hidden="true"></i>Responder</button>
           <button class="gm-acc grande verde" onclick="archiveEmail('${_currentThread.id}')" title="Archivar toda la conversación" aria-label="Archivar toda la conversación"><i class="ti ti-archive" aria-hidden="true"></i>Archivar</button>
           <button class="gm-acc grande rojo" onclick="deleteEmail('${_currentThread.id}')" title="Mover toda la conversación a la papelera" aria-label="Mover toda la conversación a la papelera"><i class="ti ti-trash" aria-hidden="true"></i>Borrar</button>
+          <button class="gm-acc mas" onclick="abrirMasAcciones()" title="Más acciones" aria-label="Más acciones"><i class="ti ti-dots" aria-hidden="true"></i></button>
         </div>
+        <div class="gm-acc-secundarias">
         <span class="gm-acc-sep"></span>
         <button class="gm-acc azul" onclick="openCompose('responderTodos')" title="Responder a todos" aria-label="Responder a todos"><i class="ti ti-corner-up-left-double" aria-hidden="true"></i></button>
         <button class="gm-acc azul" onclick="openCompose('reenviar')" title="Reenviar" aria-label="Reenviar"><i class="ti ti-corner-up-right" aria-hidden="true"></i></button>
@@ -104,6 +109,7 @@ function renderThreadPanel(){
         <span class="gm-acc-sep"></span>
         <button class="gm-acc turquesa" onclick="reunionDesdeCorreo('${ultimo.id}')" title="Crear ficha de reunión" aria-label="Crear ficha de reunión"><i class="ti ti-users" aria-hidden="true"></i></button>
         <button class="gm-acc verde" onclick="importEmailAsTask('${escapeAttr(asunto)}','${escapeAttr((emHeader(ultimo,'From')||'').replace(/<[^>]+>/,'').trim())}','${escapeAttr(ultimo.id)}')" title="Crear tarea" aria-label="Crear tarea"><i class="ti ti-checkbox" aria-hidden="true"></i></button>
+        </div>
       </div>
     </div>
     ${fichaCrmHTML(emHeader(msgs[0], 'From'))}
@@ -112,6 +118,47 @@ function renderThreadPanel(){
     </div>`;
 
   msgs.forEach(m => { if(_msgsExpandidos.has(m.id)) pintarCuerpoMensaje(m); });
+}
+
+// En el móvil sólo caben Responder, Archivar y Borrar. El resto de acciones
+// vive aquí, en una hoja que sube desde abajo, para no robarle filas al correo.
+function abrirMasAcciones(){
+  if(!_currentThread) return;
+  const msgs = _currentThread.messages || [];
+  const ultimo = msgs[msgs.length - 1];
+  const asunto = emHeader(ultimo, 'Subject') || '(sin asunto)';
+  const de = (emHeader(ultimo, 'From') || '').replace(/<[^>]+>/, '').trim();
+  const destacado = (ultimo.labelIds || []).includes('STARRED');
+
+  const opciones = [
+    ['azul',     'corner-up-left-double', 'Responder a todos',        `openCompose('responderTodos')`],
+    ['azul',     'corner-up-right',       'Reenviar',                 `openCompose('reenviar')`],
+    ['ambar',    'star' + (destacado ? '-filled' : ''), destacado ? 'Quitar destacado' : 'Destacar', `toggleStarEmail('${ultimo.id}')`],
+    ['morado',   'tag',                   'Etiquetar',                `abrirSelectorEtiquetas('${ultimo.id}')`],
+    ['morado',   'filter',                'Crear regla con este remitente', `crearReglaDesdeCorreo('${ultimo.id}')`],
+    ['naranja',  'alert-octagon',         'Marcar como spam',         `marcarComoSpam('${_currentThread.id}')`],
+    ['gris',     _lecturaAmpliada ? 'arrows-minimize' : 'arrows-maximize',
+                 _lecturaAmpliada ? 'Volver al panel' : 'Ver a pantalla completa',
+                 _lecturaAmpliada ? 'cerrarLecturaAmpliada()' : 'ampliarLectura()'],
+    ['turquesa', 'users',                 'Crear ficha de reunión',   `reunionDesdeCorreo('${ultimo.id}')`],
+    ['verde',    'checkbox',              'Crear tarea',              `importEmailAsTask('${escapeAttr(asunto)}','${escapeAttr(de)}','${escapeAttr(ultimo.id)}')`]
+  ];
+
+  document.getElementById('modalRoot').innerHTML = `
+    <div class="modal-bg" onclick="if(event.target===this) closeModal()">
+      <div class="modal">
+        <h3>Más acciones</h3>
+        <div class="acc-menu">
+          ${opciones.map(([color, icono, texto, accion]) => `
+            <button class="acc-menu-item ${color}" onclick="closeModal();${accion}">
+              <i class="ti ti-${icono}" aria-hidden="true"></i><span>${escapeHtml(texto)}</span>
+            </button>`).join('')}
+        </div>
+        <div class="modal-actions">
+          <button class="btn-ghost" onclick="closeModal()">Cerrar</button>
+        </div>
+      </div>
+    </div>`;
 }
 
 function nombreEtiqueta(id){
@@ -153,7 +200,7 @@ function renderMensajeHilo(m, esUltimo){
         <div class="gm-msg-de">
           <button class="persona" onclick="event.stopPropagation();abrirPersonaDeCorreo('${escapeAttr(de)}')"
                   title="Ver o añadir al CRM">${escapeHtml(deNombre)}${marcaCrm(de)}</button>
-          ${mio ? '<span class="gm-msg-yo"><i class="ti ti-corner-up-right" aria-hidden="true"></i>Enviado por ti</span>' : ''}
+          ${mio ? '<span class="gm-msg-yo"><i class="ti ti-corner-up-right" aria-hidden="true"></i><span class="yo-largo">Enviado por ti</span><span class="yo-corto">Tú</span></span>' : ''}
         </div>
         <div class="gm-msg-para">Para: ${listaPersonasHTML(para, emHeader(m, 'Cc'))}</div>
       </div>
