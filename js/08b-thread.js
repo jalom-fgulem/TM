@@ -91,9 +91,10 @@ function renderThreadPanel(){
       </div>
       <div class="gm-acciones">
         <div class="gm-acc-principales">
-          <button class="gm-acc grande azul" onclick="openCompose('responder')" title="Responder" aria-label="Responder"><i class="ti ti-corner-up-left" aria-hidden="true"></i>Responder</button>
-          <button class="gm-acc grande verde" onclick="archiveEmail('${_currentThread.id}')" title="Archivar toda la conversación" aria-label="Archivar toda la conversación"><i class="ti ti-archive" aria-hidden="true"></i>Archivar</button>
-          <button class="gm-acc grande rojo" onclick="deleteEmail('${_currentThread.id}')" title="Mover toda la conversación a la papelera" aria-label="Mover toda la conversación a la papelera"><i class="ti ti-trash" aria-hidden="true"></i>Borrar</button>
+          <button class="gm-acc grande azul" onclick="openCompose('responder')" title="Responder" aria-label="Responder"><i class="ti ti-corner-up-left" aria-hidden="true"></i><span class="acc-txt">Responder</span></button>
+          <button class="gm-acc grande azul solo-movil" onclick="openCompose('responderTodos')" title="Responder a todos" aria-label="Responder a todos"><i class="ti ti-corner-up-left-double" aria-hidden="true"></i></button>
+          <button class="gm-acc grande verde" onclick="archiveEmail('${_currentThread.id}')" title="Archivar toda la conversación" aria-label="Archivar toda la conversación"><i class="ti ti-archive" aria-hidden="true"></i><span class="acc-txt">Archivar</span></button>
+          <button class="gm-acc grande rojo" onclick="deleteEmail('${_currentThread.id}')" title="Mover toda la conversación a la papelera" aria-label="Mover toda la conversación a la papelera"><i class="ti ti-trash" aria-hidden="true"></i><span class="acc-txt">Borrar</span></button>
           <button class="gm-acc mas" onclick="abrirMasAcciones()" title="Más acciones" aria-label="Más acciones"><i class="ti ti-dots" aria-hidden="true"></i></button>
         </div>
         <div class="gm-acc-secundarias">
@@ -131,7 +132,6 @@ function abrirMasAcciones(){
   const destacado = (ultimo.labelIds || []).includes('STARRED');
 
   const opciones = [
-    ['azul',     'corner-up-left-double', 'Responder a todos',        `openCompose('responderTodos')`],
     ['azul',     'corner-up-right',       'Reenviar',                 `openCompose('reenviar')`],
     ['ambar',    'star' + (destacado ? '-filled' : ''), destacado ? 'Quitar destacado' : 'Destacar', `toggleStarEmail('${ultimo.id}')`],
     ['morado',   'tag',                   'Etiquetar',                `abrirSelectorEtiquetas('${ultimo.id}')`],

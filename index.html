@@ -960,7 +960,7 @@
   .gm-th-fila1{display:flex; align-items:flex-start; gap:9px; min-width:0;}
   .gm-acc-principales{display:flex; align-items:center; gap:4px;}
   .gm-acc-secundarias{display:flex; align-items:center; gap:3px; flex-wrap:wrap;}
-  .gm-acc.mas{display:none;}   /* sólo aparece en el móvil */
+  .gm-acc.mas, .gm-acc.solo-movil{display:none;}   /* sólo aparecen en el móvil */
 
   /* Hoja de "Más acciones" del móvil */
   .acc-menu{display:flex; flex-direction:column; gap:2px; margin:4px 0 2px;}
@@ -1182,11 +1182,13 @@
       display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;}
     .gm-acciones{gap:5px; margin-top:9px; flex-wrap:nowrap;}
     .gm-acc{width:44px; height:44px; font-size:19px;}
-    /* Responder / Archivar / Borrar se reparten el ancho; el resto, en "Más" */
+    /* Sólo iconos: responder, responder a todos, archivar y borrar. El resto, en "Más" */
     .gm-acc-secundarias{display:none;}
-    .gm-acc-principales{flex:1; gap:6px; min-width:0;}
-    .gm-acc-principales .gm-acc.grande{flex:1; min-width:0; width:auto; height:42px; padding:0 6px; font-size:13.5px;}
-    .gm-acc.mas{display:inline-flex; width:42px; height:42px; flex-shrink:0;
+    .gm-acc-principales{flex:1; gap:7px; min-width:0;}
+    .gm-acc-principales .gm-acc.grande{flex:1; min-width:0; width:auto; height:44px; padding:0; font-size:0;}
+    .gm-acc-principales .gm-acc.grande i{font-size:21px;}
+    .gm-acc.solo-movil{display:inline-flex;}
+    .gm-acc.mas{display:inline-flex; width:44px; height:44px; flex-shrink:0;
       background:var(--surface2); border-color:var(--border);}
     .gm-msg-de{font-size:16px;}
     .gm-msg-para{font-size:13px;}
