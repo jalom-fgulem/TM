@@ -61,6 +61,14 @@ const gapi = (token: string) => (url: string) =>
 // ---- Qué avisar ----
 type Aviso = { clave: string; titulo: string; cuerpo: string; url?: string }
 
+// Corta por la última palabra entera, para no dejar la frase partida a medias
+function recorta(txt: string, max: number): string {
+  if (txt.length <= max) return txt
+  const corte = txt.slice(0, max)
+  const esp = corte.lastIndexOf(' ')
+  return (esp > max * 0.6 ? corte.slice(0, esp) : corte).trimEnd() + '…'
+}
+
 async function avisosDeCorreo(get: any, estado: any): Promise<{ avisos: Aviso[]; sinLeer: number }> {
   const r = await get('https://gmail.googleapis.com/gmail/v1/users/me/labels/INBOX')
   if (!r.ok) return { avisos: [], sinLeer: estado?.last_unread ?? 0 }
@@ -69,19 +77,36 @@ async function avisosDeCorreo(get: any, estado: any): Promise<{ avisos: Aviso[];
   const antes = estado?.last_unread ?? 0
   if (sinLeer <= antes) return { avisos: [], sinLeer }
 
-  // Se mira el más reciente para poner remitente y asunto en el aviso
-  let titulo = `${sinLeer - antes} correo${sinLeer - antes > 1 ? 's nuevos' : ' nuevo'}`
+  const nuevos = sinLeer - antes
+
+  // Se mira el más reciente para poner remitente, asunto y primeras palabras.
+  // La idea es que se pueda decidir si corre prisa SIN abrir la aplicación.
+  let titulo = `${nuevos} correo${nuevos > 1 ? 's nuevos' : ' nuevo'}`
   let cuerpo = `Tienes ${sinLeer} sin leer en la bandeja de entrada.`
   let destino = '/TM/'
   try {
     const lr = await get('https://gmail.googleapis.com/gmail/v1/users/me/messages?q=is:unread+in:inbox&maxResults=1')
     const ids = (await lr.json()).messages ?? []
     if (ids.length) {
-      const mr = await get(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${ids[0].id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject`)
+      const mr = await get(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${ids[0].id}`
+        + '?format=metadata&metadataHeaders=From&metadataHeaders=Subject')
       const m = await mr.json()
       const h = (n: string) => (m.payload?.headers ?? []).find((x: any) => x.name === n)?.value ?? ''
       const de = h('From').replace(/<[^>]+>/, '').replace(/"/g, '').trim()
-      if (de) { titulo = de; cuerpo = h('Subject') || '(sin asunto)' }
+      const destacado = (m.labelIds ?? []).includes('STARRED')
+
+      if (de) titulo = (destacado ? '★ ' : '') + de
+
+      // Gmail devuelve el resumen ya limpio de HTML y con las entidades
+      // resueltas; sólo hay que recortarlo para que no ocupe media pantalla.
+      const asunto = h('Subject') || '(sin asunto)'
+      const resumen = recorta((m.snippet ?? '').replace(/\s+/g, ' ').trim(), 140)
+
+      const lineas = [asunto]
+      if (resumen && resumen !== asunto) lineas.push(resumen)
+      if (nuevos > 1) lineas.push(`+ otros ${nuevos - 1} sin leer`)
+      cuerpo = lineas.join('\n')
+
       // Al tocar el aviso se abrirá esta conversación concreta
       destino = `/TM/#abrir=correo:${m.threadId ?? ids[0].threadId ?? ''}:${ids[0].id}`
     }
@@ -106,7 +131,16 @@ async function avisosDeReuniones(get: any, yaAvisados: Record<string, boolean>):
     if (yaAvisados[clave]) continue
     const hora = new Date(ev.start.dateTime).toLocaleTimeString('es-ES',
       { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' })
-    out.push({ clave, titulo: 'Reunión a las ' + hora, cuerpo: ev.summary ?? '(sin título)',
+    // Dónde es y con quién: lo que hace falta para salir hacia allí sin abrir nada
+    const donde = (ev.location ?? '').trim()
+    const online = ev.hangoutLink || (ev.conferenceData?.entryPoints ?? []).length > 0
+    const gente = (ev.attendees ?? []).filter((a: any) => !a.self && !a.resource)
+    const detalle = [
+      donde ? donde : (online ? 'Videoconferencia' : ''),
+      gente.length ? `${gente.length} participante${gente.length > 1 ? 's' : ''}` : ''
+    ].filter(Boolean).join(' · ')
+    out.push({ clave, titulo: 'Reunión a las ' + hora,
+               cuerpo: [ev.summary ?? '(sin título)', detalle].filter(Boolean).join('\n'),
                url: `/TM/#abrir=reunion:${ev.id}` })
   }
   return out
