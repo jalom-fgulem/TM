@@ -361,3 +361,77 @@ function guardarDeslizar(lado, valor){
   saveSettings();
   setStatus('Gesto guardado.');
 }
+
+// ============================================================
+//  TIRAR HACIA ABAJO PARA ACTUALIZAR (móvil)
+//
+//  Estando arriba del todo, se arrastra la lista hacia abajo y al soltar se
+//  recarga la bandeja. Convive con el gesto lateral de archivar/borrar: aquel
+//  solo actúa cuando el movimiento es claramente horizontal, y este cuando es
+//  claramente vertical y hacia abajo.
+// ============================================================
+const TIRON_UMBRAL = 72;      // cuánto hay que bajar para que cuente
+const TIRON_TOPE   = 110;     // hasta dónde se deja estirar
+let _tiron = null;
+
+function _columnaDeLista(nodo){
+  return nodo && nodo.closest ? nodo.closest('.gmail-list-col') : null;
+}
+function _avisoTiron(col){
+  let el = col.querySelector('.gm-tiron');
+  if(!el){
+    el = document.createElement('div');
+    el.className = 'gm-tiron';
+    el.innerHTML = '<span class="gm-giro"></span><span class="gm-tiron-txt">Tira para actualizar</span>';
+    col.insertBefore(el, col.firstChild);
+  }
+  return el;
+}
+
+document.addEventListener('touchstart', e => {
+  if(!isMobile() || e.touches.length !== 1) return;
+  const col = _columnaDeLista(e.target);
+  if(!col || col.scrollTop > 2) return;
+  _tiron = { col, y0: e.touches[0].clientY, x0: e.touches[0].clientX, dy: 0, activo: false };
+}, { passive: true });
+
+document.addEventListener('touchmove', e => {
+  if(!_tiron || e.touches.length !== 1) return;
+  const dy = e.touches[0].clientY - _tiron.y0;
+  const dx = e.touches[0].clientX - _tiron.x0;
+
+  if(!_tiron.activo){
+    // Solo se toma el gesto si baja de verdad y no es un deslizamiento lateral
+    if(dy < 12 || Math.abs(dx) > Math.abs(dy) * 0.8) { if(dy < -4 || Math.abs(dx) > 14) _tiron = null; return; }
+    _tiron.activo = true;
+    _tiron.aviso = _avisoTiron(_tiron.col);
+  }
+  e.preventDefault();                      // se apaga el rebote propio del móvil
+  const recorrido = Math.min(dy * 0.55, TIRON_TOPE);
+  _tiron.dy = recorrido;
+  _tiron.col.style.transform = `translateY(${recorrido}px)`;
+  _tiron.aviso.classList.toggle('listo', recorrido >= TIRON_UMBRAL);
+  _tiron.aviso.querySelector('.gm-tiron-txt').textContent =
+    recorrido >= TIRON_UMBRAL ? 'Suelta para actualizar' : 'Tira para actualizar';
+}, { passive: false });
+
+document.addEventListener('touchend', () => {
+  if(!_tiron) return;
+  const { col, dy, activo, aviso } = _tiron;
+  _tiron = null;
+  if(!activo) return;
+  col.style.transition = 'transform .22s';
+  col.style.transform = '';
+  setTimeout(() => { col.style.transition = ''; }, 240);
+  if(dy < TIRON_UMBRAL){ if(aviso) aviso.remove(); return; }
+
+  if(aviso){
+    aviso.classList.add('cargando');
+    aviso.querySelector('.gm-tiron-txt').textContent = 'Actualizando…';
+  }
+  Promise.resolve(loadGmailWidget()).finally(() => {
+    // loadGmailWidget repinta la lista entera, así que el aviso se va con ella
+    col.querySelector('.gm-tiron')?.remove();
+    setStatus('Bandeja actualizada.');
+  });
+}, { passive: true });

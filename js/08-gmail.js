@@ -88,15 +88,40 @@ async function loadGmailWidget(anexar){
     return cabecera+mainRow+subContainer;
   }).join('')
   + (_tokenSiguienteCorreo
-      ? `<button class="gm-mas-correos" onclick="cargarMasCorreos()">Ver correos anteriores</button>`
+      ? `<div class="gm-cargando-mas" id="gmCentinela"><span class="gm-giro"></span>Cargando más correos…</div>`
       : `<p class="gm-fin-lista">No hay más correos en esta carpeta.</p>`);
+
+  vigilarFinalDeLista();
+}
+
+// Cargar al llegar abajo, sin botón: se vigila una marca invisible al final de
+// la lista y en cuanto asoma se pide la tanda siguiente.
+let _vigilanteFinal = null;
+function vigilarFinalDeLista(){
+  if(_vigilanteFinal){ _vigilanteFinal.disconnect(); _vigilanteFinal = null; }
+  const marca = document.getElementById('gmCentinela');
+  if(!marca || !window.IntersectionObserver) return;
+  const columna = marca.closest('.gmail-list-col') || null;
+  _vigilanteFinal = new IntersectionObserver(entradas => {
+    if(entradas.some(e => e.isIntersecting)) cargarMasCorreos();
+  }, { root: columna, rootMargin: '300px' });   // se adelanta un poco para que no se note el corte
+  _vigilanteFinal.observe(marca);
+
+  // Respaldo por si el vigilante no llega a avisar (algunos navegadores lo
+  // frenan cuando la pestaña no está en primer plano): se mira también cuánto
+  // queda para el final al desplazar.
+  if(columna && !columna.dataset.vigilado){
+    columna.dataset.vigilado = '1';
+    columna.addEventListener('scroll', () => {
+      const queda = columna.scrollHeight - columna.scrollTop - columna.clientHeight;
+      if(queda < 320) cargarMasCorreos();
+    }, { passive: true });
+  }
 }
 
 async function cargarMasCorreos(){
   if(_cargandoMasCorreos || !_tokenSiguienteCorreo) return;
   _cargandoMasCorreos = true;
-  const btn = document.querySelector('.gm-mas-correos');
-  if(btn){ btn.disabled = true; btn.textContent = 'Cargando…'; }
   try{ await loadGmailWidget(true); }
   finally{ _cargandoMasCorreos = false; }
 }
