@@ -815,6 +815,49 @@ async function guardarBorrador(){
 }
 
 // ---- Envío ----
+//
+// El correo NO sale en el momento: se retiene 5 segundos para que puedas
+// arrepentirte. Gmail no permite recuperar un correo ya enviado, así que la
+// única forma real de deshacer es no haberlo mandado todavía.
+//
+// ⚠️ Si cierras la aplicación del todo dentro de esos 5 segundos, el correo se
+// quedaría sin salir. Por eso, si la app pasa a segundo plano, se envía ya.
+let _envioEnEspera = null;   // { temporizador, mandar, copia }
+
+function enviarYaLoPendiente(){
+  if(!_envioEnEspera) return;
+  const { temporizador, mandar } = _envioEnEspera;
+  clearTimeout(temporizador);
+  _envioEnEspera = null;
+  ocultarDeshacer();
+  mandar();
+}
+window.addEventListener('pagehide', enviarYaLoPendiente);
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'hidden') enviarYaLoPendiente();
+});
+
+// Devuelve el redactor tal y como estaba, con todo dentro
+function recuperarEnvio(copia){
+  if(_envioEnEspera){ clearTimeout(_envioEnEspera.temporizador); _envioEnEspera = null; }
+  openCompose('nuevo');
+  setTimeout(() => {
+    const poner = (id, v) => { const e = document.getElementById(id); if(e) e.value = v || ''; };
+    poner('cpTo', copia.to); poner('cpCc', copia.cc); poner('cpBcc', copia.bcc);
+    poner('cpSubject', copia.subject);
+    const cuerpo = document.getElementById('cpBody');
+    if(cuerpo) cuerpo.innerHTML = copia.bodyHtml || '';
+    const desde = document.getElementById('cpFrom');
+    if(desde && copia.desde) desde.value = copia.desde;
+    const filaCc = document.getElementById('cpCcRow');
+    if(filaCc && (copia.cc || copia.bcc)) filaCc.style.display = '';
+    _composeCtx = copia.ctx;
+    _composeAdjuntos = copia.adjuntos || [];
+    renderAdjuntosCompose();
+    composeStatus('Envío cancelado. El correo sigue aquí.', 'aviso');
+  }, 60);
+}
+
 async function sendComposedEmail(){
   const to = document.getElementById('cpTo').value.trim();
   if(!to){ composeStatus('Falta el destinatario.', 'error'); return; }
@@ -866,36 +909,56 @@ async function sendComposedEmail(){
     });
   }
 
-  try{
-    let r = await intentar();
-    if(r.status === 401){          // pase caducado: se renueva y se reintenta una vez
-      await handleGoogleExpired();
-      if(googleToken) r = await intentar();
-    }
-    if(!r.ok){
-      const err = await r.json().catch(() => ({}));
-      composeStatus('No se pudo enviar: ' + ((err.error && err.error.message) || ('HTTP ' + r.status)), 'error');
-      btn.disabled = false; btn.textContent = 'Enviar';
-      return;
-    }
-    closeCompose(true);
-    setStatus('Correo enviado.');
-    if(currentView === 'correo') loadGmailWidget();
-  }catch(e){
-    // Puede que la petición llegara y solo se perdiera la respuesta. Antes de
-    // invitar a reintentar —lo que enviaría el correo dos veces— se comprueba
-    // si de verdad salió.
-    composeStatus('Comprobando si el correo llegó a salir…');
-    const salio = await comprobarSiSalio(subject);
-    if(salio){
-      closeCompose(true);
-      setStatus('El correo sí se envió; solo se perdió la confirmación.');
+  // Copia de todo lo escrito, por si te arrepientes durante la espera
+  const copia = {
+    to, cc, bcc, subject, bodyHtml,
+    desde: selFrom ? selFrom.value : '',
+    ctx: _composeCtx ? { ..._composeCtx } : null,
+    adjuntos: _composeAdjuntos.slice()
+  };
+
+  // El envío de verdad, que ocurrirá pasados los 5 segundos
+  const mandar = async () => {
+    try{
+      let r = await intentar();
+      if(r.status === 401){          // pase caducado: se renueva y se reintenta una vez
+        await handleGoogleExpired();
+        if(googleToken) r = await intentar();
+      }
+      if(!r.ok){
+        const err = await r.json().catch(() => ({}));
+        setStatus('No se pudo enviar: ' + ((err.error && err.error.message) || ('HTTP ' + r.status)));
+        recuperarEnvio(copia);
+        return;
+      }
+      setStatus('Correo enviado.');
       if(currentView === 'correo') loadGmailWidget();
-      return;
+    }catch(e){
+      // Puede que la petición llegara y solo se perdiera la respuesta. Antes de
+      // invitar a reintentar —lo que enviaría el correo dos veces— se comprueba
+      // si de verdad salió.
+      setStatus('Comprobando si el correo llegó a salir…');
+      const salio = await comprobarSiSalio(subject);
+      if(salio){
+        setStatus('El correo sí se envió; solo se perdió la confirmación.');
+        if(currentView === 'correo') loadGmailWidget();
+        return;
+      }
+      setStatus('No se pudo enviar. Revisa la conexión.');
+      recuperarEnvio(copia);
     }
-    composeStatus('No se pudo enviar. Revisa la conexión e inténtalo de nuevo.', 'error');
-    btn.disabled = false; btn.textContent = 'Enviar';
-  }
+  };
+
+  // Se cierra el redactor ya, para que puedas seguir a lo tuyo
+  closeCompose(true);
+  mostrarDeshacer('Enviando el correo…', () => {
+    recuperarEnvio(copia);
+    setStatus('Envío cancelado.');
+  }, 5);
+  _envioEnEspera = {
+    mandar,
+    temporizador: setTimeout(() => { _envioEnEspera = null; mandar(); }, 5000)
+  };
 }
 
 // Busca en Enviados un correo con ese asunto de hace menos de tres minutos

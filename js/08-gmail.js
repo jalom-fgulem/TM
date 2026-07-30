@@ -379,7 +379,7 @@ function extractEmailBody(payload){
 let _mailPollTimer = null;
 let _lastHistoryId = null;
 let _lastUnread = null;
-const MAIL_POLL_MS = 45000;   // 🔧 PERSONALIZAR: cada cuánto se comprueba
+const MAIL_POLL_MS = 30000;   // 🔧 PERSONALIZAR: cada cuánto se comprueba
 
 function startMailPolling(){
   stopMailPolling();

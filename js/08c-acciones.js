@@ -9,7 +9,7 @@ let _deshacerTimer = null;
 
 // ---- Aviso con opción de deshacer ----
 function mostrarDeshacer(mensaje, alDeshacer, segundos){
-  segundos = segundos || 10;
+  segundos = segundos || 5;     // corto a propósito: no interrumpe el trabajo
   ocultarDeshacer();
 
   const caja = document.createElement('div');
