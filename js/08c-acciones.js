@@ -55,6 +55,11 @@ async function accionHilo(threadId, ruta, cuerpo){
 
 // Quita la conversación de la lista y pasa a la siguiente
 function sacarDeLaLista(threadId){
+  // También del listado guardado en memoria: si no, al pedir más correos el
+  // que acabas de archivar reaparecería.
+  if(typeof _correosCargados !== 'undefined'){
+    _correosCargados = _correosCargados.filter(m => (m.threadId || m._threadId || m.id) !== threadId);
+  }
   const fila = document.querySelector(`.gmail-list-item[data-tid="${threadId}"]`);
   const sub = document.getElementById('thread-sub-' + threadId);
   if(sub) sub.remove();

@@ -1,10 +1,29 @@
 // Gmail: listado, lectura, adjuntos y Drive
 // Parte de la app TM. Script clásico: comparte ámbito global con el resto.
 
-async function loadGmailWidget(){
+// Gmail entrega los correos por tandas. Antes se pedía una sola de 25 y ahí se
+// acababa la bandeja: no había manera de llegar a lo más antiguo. Ahora se
+// guarda por dónde iba y se piden más con el botón del final.
+let _correosCargados = [];
+let _tokenSiguienteCorreo = null;
+let _cargandoMasCorreos = false;
+
+async function loadGmailWidget(anexar){
   const el=document.getElementById('gmailWidget'); if(!el) return;
-  el.innerHTML='<p class="empty" style="padding:16px 12px;">Cargando...</p>';
-  const msgs=await fetchGmailUnread();
+  // Sin marcador de continuación no hay nada más que pedir: sin esto se volvería
+  // a traer la primera tanda y reaparecerían correos ya archivados.
+  if(anexar && !_tokenSiguienteCorreo) return;
+  if(!anexar){
+    _correosCargados = []; _tokenSiguienteCorreo = null;
+    el.innerHTML='<p class="empty" style="padding:16px 12px;">Cargando...</p>';
+  }
+  const tanda = await fetchGmailUnread(anexar ? _tokenSiguienteCorreo : null);
+  _tokenSiguienteCorreo = tanda.siguiente;
+  // Sin duplicados: al refrescar puede repetirse algún mensaje entre tandas
+  const vistos = new Set(_correosCargados.map(m=>m.id));
+  tanda.lista.forEach(m => { if(m && m.id && !vistos.has(m.id)){ vistos.add(m.id); _correosCargados.push(m); } });
+
+  const msgs = _correosCargados;
   if(!msgs.length){ el.innerHTML='<p class="empty" style="padding:16px 12px;">No hay emails con este filtro.</p>'; return; }
   const linkedEmailIds=new Set((state.tasks||[]).filter(t=>t.sourceEmailId).map(t=>t.sourceEmailId));
   // Group by threadId, keep insertion order of first appearance
@@ -67,23 +86,39 @@ async function loadGmailWidget(){
     let cabecera='';
     if(grupo!==_grupoActual){ _grupoActual=grupo; cabecera=`<div class="gm-dia">${escapeHtml(grupo)}</div>`; }
     return cabecera+mainRow+subContainer;
-  }).join('');
+  }).join('')
+  + (_tokenSiguienteCorreo
+      ? `<button class="gm-mas-correos" onclick="cargarMasCorreos()">Ver correos anteriores</button>`
+      : `<p class="gm-fin-lista">No hay más correos en esta carpeta.</p>`);
 }
-async function fetchGmailUnread(){
-  if(!googleToken) return[];
+
+async function cargarMasCorreos(){
+  if(_cargandoMasCorreos || !_tokenSiguienteCorreo) return;
+  _cargandoMasCorreos = true;
+  const btn = document.querySelector('.gm-mas-correos');
+  if(btn){ btn.disabled = true; btn.textContent = 'Cargando…'; }
+  try{ await loadGmailWidget(true); }
+  finally{ _cargandoMasCorreos = false; }
+}
+async function fetchGmailUnread(tokenPagina){
+  if(!googleToken) return { lista:[], siguiente:null };
   try{
-    const lr=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(currentEmailQuery)}&maxResults=25`,
-      {headers:{Authorization:`Bearer ${googleToken}`}});
-    if(lr.status===401){handleGoogleExpired();return[];}
-    if(!lr.ok) return[];
-    const stubs=(await lr.json()).messages||[];
-    if(!stubs.length) return[];
+    const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(currentEmailQuery)}&maxResults=30`
+      + (tokenPagina ? `&pageToken=${encodeURIComponent(tokenPagina)}` : '');
+    const lr=await fetch(url,{headers:{Authorization:`Bearer ${googleToken}`}});
+    if(lr.status===401){handleGoogleExpired();return { lista:[], siguiente:null };}
+    if(!lr.ok) return { lista:[], siguiente:null };
+    const datos=await lr.json();
+    const stubs=datos.messages||[];
+    const siguiente=datos.nextPageToken||null;
+    if(!stubs.length) return { lista:[], siguiente };
     const fields='id,threadId,labelIds,snippet,payload(headers,mimeType,parts(filename,mimeType,body(attachmentId,size),parts(filename,mimeType,body(attachmentId,size))))';
-    return await Promise.all(stubs.map(({id,threadId})=>
+    const lista = await Promise.all(stubs.map(({id,threadId})=>
       fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=full&fields=${encodeURIComponent(fields)}`,
         {headers:{Authorization:`Bearer ${googleToken}`}}).then(r=>r.json()).then(m=>({...m,_threadId:threadId}))
     ));
-  }catch(e){return[];}
+    return { lista, siguiente };
+  }catch(e){return { lista:[], siguiente:null };}
 }
 async function fetchGmailLabels(){
   if(!googleToken) return;
