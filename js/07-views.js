@@ -11,20 +11,24 @@ function renderCorreo(){
     <div class="gmail-sidebar" id="gmailSidebar">${renderGmailSidebarHTML()}</div>
     <div class="gm-tirador" data-col="sb" title="Arrastra para ajustar el ancho"></div>
     <div class="gmail-list-col">
-      <div class="gmail-list-head">
+      <div class="gm-cabecera" id="gmCabecera">
+        <button class="gm-carpeta" onclick="abrirCarpetasMovil()" aria-label="Cambiar de carpeta">
+          <i class="ti ${iconoDeCarpeta(currentEmailQuery)}" aria-hidden="true"></i>
+          <span class="gm-carpeta-nombre">${escapeHtml(labelTitle)}</span>
+          <i class="ti ti-chevron-down gm-carpeta-flecha" aria-hidden="true"></i>
+        </button>
         <span class="gmail-list-head-title">${escapeHtml(labelTitle)}</span>
-        <span style="display:flex;gap:6px;align-items:center;">
+        ${renderFichasEtiqueta().replace('<div class="gm-fichas"','<div class="gm-fichas" id="gmFichas"')}
+        <span class="gm-head-btns">
+          <button class="gm-lupa" onclick="alternarBuscadorMovil()" title="Buscar" aria-label="Buscar"><i class="ti ti-search" aria-hidden="true"></i></button>
           <button class="btn-primary btn-small gm-redactar" onclick="openCompose('nuevo')" title="Redactar" aria-label="Redactar"><i class="ti ti-pencil-plus" aria-hidden="true"></i><span>Redactar</span></button>
-          <button class="btn-icon" onclick="loadGmailWidget()" title="Actualizar" aria-label="Actualizar" style="width:26px;height:26px;font-size:13px;"><i class="ti ti-refresh" aria-hidden="true"></i></button>
+          <button class="btn-icon gm-refrescar" onclick="loadGmailWidget()" title="Actualizar" aria-label="Actualizar" style="width:26px;height:26px;font-size:13px;"><i class="ti ti-refresh" aria-hidden="true"></i></button>
         </span>
-      </div>
-      <div class="gm-barra-buscar">
         <div class="gm-buscador">
           <i class="ti ti-search" aria-hidden="true"></i>
           <input type="text" id="gmBuscar" placeholder="${(typeof isMobile==='function' && isMobile()) ? 'Buscar…' : 'Buscar en el correo…'}" onkeydown="buscarCorreo(event)">
           <button class="gm-buscar-x" onclick="limpiarBusqueda()" title="Limpiar" aria-label="Limpiar la búsqueda"><i class="ti ti-x" aria-hidden="true"></i></button>
         </div>
-        ${renderFichasEtiqueta().replace('<div class="gm-fichas"','<div class="gm-fichas" id="gmFichas"')}
       </div>
       <div id="gmailWidget"><p class="empty" style="padding:16px 12px;">Cargando...</p></div>
     </div>
@@ -34,6 +38,56 @@ function renderCorreo(){
     </div>
   </div>`;
 }
+const CARPETAS_CORREO = [
+  ['in:inbox',    'ti-inbox',        'Recibidos'],
+  ['is:unread',   'ti-mail',         'No leídos'],
+  ['is:starred',  'ti-star',         'Destacados'],
+  ['in:sent',     'ti-send',         'Enviados'],
+  ['in:drafts',   'ti-file',         'Borradores'],
+  ['in:trash',    'ti-trash',        'Papelera'],
+  ['in:spam',     'ti-alert-circle', 'Spam']
+];
+function iconoDeCarpeta(q){
+  const c = CARPETAS_CORREO.find(x => x[0] === q);
+  return c ? c[1] : 'ti-tag';                     // si no es carpeta, es una etiqueta
+}
+
+// En el móvil no hay barra lateral, así que sin esto no había manera de llegar
+// a Enviados, Papelera o a tus etiquetas: solo se veía la bandeja de entrada.
+function abrirCarpetasMovil(){
+  const fila = (q, icono, nombre, activa) => `
+    <button class="acc-menu-item ${activa ? 'azul' : 'gris'}" onclick="closeModal();setEmailQuery('${escapeAttr(q)}')">
+      <i class="ti ${icono}" aria-hidden="true"></i><span>${escapeHtml(nombre)}</span>
+      ${activa ? '<i class="ti ti-check" style="margin-left:auto;color:var(--accent);" aria-hidden="true"></i>' : ''}
+    </button>`;
+
+  const etiquetas = (gmailUserLabels || []).filter(l => l.type === 'user');
+  document.getElementById('modalRoot').innerHTML = `
+    <div class="modal-bg" onclick="if(event.target===this) closeModal()">
+      <div class="modal">
+        <h3>Ir a…</h3>
+        <div class="acc-menu">
+          ${CARPETAS_CORREO.map(([q, i, n]) => fila(q, i, n, currentEmailQuery === q)).join('')}
+        </div>
+        ${etiquetas.length ? `<p class="sect-h" style="margin:14px 0 4px;">Etiquetas</p>
+          <div class="acc-menu">
+            ${etiquetas.map(l => fila('label:' + l.name, 'ti-tag', l.name, currentEmailQuery === 'label:' + l.name)).join('')}
+          </div>` : ''}
+        <div class="modal-actions">
+          <button class="btn-ghost" onclick="closeModal();loadGmailWidget();"><i class="ti ti-refresh" aria-hidden="true"></i> Actualizar</button>
+          <button class="btn-ghost" onclick="closeModal()">Cerrar</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+// El buscador se guarda hasta que hace falta: así la barra ocupa una sola fila
+function alternarBuscadorMovil(){
+  const cab = document.getElementById('gmCabecera'); if(!cab) return;
+  const abierto = cab.classList.toggle('buscando');
+  if(abierto) setTimeout(() => document.getElementById('gmBuscar')?.focus(), 30);
+}
+
 function setEmailQuery(q){
   currentEmailQuery=q; selectedEmailId=null;
   render(); loadGmailWidget();

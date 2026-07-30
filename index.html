@@ -797,7 +797,16 @@
   .gm-buscar-x{border:none; background:transparent; color:var(--text-muted); cursor:pointer; padding:0 2px; font-size:12px; display:flex; align-items:center;}
   .gm-buscar-x:hover{color:var(--text);}
 
-  .gm-barra-buscar{flex-shrink:0;}
+  /* Cabecera de la lista. En el ordenador se reparte en tres filas (título,
+     buscador y fichas); en el móvil todo cabe en una sola. El orden lo pone
+     el CSS, así que el HTML es el mismo en los dos sitios. */
+  .gm-cabecera{display:flex; flex-wrap:wrap; align-items:center; gap:6px;
+    padding:7px 10px; border-bottom:1px solid var(--border); background:var(--surface); flex-shrink:0;}
+  .gm-cabecera .gmail-list-head-title{order:1; flex:1; min-width:0;}
+  .gm-cabecera .gm-head-btns{order:2; display:flex; gap:6px; align-items:center;}
+  .gm-cabecera .gm-buscador{order:3; flex:1 1 100%; margin:2px 0 0;}
+  .gm-cabecera .gm-fichas{order:4; flex:1 1 100%; padding:5px 0 0;}
+  .gm-carpeta, .gm-lupa{display:none;}
   .gm-redactar{display:inline-flex; align-items:center; gap:5px;}
   .gm-fichas{display:flex; gap:5px; flex-wrap:wrap; align-items:center; padding:9px 10px 4px;}
   .gm-ficha{font-family:var(--fuente); font-size:11.5px; padding:4px 11px; border-radius:20px; border:1px solid var(--border); background:var(--surface); color:var(--text-soft); cursor:pointer; white-space:nowrap;}
@@ -1229,21 +1238,37 @@
     .gm-dia{font-size:12.5px; font-weight:700; text-transform:none; letter-spacing:0;
             color:var(--text); padding:9px 14px 4px; background:var(--bg); border-bottom:none;}
 
-    /* Buscador y filtros comparten una sola línea */
-    .gm-barra-buscar{display:flex; align-items:center; gap:8px; padding:7px 12px 6px; min-width:0;}
-    .gm-buscador{flex:1 1 150px; min-width:136px; margin:0; padding:7px 11px; font-size:15px;}
-    .gm-buscador input{font-size:15px;}
-    .gm-fichas{flex:0 1 auto; max-width:52%; padding:0; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; min-width:0;}
+    /* Toda la cabecera en UNA fila: carpeta, filtros, buscar y redactar.
+       Antes eran dos filas (título + buscador) y se comían medio correo. */
+    .gm-cabecera{flex-wrap:nowrap; gap:7px; padding:6px 10px;}
+    .gm-cabecera .gmail-list-head-title{display:none;}
+    .gm-carpeta{order:1; display:inline-flex; align-items:center; gap:5px; flex:0 0 auto; max-width:44%;
+      border:1px solid var(--border); background:var(--surface2); border-radius:20px;
+      padding:7px 11px; cursor:pointer; font-family:-apple-system,Helvetica,Arial,sans-serif;
+      font-size:14.5px; font-weight:600; color:var(--text); -webkit-tap-highlight-color:transparent;}
+    .gm-carpeta-nombre{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+    .gm-carpeta i{font-size:16px; flex-shrink:0;}
+    .gm-carpeta-flecha{font-size:14px; color:var(--text-muted);}
+    .gm-cabecera .gm-fichas{order:2; flex:1 1 auto; min-width:0; padding:0;
+      flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none;}
     .gm-fichas::-webkit-scrollbar{display:none;}
     .gm-fichas-ayuda{display:none;}
     .gm-ficha{font-size:13px; padding:6px 13px; white-space:nowrap; flex-shrink:0;}
-
-    /* Cabecera de la lista: el título y, a la derecha, solo iconos */
-    .gmail-list-head{padding:6px 12px;}
-    .gmail-list-head-title{font-size:16px;}
+    .gm-cabecera .gm-head-btns{order:3; flex:0 0 auto; gap:5px;}
+    .gm-lupa{display:inline-flex; align-items:center; justify-content:center; width:38px; height:38px;
+      border:none; background:transparent; border-radius:9px; color:var(--text-soft); font-size:19px; cursor:pointer;}
+    .gm-refrescar{display:none;}          /* vive en el menú de carpetas */
     .gm-redactar span{display:none;}
     .gm-redactar{width:38px; height:38px; padding:0; justify-content:center; border-radius:9px;}
     .gm-redactar i{font-size:19px;}
+
+    /* El buscador aparece solo al pulsar la lupa */
+    .gm-cabecera .gm-buscador{display:none;}
+    .gm-cabecera.buscando .gm-buscador{display:flex; order:4; flex:1 1 100%;
+      margin:0; padding:7px 11px; font-size:15px;}
+    .gm-cabecera.buscando{flex-wrap:wrap;}
+    .gm-cabecera.buscando .gm-fichas{display:none;}
+    .gm-buscador input{font-size:15px;}
 
     /* Lectura: la cabecera ocupa lo mínimo para dejar sitio al correo.
        Volver + asunto en una fila, y una sola fila de botones. */
