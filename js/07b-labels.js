@@ -131,7 +131,9 @@ function renderFichasEtiqueta(){
   return `<div class="gm-fichas">${todas}${fav.map(n => `
     <button class="gm-ficha ${currentEmailQuery === 'label:' + n ? 'on' : ''}"
       data-label-id="${escapeAttr(((gmailUserLabels||[]).find(l=>l.name===n)||{}).id||'')}" data-label-name="${escapeAttr(n.split('/').pop())}"
-      onclick="setEmailQuery('label:${escapeAttr(n)}')">${escapeHtml(n.split('/').pop())}</button>`).join('')}</div>`;
+      onclick="setEmailQuery('label:${escapeAttr(n)}')">${escapeHtml(n.split('/').pop())}${
+        badgesActivados() && _contadoresEtiqueta[n] ? `<span class="gm-ficha-n">${_contadoresEtiqueta[n]}</span>` : ''
+      }</button>`).join('')}</div>`;
 }
 function actualizarFichasEtiqueta(){
   const el = document.getElementById('gmFichas');
@@ -210,9 +212,24 @@ async function aplicarEtiquetas(msgId){
 // La lista de etiquetas no trae los contadores: hay que pedirlos uno a uno.
 // Se piden solo los de la bandeja y los favoritos, para no lanzar decenas de
 // peticiones en cada carga.
+function badgesActivados(){ return state.mailBadges !== false; }
+
+// Cuáles llevan contador: la bandeja, tus favoritas y las etiquetas que crea la
+// clasificación automática (Publicidad, Viajes, Noticias). Estas últimas van
+// incluidas aunque no las hayas marcado como favoritas: son justo las que
+// interesa vigilar sin tenerlas delante.
+function etiquetasConContador(){
+  const nombres = new Set(favoritasLista());
+  if(typeof CATEGORIAS === 'object'){
+    Object.values(CATEGORIAS).forEach(c => nombres.add(c.etiqueta));
+  }
+  return [...nombres].filter(n => (gmailUserLabels || []).some(l => l.name === n));
+}
+
 async function cargarContadoresEtiqueta(){
   if(!googleToken) return;
-  const fav = favoritasLista().filter(n => (gmailUserLabels || []).some(l => l.name === n));
+  if(!badgesActivados()){ _contadoresEtiqueta = {}; renderGmailLabelBtns(); actualizarFichasEtiqueta(); return; }
+  const fav = etiquetasConContador();
   const ids = ['INBOX', ...fav.map(n => (gmailUserLabels.find(l => l.name === n) || {}).id).filter(Boolean)];
   await Promise.all(ids.map(async id => {
     try{
@@ -225,6 +242,17 @@ async function cargarContadoresEtiqueta(){
     }catch(e){}
   }));
   renderGmailLabelBtns();
+  actualizarFichasEtiqueta();
+  marcarPuntoEnCarpeta();
+}
+
+// Punto de aviso en el botón de carpeta del móvil: sin él, en el teléfono no
+// habría forma de enterarse de que hay algo sin leer en Viajes o Publicidad,
+// porque la barra lateral está oculta.
+function marcarPuntoEnCarpeta(){
+  const btn = document.querySelector('.gm-carpeta'); if(!btn) return;
+  const hay = badgesActivados() && etiquetasConContador().some(n => (_contadoresEtiqueta[n] || 0) > 0);
+  btn.classList.toggle('con-aviso', hay);
 }
 
 // ============================================================

@@ -419,6 +419,7 @@ async function checkNewMail(silencioso){
     }
     if(perfil.historyId === _lastHistoryId) return;        // nada nuevo
     _lastHistoryId = perfil.historyId;
+    cargarContadoresEtiqueta();      // los avisos de Viajes/Publicidad, al día
 
     if(currentView === 'correo') loadGmailWidget();
     avisarSiHayCorreoNuevo();

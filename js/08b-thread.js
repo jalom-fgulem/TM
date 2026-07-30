@@ -50,6 +50,14 @@ function cambiarLogotipos(activado){
   setStatus(activado ? 'Se mostrarán los logotipos de los remitentes.' : 'Se mostrarán solo las iniciales.');
 }
 
+function cambiarBadges(activado){
+  state.mailBadges = !!activado;
+  saveSettings();
+  if(activado) cargarContadoresEtiqueta();
+  else { _contadoresEtiqueta = {}; renderGmailLabelBtns(); actualizarFichasEtiqueta(); marcarPuntoEnCarpeta(); }
+  setStatus(activado ? 'Se avisará de lo no leído en las etiquetas.' : 'Avisos de etiquetas desactivados.');
+}
+
 function avatarHTML(from, tam){
   const nombre = (from || '').replace(/<[^>]+>/, '').replace(/"/g, '').trim();
   const email = emBareAddress(from || '');
@@ -64,6 +72,19 @@ function avatarHTML(from, tam){
 
 // ---- Apertura de una conversación ----
 async function selectEmail(msgId, threadId){
+  // Con el modo selección activo, pulsar una fila la marca en lugar de abrirla:
+  // así se van señalando los correos a borrar sin apuntar a una casilla diminuta.
+  if(document.body.classList.contains('modo-seleccion')){
+    const fila = document.querySelector(`.gmail-list-item[data-id="${msgId}"]`);
+    const tid = threadId || (fila && fila.dataset.tid);
+    if(tid){
+      const marcar = !_seleccion.has(tid);
+      alternarSeleccion(tid, marcar);
+      const casilla = fila && fila.querySelector('.gli-sel input');
+      if(casilla) casilla.checked = marcar;
+    }
+    return;
+  }
   selectedEmailId = msgId;
   document.querySelectorAll('.gmail-list-item,.thread-sub-item')
     .forEach(el => el.classList.toggle('selected', el.dataset.id === msgId));

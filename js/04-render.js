@@ -138,6 +138,8 @@ function openConfigDrawer(){
   document.getElementById('cfgEmail').value     = p.email     || '';
   const logos = document.getElementById('cfgLogos');
   if(logos) logos.checked = state.mailLogos !== false;
+  const badges = document.getElementById('cfgBadges');
+  if(badges) badges.checked = state.mailBadges !== false;
 }
 function closeConfigDrawer(){
   document.getElementById('configDrawer').classList.remove('open');

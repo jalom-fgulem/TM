@@ -452,11 +452,13 @@ function alternarSeleccion(tid, marcado){
   pintarBarraSeleccion();
 }
 
-function limpiarSeleccion(){
+function limpiarSeleccion(mantenerModo){
   _seleccion.clear();
   document.querySelectorAll('.gmail-list-item.marcado').forEach(f => f.classList.remove('marcado'));
   document.querySelectorAll('.gli-sel input:checked').forEach(c => { c.checked = false; });
-  document.body.classList.remove('modo-seleccion');
+  // Tras borrar o archivar se sigue en modo selección: lo normal es querer
+  // marcar los siguientes. Solo se sale con el botón "Salir".
+  if(!mantenerModo) document.body.classList.remove('modo-seleccion');
   pintarBarraSeleccion();
 }
 
@@ -469,14 +471,16 @@ function seleccionarTodoVisible(){
 }
 
 function alternarModoSeleccion(){
-  document.body.classList.toggle('modo-seleccion');
-  if(!document.body.classList.contains('modo-seleccion')) limpiarSeleccion();
+  const activo = document.body.classList.toggle('modo-seleccion');
+  if(activo) pintarBarraSeleccion();     // la barra aparece ya, explicando qué hacer
+  else limpiarSeleccion();
 }
 
 function pintarBarraSeleccion(){
   const col = document.querySelector('.gmail-list-col');
+  const modo = document.body.classList.contains('modo-seleccion');
   let barra = document.getElementById('gmBarraSel');
-  if(!_seleccion.size){ if(barra) barra.remove(); return; }
+  if(!modo && !_seleccion.size){ if(barra) barra.remove(); return; }
   if(!col) return;
   if(!barra){
     barra = document.createElement('div');
@@ -487,11 +491,12 @@ function pintarBarraSeleccion(){
   }
   const n = _seleccion.size;
   barra.innerHTML = `
-    <span class="gm-sel-n">${n} seleccionado${n > 1 ? 's' : ''}</span>
+    <span class="gm-sel-n">${n ? `${n} seleccionado${n > 1 ? 's' : ''}` : 'Toca los correos que quieras'}</span>
+    ${n ? `
     <button class="gm-sel-btn verde" onclick="archivarSeleccion()" title="Archivar" aria-label="Archivar los seleccionados"><i class="ti ti-archive" aria-hidden="true"></i><span>Archivar</span></button>
-    <button class="gm-sel-btn rojo" onclick="borrarSeleccion()" title="Mover a la papelera" aria-label="Mover a la papelera los seleccionados"><i class="ti ti-trash" aria-hidden="true"></i><span>Borrar</span></button>
+    <button class="gm-sel-btn rojo" onclick="borrarSeleccion()" title="Mover a la papelera" aria-label="Mover a la papelera los seleccionados"><i class="ti ti-trash" aria-hidden="true"></i><span>Borrar</span></button>` : ''}
     <button class="gm-sel-btn" onclick="seleccionarTodoVisible()" title="Seleccionar todos los de la lista" aria-label="Seleccionar todos">Todos</button>
-    <button class="gm-sel-btn" onclick="limpiarSeleccion()" title="Quitar la selección" aria-label="Quitar la selección"><i class="ti ti-x" aria-hidden="true"></i></button>`;
+    <button class="gm-sel-btn" onclick="limpiarSeleccion()" title="Salir de la selección" aria-label="Salir de la selección"><i class="ti ti-x" aria-hidden="true"></i> Salir</button>`;
 }
 
 // Ejecuta una acción sobre cada conversación marcada, de cinco en cinco para
@@ -509,7 +514,7 @@ async function _porLotes(ids, tarea){
 async function borrarSeleccion(){
   const ids = [..._seleccion];
   if(!ids.length || !googleToken) return;
-  limpiarSeleccion();
+  limpiarSeleccion(true);
   ids.forEach(sacarDeLaLista);
   const { bien, mal } = await _porLotes(ids, id => accionHilo(id, 'trash'));
   if(mal.length) setStatus(`${bien.length} a la papelera; ${mal.length} no se pudieron borrar.`);
@@ -524,7 +529,7 @@ async function borrarSeleccion(){
 async function archivarSeleccion(){
   const ids = [..._seleccion];
   if(!ids.length || !googleToken) return;
-  limpiarSeleccion();
+  limpiarSeleccion(true);
   ids.forEach(sacarDeLaLista);
   const { bien, mal } = await _porLotes(ids, id => accionHilo(id, 'modify', { removeLabelIds: ['INBOX'] }));
   if(mal.length) setStatus(`${bien.length} archivadas; ${mal.length} no se pudieron archivar.`);

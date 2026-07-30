@@ -22,6 +22,7 @@ function renderCorreo(){
         <span class="gm-head-btns">
           <button class="gm-lupa" onclick="alternarBuscadorMovil()" title="Buscar" aria-label="Buscar"><i class="ti ti-search" aria-hidden="true"></i></button>
           <button class="btn-primary btn-small gm-redactar" onclick="openCompose('nuevo')" title="Redactar" aria-label="Redactar"><i class="ti ti-pencil-plus" aria-hidden="true"></i><span>Redactar</span></button>
+          <button class="btn-icon gm-seleccionar" onclick="alternarModoSeleccion()" title="Seleccionar varios correos" aria-label="Seleccionar varios correos" style="width:26px;height:26px;font-size:13px;"><i class="ti ti-checkbox" aria-hidden="true"></i></button>
           <button class="btn-icon gm-refrescar" onclick="loadGmailWidget()" title="Actualizar" aria-label="Actualizar" style="width:26px;height:26px;font-size:13px;"><i class="ti ti-refresh" aria-hidden="true"></i></button>
         </span>
         <div class="gm-buscador">
@@ -55,11 +56,17 @@ function iconoDeCarpeta(q){
 // En el móvil no hay barra lateral, así que sin esto no había manera de llegar
 // a Enviados, Papelera o a tus etiquetas: solo se veía la bandeja de entrada.
 function abrirCarpetasMovil(){
-  const fila = (q, icono, nombre, activa) => `
+  const sinLeerDe = clave => (typeof badgesActivados === 'function' && badgesActivados())
+    ? (_contadoresEtiqueta[clave] || 0) : 0;
+  const fila = (q, icono, nombre, activa, clave) => {
+    const n = sinLeerDe(clave);
+    return `
     <button class="acc-menu-item ${activa ? 'azul' : 'gris'}" onclick="closeModal();setEmailQuery('${escapeAttr(q)}')">
       <i class="ti ${icono}" aria-hidden="true"></i><span>${escapeHtml(nombre)}</span>
+      ${n ? `<span class="acc-menu-n">${n}</span>` : ''}
       ${activa ? '<i class="ti ti-check" style="margin-left:auto;color:var(--accent);" aria-hidden="true"></i>' : ''}
     </button>`;
+  };
 
   const etiquetas = (gmailUserLabels || []).filter(l => l.type === 'user');
   document.getElementById('modalRoot').innerHTML = `
@@ -67,11 +74,11 @@ function abrirCarpetasMovil(){
       <div class="modal">
         <h3>Ir a…</h3>
         <div class="acc-menu">
-          ${CARPETAS_CORREO.map(([q, i, n]) => fila(q, i, n, currentEmailQuery === q)).join('')}
+          ${CARPETAS_CORREO.map(([q, i, n]) => fila(q, i, n, currentEmailQuery === q, q === 'in:inbox' ? 'INBOX' : null)).join('')}
         </div>
         ${etiquetas.length ? `<p class="sect-h" style="margin:14px 0 4px;">Etiquetas</p>
           <div class="acc-menu">
-            ${etiquetas.map(l => fila('label:' + l.name, 'ti-tag', l.name, currentEmailQuery === 'label:' + l.name)).join('')}
+            ${etiquetas.map(l => fila('label:' + l.name, 'ti-tag', l.name, currentEmailQuery === 'label:' + l.name, l.name)).join('')}
           </div>` : ''}
         <div class="modal-actions">
           <button class="btn-ghost" onclick="closeModal();alternarModoSeleccion();"><i class="ti ti-checkbox" aria-hidden="true"></i> Seleccionar</button>
