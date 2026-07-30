@@ -154,6 +154,21 @@ function setAreaFilter(f){ currentAreaFilter=f; render(); }
 function setTipoFilter(f){ currentTipoFilter=f; render(); }
 function setPersonFilter(name){ currentPersonFilter = (currentPersonFilter===name) ? null : name; render(); }
 
+// render() vuelve a dibujar la vista de correo desde cero, y la deja con el
+// cartel de "Cargando..." puesto: nadie vuelve a pedir los correos. Pasaba al
+// guardar una tarea desde un correo, y con cualquier otra acción que repinte
+// la pantalla estando en el correo. Aquí se repone lo que había.
+function reponerCorreo(){
+  if(!googleToken) return;
+  const lista = document.getElementById('gmailWidget');
+  if(lista && !lista.querySelector('.gmail-list-item')) loadGmailWidget();
+  if(typeof aplicarAnchosCorreo === 'function') aplicarAnchosCorreo();
+  if(typeof _currentThread !== 'undefined' && _currentThread){
+    if(isMobile()) document.querySelector('.gmail-layout')?.classList.add('email-open');
+    renderThreadPanel();
+  }
+}
+
 function render(){
   renderNotes(); renderAreaManage();
   ['panel','lista','proyectos','reuniones','crm','desarrollo','calendario','correo','gtasks'].forEach(v=>{
@@ -174,7 +189,7 @@ function render(){
   else if(currentView==='crm') root.innerHTML=renderCRM();
   else if(currentView==='desarrollo') root.innerHTML = currentProjectId ? renderProjectDetail() : renderProyectosList(DEV_AREA);
   else if(currentView==='calendario') root.innerHTML=renderCalendario();
-  else if(currentView==='correo') root.innerHTML=renderCorreo();
+  else if(currentView==='correo'){ root.innerHTML=renderCorreo(); reponerCorreo(); }
   else if(currentView==='gtasks') root.innerHTML=renderGTasks();
   else if(currentProjectId) root.innerHTML=renderProjectDetail();
   else root.innerHTML=renderProyectosList();
