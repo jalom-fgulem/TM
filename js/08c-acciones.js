@@ -435,3 +435,103 @@ document.addEventListener('touchend', () => {
     setStatus('Bandeja actualizada.');
   });
 }, { passive: true });
+
+// ============================================================
+//  SELECCIÓN MÚLTIPLE
+//
+//  Marcar varias conversaciones y actuar sobre todas de una vez. La papelera
+//  y el archivado van conversación a conversación (no mensaje a mensaje), que
+//  es como se comporta el resto de la aplicación, y con un único "deshacer"
+//  para todo el lote.
+// ============================================================
+let _seleccion = new Set();
+
+function alternarSeleccion(tid, marcado){
+  if(marcado) _seleccion.add(tid); else _seleccion.delete(tid);
+  document.querySelector(`.gmail-list-item[data-tid="${tid}"]`)?.classList.toggle('marcado', marcado);
+  pintarBarraSeleccion();
+}
+
+function limpiarSeleccion(){
+  _seleccion.clear();
+  document.querySelectorAll('.gmail-list-item.marcado').forEach(f => f.classList.remove('marcado'));
+  document.querySelectorAll('.gli-sel input:checked').forEach(c => { c.checked = false; });
+  document.body.classList.remove('modo-seleccion');
+  pintarBarraSeleccion();
+}
+
+function seleccionarTodoVisible(){
+  document.querySelectorAll('.gmail-list-item').forEach(f => {
+    if(f.dataset.tid){ _seleccion.add(f.dataset.tid); f.classList.add('marcado'); }
+  });
+  document.querySelectorAll('.gli-sel input').forEach(c => { c.checked = true; });
+  pintarBarraSeleccion();
+}
+
+function alternarModoSeleccion(){
+  document.body.classList.toggle('modo-seleccion');
+  if(!document.body.classList.contains('modo-seleccion')) limpiarSeleccion();
+}
+
+function pintarBarraSeleccion(){
+  const col = document.querySelector('.gmail-list-col');
+  let barra = document.getElementById('gmBarraSel');
+  if(!_seleccion.size){ if(barra) barra.remove(); return; }
+  if(!col) return;
+  if(!barra){
+    barra = document.createElement('div');
+    barra.id = 'gmBarraSel';
+    barra.className = 'gm-barra-sel';
+    const cab = col.querySelector('.gm-cabecera');
+    cab ? cab.after(barra) : col.prepend(barra);
+  }
+  const n = _seleccion.size;
+  barra.innerHTML = `
+    <span class="gm-sel-n">${n} seleccionado${n > 1 ? 's' : ''}</span>
+    <button class="gm-sel-btn verde" onclick="archivarSeleccion()" title="Archivar" aria-label="Archivar los seleccionados"><i class="ti ti-archive" aria-hidden="true"></i><span>Archivar</span></button>
+    <button class="gm-sel-btn rojo" onclick="borrarSeleccion()" title="Mover a la papelera" aria-label="Mover a la papelera los seleccionados"><i class="ti ti-trash" aria-hidden="true"></i><span>Borrar</span></button>
+    <button class="gm-sel-btn" onclick="seleccionarTodoVisible()" title="Seleccionar todos los de la lista" aria-label="Seleccionar todos">Todos</button>
+    <button class="gm-sel-btn" onclick="limpiarSeleccion()" title="Quitar la selección" aria-label="Quitar la selección"><i class="ti ti-x" aria-hidden="true"></i></button>`;
+}
+
+// Ejecuta una acción sobre cada conversación marcada, de cinco en cinco para
+// no lanzar cincuenta peticiones de golpe.
+async function _porLotes(ids, tarea){
+  const bien = [], mal = [];
+  for(let i = 0; i < ids.length; i += 5){
+    const trozo = ids.slice(i, i + 5);
+    const res = await Promise.all(trozo.map(id => tarea(id).then(() => true).catch(() => false)));
+    res.forEach((ok, j) => (ok ? bien : mal).push(trozo[j]));
+  }
+  return { bien, mal };
+}
+
+async function borrarSeleccion(){
+  const ids = [..._seleccion];
+  if(!ids.length || !googleToken) return;
+  limpiarSeleccion();
+  ids.forEach(sacarDeLaLista);
+  const { bien, mal } = await _porLotes(ids, id => accionHilo(id, 'trash'));
+  if(mal.length) setStatus(`${bien.length} a la papelera; ${mal.length} no se pudieron borrar.`);
+  if(!bien.length) { loadGmailWidget(); return; }
+  mostrarDeshacer(`${bien.length} conversacion${bien.length > 1 ? 'es' : ''} a la papelera.`, async () => {
+    await _porLotes(bien, id => accionHilo(id, 'untrash'));
+    loadGmailWidget();
+    setStatus('Recuperadas de la papelera.');
+  });
+}
+
+async function archivarSeleccion(){
+  const ids = [..._seleccion];
+  if(!ids.length || !googleToken) return;
+  limpiarSeleccion();
+  ids.forEach(sacarDeLaLista);
+  const { bien, mal } = await _porLotes(ids, id => accionHilo(id, 'modify', { removeLabelIds: ['INBOX'] }));
+  if(mal.length) setStatus(`${bien.length} archivadas; ${mal.length} no se pudieron archivar.`);
+  if(!bien.length) { loadGmailWidget(); return; }
+  mostrarDeshacer(`${bien.length} conversacion${bien.length > 1 ? 'es' : ''} archivada${bien.length > 1 ? 's' : ''}.`, async () => {
+    await _porLotes(bien, id => accionHilo(id, 'modify', { addLabelIds: ['INBOX'] }));
+    loadGmailWidget();
+    setStatus('Devueltas a la bandeja.');
+  });
+}

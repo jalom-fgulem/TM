@@ -74,6 +74,7 @@ function abrirCarpetasMovil(){
             ${etiquetas.map(l => fila('label:' + l.name, 'ti-tag', l.name, currentEmailQuery === 'label:' + l.name)).join('')}
           </div>` : ''}
         <div class="modal-actions">
+          <button class="btn-ghost" onclick="closeModal();alternarModoSeleccion();"><i class="ti ti-checkbox" aria-hidden="true"></i> Seleccionar</button>
           <button class="btn-ghost" onclick="closeModal();loadGmailWidget();"><i class="ti ti-refresh" aria-hidden="true"></i> Actualizar</button>
           <button class="btn-ghost" onclick="closeModal()">Cerrar</button>
         </div>

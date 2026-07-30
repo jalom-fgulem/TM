@@ -39,6 +39,10 @@ async function loadGmailWidget(anexar){
     const dB=new Date((b.payload?.headers||[]).find(h=>h.name==='Date')?.value||0);
     return dA-dB;
   }));
+  // Solo se conservan marcados los que siguen en pantalla
+  const visibles=new Set([...byThread.keys()]);
+  [..._seleccion].forEach(t=>{ if(!visibles.has(t)) _seleccion.delete(t); });
+
   let _grupoActual=null;   // para insertar la cabecera de día al cambiar de fecha
   el.innerHTML=[...byThread.entries()].map(([tid,tMsgs])=>{
     const main=tMsgs[tMsgs.length-1]; // newest = representative
@@ -52,8 +56,13 @@ async function loadGmailWidget(anexar){
     const hasTask=linkedEmailIds.has(main.id);
     const hasAtt=tMsgs.some(m=>extractAttachments(m.payload).length>0);
     const destacado=(main.labelIds||[]).includes('STARRED');
-    const mainRow=`<div class="gmail-list-item${sel?' selected':''}${hasTask?' has-task':''}${destacado?' destacado':''}" draggable="true" title="Puedes arrastrarlo a una etiqueta" data-id="${main.id}" data-tid="${tid}" onclick="selectEmail('${main.id}','${tid}')">
+    const marcado=_seleccion.has(tid);
+    const mainRow=`<div class="gmail-list-item${sel?' selected':''}${hasTask?' has-task':''}${destacado?' destacado':''}${marcado?' marcado':''}" draggable="true" title="Puedes arrastrarlo a una etiqueta" data-id="${main.id}" data-tid="${tid}" onclick="selectEmail('${main.id}','${tid}')">
       <div class="gli-row1">
+        <label class="gli-sel" onclick="event.stopPropagation();" title="Seleccionar">
+          <input type="checkbox" ${marcado?'checked':''} aria-label="Seleccionar esta conversación"
+                 onchange="alternarSeleccion('${escapeAttr(tid)}', this.checked)">
+        </label>
         ${count>1?`<button class="thread-toggle" onclick="event.stopPropagation();toggleListThread('${escapeAttr(tid)}')" title="Ver hilo"><i class="ti ti-chevron-right" aria-hidden="true"></i></button>`:'<span style="width:16px;flex-shrink:0;display:inline-block;"></span>'}
         ${avatarHTML(hdrs.find(h=>h.name==='From')?.value||'', 'sm')}
         <div class="gli-from${unread?' bold':''}" style="min-width:0;">${escapeHtml(from)}</div>
@@ -92,6 +101,7 @@ async function loadGmailWidget(anexar){
       : `<p class="gm-fin-lista">No hay más correos en esta carpeta.</p>`);
 
   vigilarFinalDeLista();
+  pintarBarraSeleccion();
 }
 
 // Cargar al llegar abajo, sin botón: se vigila una marca invisible al final de
