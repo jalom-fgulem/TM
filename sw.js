@@ -1,5 +1,5 @@
 // Service Worker — network-first con soporte de notificaciones en segundo plano
-const CACHE = 'tm-v6';   // se sube al cambiar el nombre: así se tira la copia vieja
+const CACHE = 'tm-v8';   // se sube al cambiar el nombre: así se tira la copia vieja
 
 self.addEventListener('install', e => {
   self.skipWaiting();

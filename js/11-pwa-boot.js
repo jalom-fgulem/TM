@@ -24,7 +24,7 @@ function installApp(){
 }
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/TM/sw.js')
+  navigator.serviceWorker.register('/TM/sw.js?v=8')
     .then(reg => { _swReg = reg; })
     .catch(() => {});
 }
