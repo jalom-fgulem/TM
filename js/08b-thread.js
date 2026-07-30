@@ -144,7 +144,7 @@ function renderThreadPanel(){
     </div>
     ${fichaCrmHTML(emHeader(msgs[0], 'From'))}
     <div class="gm-th-lista" id="gmThreadList">
-      ${msgs.map((m, i) => renderMensajeHilo(m, i === msgs.length - 1)).join('')}
+      ${[...msgs].reverse().map(m => renderMensajeHilo(m, m.id === ultimo.id)).join('')}
     </div>`;
 
   msgs.forEach(m => { if(_msgsExpandidos.has(m.id)) pintarCuerpoMensaje(m); });
@@ -281,6 +281,98 @@ function abrirEnlaceDeCorreo(ev){
 }
 
 // El cuerpo va en un marco aislado para que el HTML del correo no afecte a la app
+// ---- Historial citado ----
+// Al responder, casi todos los programas arrastran el mensaje anterior entero
+// debajo. Se pliega para que se vea lo que te han escrito hoy y no un rollo de
+// pantallas; con un botón se despliega si hace falta.
+const _MARCAS_DE_CITA = [
+  '.gmail_quote', '.gmail_quote_container',   // Gmail
+  'blockquote[type="cite"]',                  // Apple Mail
+  '[data-cita]',                              // los que enviamos nosotros
+  '.moz-cite-prefix',                         // Thunderbird
+  '#divRplyFwdMsg', '#appendonly', '.OutlookMessageHeader'   // Outlook
+].join(', ');
+
+function plegarCitaEnMarco(d, ajustar){
+  const cuerpo = d && d.body; if(!cuerpo) return;
+
+  let marca = cuerpo.querySelector(_MARCAS_DE_CITA);
+  if(!marca){
+    // Outlook a la antigua: una raya y debajo "De: … Enviado: …"
+    marca = [...cuerpo.querySelectorAll('hr')].find(h => {
+      const detras = h.parentNode ? (h.parentNode.textContent || '') : '';
+      return /\b(De|From|Enviado|Sent|Asunto|Subject)\s*:/.test(detras.slice(0, 3000));
+    }) || null;
+  }
+  if(!marca) return;
+
+  // Se sube hasta el hijo directo del cuerpo: hay que ocultar el bloque entero
+  let nodo = marca;
+  while(nodo.parentNode && nodo.parentNode !== cuerpo) nodo = nodo.parentNode;
+
+  const hijos = [...cuerpo.childNodes];
+  const i = hijos.indexOf(nodo);
+  if(i < 0) return;
+
+  // Si la cita es lo primero que hay, no hay mensaje nuevo que separar
+  const hayAlgoAntes = hijos.slice(0, i).some(n =>
+    (n.nodeType === 1 && n.textContent.trim()) || (n.nodeType === 3 && n.textContent.trim()));
+  if(!hayAlgoAntes) return;
+
+  const ocultos = hijos.slice(i).filter(n => n.nodeType === 1 || (n.nodeType === 3 && n.textContent.trim()));
+  if(!ocultos.length) return;
+
+  const envoltorio = d.createElement('div');
+  envoltorio.style.display = 'none';
+  cuerpo.insertBefore(envoltorio, nodo);
+  ocultos.forEach(n => envoltorio.appendChild(n));
+
+  const boton = d.createElement('button');
+  boton.type = 'button';
+  boton.textContent = 'Leer el historial anterior';
+  boton.setAttribute('style', 'display:block;margin:10px 0 2px;padding:6px 13px;border:1px solid #D5DCE6;'
+    + 'background:#F1F4F9;color:#41505F;border-radius:20px;font:inherit;font-size:13px;cursor:pointer;');
+  boton.addEventListener('click', () => {
+    const abierto = envoltorio.style.display !== 'none';
+    envoltorio.style.display = abierto ? 'none' : '';
+    boton.textContent = abierto ? 'Leer el historial anterior' : 'Ocultar el historial';
+    if(ajustar){ ajustar(true); [60, 260, 700].forEach(ms => setTimeout(() => ajustar(true), ms)); }
+  });
+  cuerpo.insertBefore(boton, envoltorio);
+  // Al plegar, el marco sobra por abajo: hay que volver a medirlo a la baja
+  if(ajustar){ ajustar(true); [80, 350, 900].forEach(ms => setTimeout(() => ajustar(true), ms)); }
+}
+
+// Lo mismo para los correos que llegan en texto plano, donde la cita son las
+// líneas que empiezan por ">" detrás de un "El … escribió:".
+function plegarCitaEnTexto(cont, texto){
+  const lineas = texto.split('\n');
+  let corte = -1;
+  for(let i = 0; i < lineas.length; i++){
+    const l = lineas[i].trim();
+    if(/^>/.test(l)
+      || /^El .+escribió:$/i.test(l)
+      || /^-{2,}\s*(Mensaje original|Original Message|Forwarded message)/i.test(l)
+      || /^(De|From)\s*:\s*.+/.test(l) && i > 0){ corte = i; break; }
+  }
+  if(corte <= 0){
+    cont.innerHTML = `<pre class="gm-msg-texto">${escapeHtml(texto || '(sin contenido)')}</pre>`;
+    return;
+  }
+  const nuevo = lineas.slice(0, corte).join('\n').replace(/\s+$/, '');
+  const viejo = lineas.slice(corte).join('\n');
+  cont.innerHTML = `<pre class="gm-msg-texto">${escapeHtml(nuevo)}</pre>
+    <button type="button" class="btn-historial">Leer el historial anterior</button>
+    <pre class="gm-msg-texto gm-historial" style="display:none;">${escapeHtml(viejo)}</pre>`;
+  const btn = cont.querySelector('.btn-historial');
+  const pre = cont.querySelector('.gm-historial');
+  btn.addEventListener('click', () => {
+    const abierto = pre.style.display !== 'none';
+    pre.style.display = abierto ? 'none' : '';
+    btn.textContent = abierto ? 'Leer el historial anterior' : 'Ocultar el historial';
+  });
+}
+
 function pintarCuerpoMensaje(m){
   const cont = document.getElementById('gm-body-' + m.id);
   if(!cont || cont.dataset.pintado) return;
@@ -300,11 +392,18 @@ function pintarCuerpoMensaje(m){
     // La altura hay que medirla VARIAS veces: al cargar, las tablas, las
     // imágenes y las tipografías aún no han terminado de colocarse, y una sola
     // medida sale corta y recorta el correo.
-    const ajustar = () => {
+    // Normalmente la altura solo crece: así una medida temprana y corta no
+    // recorta el correo. Al plegar el historial hay que poder encoger, y para
+    // eso hay que soltar antes la altura fijada; si al soltarla el correo se
+    // mide absurdamente pequeño, se deja la que había.
+    const ajustar = (permitirEncoger) => {
       try{
         const d = marco.contentDocument; if(!d || !d.body) return;
+        const anterior = marco.style.height;
+        if(permitirEncoger) marco.style.height = '0px';
         const alto = Math.max(d.body.scrollHeight, d.documentElement.scrollHeight) + 24;
         if(alto > 40) marco.style.height = alto + 'px';
+        else if(permitirEncoger) marco.style.height = anterior;
       }catch(e){}
     };
     marco.onload = () => {
@@ -326,13 +425,14 @@ function pintarCuerpoMensaje(m){
         // Y el clic lo atiende la propia aplicación: así el enlace nunca puede
         // llevarse por delante la pantalla del correo, pase lo que pase.
         d.addEventListener('click', abrirEnlaceDeCorreo, true);
+        plegarCitaEnMarco(d, ajustar);
       }catch(e){}
     };
     // Fuera del evento de carga a propósito: si por lo que sea no llega a
     // dispararse, estas pasadas ajustan la altura igualmente.
     [120, 400, 1000, 2500].forEach(ms => setTimeout(ajustar, ms));
   } else {
-    cont.innerHTML = `<pre class="gm-msg-texto">${escapeHtml(cuerpo.text || '(sin contenido)')}</pre>`;
+    plegarCitaEnTexto(cont, cuerpo.text || '(sin contenido)');
   }
 }
 
