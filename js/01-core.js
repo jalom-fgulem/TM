@@ -145,3 +145,14 @@ async function loadState(){
   updateAppTitle();
   render();
 }
+
+// ---- Estrella de destacado ----
+// La tipografía de iconos que usamos NO trae la estrella rellena: al marcar un
+// correo como destacado, el icono simplemente desaparecía. Se dibuja aquí para
+// no depender de ella.
+const _ESTRELLA_TRAZO = 'M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.4l-5.8 3.1 1.1-6.5L2.6 9.4l6.5-.9z';
+function estrellaHTML(activa){
+  return activa
+    ? `<svg class="estrella on" viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true"><path fill="currentColor" d="${_ESTRELLA_TRAZO}"/></svg>`
+    : `<svg class="estrella" viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="${_ESTRELLA_TRAZO}"/></svg>`;
+}

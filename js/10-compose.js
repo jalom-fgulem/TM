@@ -115,6 +115,26 @@ function emEncodeSubject(s){
   return /^[\x00-\x7F]*$/.test(s || '') ? (s || '') : '=?UTF-8?B?' + emB64(s) + '?=';
 }
 
+// Las cabeceras de un correo solo admiten caracteres ingleses. Un nombre con
+// tilde o eñe hay que codificarlo igual que el asunto; si va en crudo, el que
+// lo recibe ve "JosÃ©" o cosas peores. Le pasaba a Para, Cc y Cco.
+const _NOMBRE_CON_SIGNOS = /[()<>@,;:\\".\[\]]/;
+function emEncodeAddressList(lista){
+  if(!lista || !lista.trim()) return '';
+  return emSplitAddresses(lista).map(dir => {
+    const m = dir.match(/^\s*(.*?)\s*<\s*([^>]+)\s*>\s*$/);
+    if(!m) return dir.trim();                       // solo la dirección: ya es válida
+    const correo = m[2].trim();
+    const nombre = m[1].replace(/^"(.*)"$/, '$1').trim();
+    if(!nombre) return '<' + correo + '>';
+    if(/^[\x00-\x7F]*$/.test(nombre)){
+      // Inglés puro: basta con entrecomillar si lleva comas, puntos o similares
+      return (_NOMBRE_CON_SIGNOS.test(nombre) ? '"' + nombre.replace(/"/g, '') + '"' : nombre) + ' <' + correo + '>';
+    }
+    return emEncodeSubject(nombre) + ' <' + correo + '>';
+  }).join(', ');
+}
+
 // "José Carlos <jc@x.es>" -> el nombre necesita codificarse si lleva acentos
 function emFormatFrom(alias){
   if(!alias) return '';
@@ -128,9 +148,9 @@ function emBuildMime(o){
   const adj = o.adjuntos || [];
   const l = [];
   if(o.from) l.push('From: ' + o.from);
-  l.push('To: ' + (o.to || ''));
-  if(o.cc)  l.push('Cc: '  + o.cc);
-  if(o.bcc) l.push('Bcc: ' + o.bcc);
+  l.push('To: ' + emEncodeAddressList(o.to));
+  if(o.cc)  l.push('Cc: '  + emEncodeAddressList(o.cc));
+  if(o.bcc) l.push('Bcc: ' + emEncodeAddressList(o.bcc));
   l.push('Subject: ' + emEncodeSubject(o.subject));
   if(o.inReplyTo){
     l.push('In-Reply-To: ' + o.inReplyTo);
@@ -404,6 +424,7 @@ function editorToolbarHTML(){
     <button type="button" onclick="editorAbrirTablas(event)" title="Insertar tabla"><i class="ti ti-table" aria-hidden="true"></i></button>
     <button type="button" onclick="editorAbrirFirmas(event)" title="Insertar firma"><i class="ti ti-signature" aria-hidden="true"></i></button>
     <span class="ed-sep"></span>
+    <button type="button" id="edMic" class="ed-mic" onclick="dictarEnRedactor()" title="Dictar el texto" aria-label="Dictar el texto"><i class="ti ti-microphone" aria-hidden="true"></i></button>
     <button type="button" onclick="editorLimpiar()" title="Quitar todo el formato"><i class="ti ti-clear-formatting" aria-hidden="true"></i></button>
   </div>
   <div class="ed-tabla-menu" id="edTablaMenu" style="display:none;"></div>
@@ -419,6 +440,32 @@ function editorToolbarHTML(){
 }
 
 function editorCuerpo(){ return document.getElementById('cpBody'); }
+
+// ---- Dictado dentro del redactor ----
+// El cuerpo del correo no es una caja de texto normal, sino contenido con
+// formato, así que lo dictado se escribe en la posición del cursor.
+function dictarEnRedactor(){
+  const cuerpo = editorCuerpo(); if(!cuerpo) return;
+  cuerpo.focus();
+  dictarTexto({
+    btnId: 'edMic',
+    escribir: texto => {
+      const sel = cuerpo.ownerDocument.getSelection();
+      let rango = (sel && sel.rangeCount && cuerpo.contains(sel.anchorNode)) ? sel.getRangeAt(0) : null;
+      if(!rango){                                   // sin cursor dentro: al final
+        rango = cuerpo.ownerDocument.createRange();
+        rango.selectNodeContents(cuerpo);
+        rango.collapse(false);
+      }
+      rango.deleteContents();
+      const nodo = cuerpo.ownerDocument.createTextNode(texto);
+      rango.insertNode(nodo);
+      rango.setStartAfter(nodo); rango.collapse(true);
+      if(sel){ sel.removeAllRanges(); sel.addRange(rango); }
+    },
+    aviso: (m, t) => composeStatus(m, t)
+  });
+}
 
 // El redactor ocupa toda la pantalla y tapa la línea de avisos del pie,
 // así que los mensajes se muestran en su propia cabecera.

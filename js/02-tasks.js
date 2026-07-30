@@ -338,26 +338,64 @@ function renderLinkedTasksList(){
       .map(x=>`<option value="${x.id}"${x.id===prev?' selected':''}>${escapeHtml(x.title)}</option>`).join('');
 }
 // ---- Dictado por voz ----
+//
+// Sirve para las notas, para las tareas y para el cuerpo de un correo. Cada
+// sitio dice cómo escribir lo que se va oyendo, porque no todos son cajas de
+// texto: el redactor de correo es contenido con formato.
+//
+// En el iPhone el reconocimiento se para solo en cuanto callas un momento. Por
+// eso se vuelve a arrancar mientras no pulses tú el botón: si no, había que
+// darle al micrófono cada dos frases.
 let _dictRec = null;
-function startDictation(targetId, btnId){
+let _dictParar = false;
+
+function dictarTexto(op){
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if(!SR){ setStatus('El dictado no está disponible en este navegador. Prueba con Chrome.'); return; }
-  if(_dictRec){ _dictRec.stop(); return; }
-  const btn = document.getElementById(btnId);
-  _dictRec = new SR();
-  _dictRec.lang = 'es-ES';
-  _dictRec.continuous = true;
-  _dictRec.interimResults = false;
-  _dictRec.onstart = ()=>{ if(btn) btn.classList.add('rec'); setStatus('Dictando… pulsa el micrófono para detener.'); };
-  _dictRec.onresult = e=>{
-    const el = document.getElementById(targetId); if(!el) return;
-    let txt = '';
-    for(let i=e.resultIndex;i<e.results.length;i++) if(e.results[i].isFinal) txt+=e.results[i][0].transcript;
-    if(txt){ const sep=el.value&&!/\s$/.test(el.value)?' ':''; el.value+=sep+txt; }
+  const aviso = op.aviso || ((m) => setStatus(m));
+  if(!SR){ aviso('Este navegador no permite dictar. En el iPhone puedes usar el micrófono del teclado.', 'aviso'); return; }
+  if(_dictRec){ _dictParar = true; _dictRec.stop(); return; }   // segunda pulsación: parar
+
+  const btn = op.btnId ? document.getElementById(op.btnId) : null;
+  _dictParar = false;
+
+  const arrancar = () => {
+    _dictRec = new SR();
+    _dictRec.lang = 'es-ES';
+    _dictRec.continuous = true;
+    _dictRec.interimResults = false;
+    _dictRec.onstart = () => { if(btn) btn.classList.add('rec'); aviso('Dictando… pulsa el micrófono para parar.'); };
+    _dictRec.onresult = e => {
+      let txt = '';
+      for(let i = e.resultIndex; i < e.results.length; i++) if(e.results[i].isFinal) txt += e.results[i][0].transcript;
+      if(txt) op.escribir(txt.replace(/^\s*/, ' '));
+    };
+    _dictRec.onerror = e => {
+      if(e.error === 'not-allowed'){ _dictParar = true; aviso('No has dado permiso al micrófono.', 'error'); }
+      else if(e.error !== 'aborted' && e.error !== 'no-speech') aviso('Problema con el micrófono: ' + e.error, 'error');
+    };
+    _dictRec.onend = () => {
+      if(!_dictParar){ try{ _dictRec.start(); return; }catch(err){} }   // iPhone: sigue escuchando
+      if(btn) btn.classList.remove('rec');
+      _dictRec = null;
+      aviso('');
+    };
+    try{ _dictRec.start(); }
+    catch(err){ _dictRec = null; aviso('No se pudo iniciar el dictado.', 'error'); }
   };
-  _dictRec.onerror = e=>{ if(e.error!=='aborted') setStatus('Error de micrófono: '+e.error); };
-  _dictRec.onend = ()=>{ if(btn) btn.classList.remove('rec'); _dictRec=null; setStatus(''); };
-  _dictRec.start();
+  arrancar();
+}
+
+// Cajas de texto normales (notas y ficha de tarea)
+function startDictation(targetId, btnId){
+  dictarTexto({
+    btnId,
+    escribir: txt => {
+      const el = document.getElementById(targetId); if(!el) return;
+      const sep = el.value && !/\s$/.test(el.value) ? '' : '';
+      el.value += sep + txt.replace(/^\s+/, el.value && !/\s$/.test(el.value) ? ' ' : '');
+      el.dispatchEvent(new Event('input', { bubbles:true }));
+    }
+  });
 }
 
 function addLinkedTaskTemp(){

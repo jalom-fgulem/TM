@@ -218,7 +218,7 @@ async function destacarDesdeLista(msgId, threadId){
     const btn = document.querySelector(`.gmail-list-item[data-id="${msgId}"] .gli-acc`);
     if(btn){
       btn.classList.toggle('on', !tiene);
-      btn.innerHTML = `<i class="ti ti-star${!tiene ? '-filled' : ''}" aria-hidden="true"></i>`;
+      btn.innerHTML = estrellaHTML(!tiene);
     }
     setStatus(tiene ? 'Destacado quitado.' : 'Correo destacado.');
   }catch(e){ if(e.message !== 'sesion') setStatus('No se pudo cambiar el destacado.'); }

@@ -56,7 +56,7 @@ function pintarNodosEtiqueta(nodos, nivel){
         ${color ? `<span class="gmail-sb-dot" style="background:${color};"></span>` : `<i class="ti ti-tag" aria-hidden="true"></i>`}
         <span class="gmail-sb-nombre">${escapeHtml(n.nombre)}</span>
         ${sinLeer ? `<span class="gmail-sb-cont">${sinLeer}</span>` : ''}
-        ${n.label ? `<button class="gmail-sb-fav ${esFavorita(n.ruta) ? 'on' : ''}" onclick="toggleFavorita('${escapeAttr(n.ruta)}',event)" title="${esFavorita(n.ruta) ? 'Quitar de favoritas' : 'Marcar como favorita'}"><i class="ti ti-star${esFavorita(n.ruta) ? '-filled' : ''}" aria-hidden="true"></i></button>` : ''}
+        ${n.label ? `<button class="gmail-sb-fav ${esFavorita(n.ruta) ? 'on' : ''}" onclick="toggleFavorita('${escapeAttr(n.ruta)}',event)" title="${esFavorita(n.ruta) ? 'Quitar de favoritas' : 'Marcar como favorita'}">${estrellaHTML(esFavorita(n.ruta))}</button>` : ''}
       </div>`;
 
     const dentro = (hijos && !plegado) ? pintarNodosEtiqueta(n.hijos, nivel + 1) : '';
@@ -101,7 +101,7 @@ function renderGmailSidebarHTML(){
            data-label-id="${escapeAttr((gmailUserLabels.find(l=>l.name===n)||{}).id||'')}" data-label-name="${escapeAttr(n.split('/').pop())}"
            onclick="setEmailQuery('label:${escapeAttr(n)}')">
         <span class="gmail-sb-flecha hueco"></span>
-        <i class="ti ti-star-filled" style="color:var(--media);" aria-hidden="true"></i>
+        <span style="color:var(--media);display:inline-flex;">${estrellaHTML(true)}</span>
         <span class="gmail-sb-nombre">${escapeHtml(n.split('/').pop())}</span>
         ${_contadoresEtiqueta[n] ? `<span class="gmail-sb-cont">${_contadoresEtiqueta[n]}</span>` : ''}
       </div>`).join('')}` : '';

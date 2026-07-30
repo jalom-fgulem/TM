@@ -131,7 +131,7 @@ function renderThreadPanel(){
         <button class="gm-acc azul" onclick="openCompose('responderTodos')" title="Responder a todos" aria-label="Responder a todos"><i class="ti ti-corner-up-left-double" aria-hidden="true"></i></button>
         <button class="gm-acc azul" onclick="openCompose('reenviar')" title="Reenviar" aria-label="Reenviar"><i class="ti ti-corner-up-right" aria-hidden="true"></i></button>
         <span class="gm-acc-sep"></span>
-        <button class="gm-acc ambar ${destacado ? 'on' : ''}" onclick="toggleStarEmail('${ultimo.id}')" title="${destacado ? 'Quitar destacado' : 'Destacar'}" aria-label="${destacado ? 'Quitar destacado' : 'Destacar'}"><i class="ti ti-star${destacado ? '-filled' : ''}" aria-hidden="true"></i></button>
+        <button class="gm-acc ambar ${destacado ? 'on' : ''}" onclick="toggleStarEmail('${ultimo.id}')" title="${destacado ? 'Quitar destacado' : 'Destacar'}" aria-label="${destacado ? 'Quitar destacado' : 'Destacar'}">${estrellaHTML(destacado)}</button>
         <button class="gm-acc morado" onclick="abrirSelectorEtiquetas('${ultimo.id}')" title="Etiquetar" aria-label="Etiquetar"><i class="ti ti-tag" aria-hidden="true"></i></button>
         <button class="gm-acc morado" onclick="crearReglaDesdeCorreo('${ultimo.id}')" title="Crear regla con este remitente" aria-label="Crear regla con este remitente"><i class="ti ti-filter" aria-hidden="true"></i></button>
         <button class="gm-acc naranja" onclick="marcarComoSpam('${_currentThread.id}')" title="Marcar como spam" aria-label="Marcar como spam"><i class="ti ti-alert-octagon" aria-hidden="true"></i></button>
@@ -162,7 +162,7 @@ function abrirMasAcciones(){
 
   const opciones = [
     ['azul',     'corner-up-right',       'Reenviar',                 `openCompose('reenviar')`],
-    ['ambar',    'star' + (destacado ? '-filled' : ''), destacado ? 'Quitar destacado' : 'Destacar', `toggleStarEmail('${ultimo.id}')`],
+    ['ambar',    'star', destacado ? 'Quitar destacado' : 'Destacar', `toggleStarEmail('${ultimo.id}')`],
     ['morado',   'tag',                   'Etiquetar',                `abrirSelectorEtiquetas('${ultimo.id}')`],
     ['morado',   'filter',                'Crear regla con este remitente', `crearReglaDesdeCorreo('${ultimo.id}')`],
     ['naranja',  'alert-octagon',         'Marcar como spam',         `marcarComoSpam('${_currentThread.id}')`],

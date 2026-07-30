@@ -48,7 +48,7 @@ async function loadGmailWidget(){
         <div class="gli-subject${unread?' bold':''}">${escapeHtml(subject)}</div>
         <div class="gli-acciones">
           <button class="gli-acc ambar${(main.labelIds||[]).includes('STARRED')?' on':''}" title="Destacar" aria-label="Destacar"
-            onclick="event.stopPropagation();destacarDesdeLista('${main.id}','${tid}')"><i class="ti ti-star${(main.labelIds||[]).includes('STARRED')?'-filled':''}" aria-hidden="true"></i></button>
+            onclick="event.stopPropagation();destacarDesdeLista('${main.id}','${tid}')">${estrellaHTML((main.labelIds||[]).includes('STARRED'))}</button>
           <button class="gli-acc morado" title="Etiquetar" aria-label="Etiquetar" onclick="event.stopPropagation();etiquetarDesdeLista('${main.id}','${tid}')"><i class="ti ti-tag" aria-hidden="true"></i></button>
           <button class="gli-acc morado" title="Crear regla con este remitente" aria-label="Crear regla con este remitente" onclick="event.stopPropagation();reglaDesdeLista('${main.id}')"><i class="ti ti-filter" aria-hidden="true"></i></button>
           <button class="gli-acc naranja" title="Marcar como spam" aria-label="Marcar como spam" onclick="event.stopPropagation();marcarComoSpam('${tid}')"><i class="ti ti-alert-octagon" aria-hidden="true"></i></button>
