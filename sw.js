@@ -1,5 +1,5 @@
 // Service Worker — network-first con soporte de notificaciones en segundo plano
-const CACHE = 'tm-v9';   // se sube al cambiar el nombre: así se tira la copia vieja
+const CACHE = 'tm-v10';   // se sube al cambiar el nombre: así se tira la copia vieja
 // Buzón donde se anota qué hay que abrir al tocar una notificación. Hace falta
 // porque en el iPhone, con la app cerrada del todo, abrirla con una dirección
 // que lleve "#abrir=..." NO garantiza que esa parte llegue: iOS restaura la app

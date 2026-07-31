@@ -69,6 +69,7 @@ function sacarDeLaLista(threadId){
     fila.remove();
   }
   cerrarLecturaSiEsEsta(threadId);
+  refrescarContadoresPronto();
 }
 
 // Si acabas de archivar o borrar el correo que tienes abierto, no tiene sentido

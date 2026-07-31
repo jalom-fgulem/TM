@@ -227,6 +227,7 @@ async function markEmailAsRead(msgId){
     // Update list item UI
     const el=document.querySelector(`.gmail-list-item[data-id="${msgId}"]`);
     if(el){ el.querySelector('.gli-from')?.classList.remove('bold'); el.querySelector('.gli-subject')?.classList.remove('bold'); }
+    refrescarContadoresPronto();   // el aviso de la etiqueta baja al momento
   }catch(e){}
 }
 function selectNextEmail(removedMsgId){

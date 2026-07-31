@@ -226,24 +226,50 @@ function etiquetasConContador(){
   return [...nombres].filter(n => (gmailUserLabels || []).some(l => l.name === n));
 }
 
+// Se cuenta BUSCANDO, no con el contador que trae la etiqueta.
+//
+// Ese contador (messagesUnread) incluye los mensajes que están en la papelera y
+// en el spam. Resultado: un correo de Noticias que borraste sin leer seguía
+// sumando para siempre y el aviso no había forma de quitarlo. La búsqueda de
+// Gmail, en cambio, deja fuera papelera y spam por su cuenta, así que el número
+// coincide con lo que ves al entrar en la etiqueta.
+const TOPE_CONTADOR = 100;
+
+async function _sinLeerDe(consulta){
+  try{
+    const r = await fetch(
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(consulta)}&maxResults=${TOPE_CONTADOR}`,
+      { headers: { Authorization: `Bearer ${googleToken}` } });
+    if(!r.ok) return 0;
+    const d = await r.json();
+    return (d.messages || []).length;
+  }catch(e){ return 0; }
+}
+
 async function cargarContadoresEtiqueta(){
   if(!googleToken) return;
-  if(!badgesActivados()){ _contadoresEtiqueta = {}; renderGmailLabelBtns(); actualizarFichasEtiqueta(); return; }
-  const fav = etiquetasConContador();
-  const ids = ['INBOX', ...fav.map(n => (gmailUserLabels.find(l => l.name === n) || {}).id).filter(Boolean)];
-  await Promise.all(ids.map(async id => {
-    try{
-      const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/labels/${id}`,
-        { headers: { Authorization: `Bearer ${googleToken}` } });
-      if(!r.ok) return;
-      const d = await r.json();
-      const clave = id === 'INBOX' ? 'INBOX' : d.name;
-      _contadoresEtiqueta[clave] = d.messagesUnread || 0;
-    }catch(e){}
+  if(!badgesActivados()){ _contadoresEtiqueta = {}; renderGmailLabelBtns(); actualizarFichasEtiqueta(); marcarPuntoEnCarpeta(); return; }
+
+  const nombres = etiquetasConContador();
+  const nuevos = { INBOX: await _sinLeerDe('in:inbox is:unread') };
+  await Promise.all(nombres.map(async n => {
+    nuevos[n] = await _sinLeerDe(`label:"${n.replace(/"/g, '')}" is:unread`);
   }));
+  _contadoresEtiqueta = nuevos;          // se reemplaza entero: los ceros también cuentan
+
   renderGmailLabelBtns();
   actualizarFichasEtiqueta();
   marcarPuntoEnCarpeta();
+}
+
+// Al leer, archivar o borrar, el número tiene que bajar en el momento; no
+// esperar al siguiente sondeo. Se agrupan las llamadas seguidas para no pedirle
+// a Gmail una cuenta por cada correo que abras.
+let _timerContadores = null;
+function refrescarContadoresPronto(){
+  if(!badgesActivados()) return;
+  clearTimeout(_timerContadores);
+  _timerContadores = setTimeout(cargarContadoresEtiqueta, 1200);
 }
 
 // Punto de aviso en el botón de carpeta del móvil: sin él, en el teléfono no
