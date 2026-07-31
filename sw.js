@@ -1,5 +1,18 @@
 // Service Worker — network-first con soporte de notificaciones en segundo plano
-const CACHE = 'tm-v8';   // se sube al cambiar el nombre: así se tira la copia vieja
+const CACHE = 'tm-v9';   // se sube al cambiar el nombre: así se tira la copia vieja
+// Buzón donde se anota qué hay que abrir al tocar una notificación. Hace falta
+// porque en el iPhone, con la app cerrada del todo, abrirla con una dirección
+// que lleve "#abrir=..." NO garantiza que esa parte llegue: iOS restaura la app
+// donde estaba. Anotándolo aquí, la app lo lee al arrancar y ya no depende de eso.
+const DESTINO = 'tm-destino';
+
+async function anotarDestino(url){
+  try{
+    const c = await caches.open(DESTINO);
+    await c.put('/__destino', new Response(JSON.stringify({ url, ts: Date.now() }),
+      { headers: { 'Content-Type': 'application/json' } }));
+  }catch(e){}
+}
 
 self.addEventListener('install', e => {
   self.skipWaiting();
@@ -9,7 +22,9 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(keys => Promise.all(keys
+        .filter(k => k !== CACHE && k !== DESTINO)   // DESTINO no se toca: guarda qué abrir
+        .map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -98,7 +113,8 @@ self.addEventListener('notificationclick', e => {
   e.notification.close();
   const url = e.notification.data?.url || '/TM/';
   e.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
+    anotarDestino(url).then(() =>
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true })).then(clients => {
       const abierta = clients.find(c => c.url.includes('/TM') || c.url.includes('localhost'));
       if (abierta) {
         // Ya está abierta: se le indica qué abrir, porque cambiar la dirección

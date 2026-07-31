@@ -59,7 +59,10 @@ const gapi = (token: string) => (url: string) =>
   fetch(url, { headers: { Authorization: `Bearer ${token}` } })
 
 // ---- Qué avisar ----
-type Aviso = { clave: string; titulo: string; cuerpo: string; url?: string }
+// clave -> para no repetir el mismo aviso dos veces (memoria interna)
+// tag   -> el que usa el móvil para AGRUPAR: si se repite, el aviso nuevo
+//          SUSTITUYE al anterior en lugar de apilarse en la pantalla de bloqueo
+type Aviso = { clave: string; titulo: string; cuerpo: string; url?: string; tag?: string }
 
 // Corta por la última palabra entera, para no dejar la frase partida a medias
 function recorta(txt: string, max: number): string {
@@ -112,7 +115,7 @@ async function avisosDeCorreo(get: any, estado: any): Promise<{ avisos: Aviso[];
     }
   } catch { /* el aviso genérico ya sirve */ }
 
-  return { avisos: [{ clave: 'correo:' + sinLeer, titulo, cuerpo, url: destino }], sinLeer }
+  return { avisos: [{ clave: 'correo:' + sinLeer, tag: 'correo', titulo, cuerpo, url: destino }], sinLeer }
 }
 
 async function avisosDeReuniones(get: any, yaAvisados: Record<string, boolean>): Promise<Aviso[]> {
@@ -158,6 +161,7 @@ async function avisosDeTareas(admin: any, yaAvisados: Record<string, boolean>): 
   if (yaAvisados[clave]) return []
   return [{
     clave,
+    tag: 'tareas',
     titulo: `${vencidas.length} tarea${vencidas.length > 1 ? 's vencidas' : ' vencida'}`,
     cuerpo: vencidas.slice(0, 3).map((t: any) => t.title).join(' · '),
     url: '/TM/#abrir=tareas',
@@ -173,7 +177,7 @@ async function enviar(appServer: any, admin: any, subs: any[], aviso: Aviso) {
         keys: { p256dh: s.p256dh, auth: s.auth },
       })
       await suscriptor.pushTextMessage(JSON.stringify({
-        title: aviso.titulo, body: aviso.cuerpo, url: aviso.url ?? '/TM/', tag: aviso.clave,
+        title: aviso.titulo, body: aviso.cuerpo, url: aviso.url ?? '/TM/', tag: aviso.tag ?? aviso.clave,
       }), {})
       await admin.from('push_subscriptions')
         .update({ last_ok_at: new Date().toISOString() }).eq('id', s.id)

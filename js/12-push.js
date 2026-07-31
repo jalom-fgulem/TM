@@ -240,9 +240,27 @@ function _leerDestinoDeLaDireccion(){
   return decodeURIComponent(m[1]);
 }
 
+// Lo que el servicio en segundo plano dejó anotado al tocar la notificación.
+// Es la vía fiable en el iPhone: al abrir la app desde el aviso, iOS la
+// restaura donde estaba y la parte "#abrir=..." de la dirección puede perderse.
+async function _destinoAnotado(){
+  try{
+    if(!('caches' in window)) return null;
+    const c = await caches.open('tm-destino');
+    const r = await c.match('/__destino');
+    if(!r) return null;
+    await c.delete('/__destino');            // se consume una sola vez
+    const d = await r.json();
+    if(!d || !d.url) return null;
+    if(Date.now() - (d.ts || 0) > 120000) return null;   // caducado: no era de ahora
+    const m = String(d.url).match(/#abrir=(.+)$/);
+    return m ? decodeURIComponent(m[1]) : null;
+  }catch(e){ return null; }
+}
+
 // La app estaba cerrada y se ha abierto desde el aviso
-window.addEventListener('load', () => {
-  const destino = _leerDestinoDeLaDireccion();
+window.addEventListener('load', async () => {
+  const destino = _leerDestinoDeLaDireccion() || await _destinoAnotado();
   if(destino) setTimeout(() => abrirDestino(destino), 600);
 });
 

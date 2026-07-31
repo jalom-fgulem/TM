@@ -68,7 +68,14 @@ function abrirCarpetasMovil(){
     </button>`;
   };
 
-  const etiquetas = (gmailUserLabels || []).filter(l => l.type === 'user');
+  // Primero lo que tiene algo sin leer: es a lo que vas a querer entrar
+  const etiquetas = (gmailUserLabels || []).filter(l => l.type === 'user')
+    .slice()
+    .sort((a, b) => {
+      const na = sinLeerDe(a.name), nb = sinLeerDe(b.name);
+      if(na !== nb) return nb - na;
+      return a.name.localeCompare(b.name, 'es');
+    });
   document.getElementById('modalRoot').innerHTML = `
     <div class="modal-bg" onclick="if(event.target===this) closeModal()">
       <div class="modal">
@@ -98,6 +105,13 @@ function alternarBuscadorMovil(){
 
 function setEmailQuery(q){
   currentEmailQuery=q; selectedEmailId=null;
+  // Sin esto, en el móvil cambiar de carpeta te dejaba mirando el último correo
+  // que hubieras abierto: la vista se repinta y vuelve a desplegarlo.
+  _currentThread = null;
+  _currentEmailMsg = null;
+  if(typeof _lecturaAmpliada !== 'undefined' && _lecturaAmpliada
+     && typeof cerrarLecturaAmpliada === 'function') cerrarLecturaAmpliada();
+  if(isMobile()) closeMobileEmailDetail();
   render(); loadGmailWidget();
 }
 function renderAgendaView(){
