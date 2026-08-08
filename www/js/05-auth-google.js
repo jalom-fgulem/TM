@@ -122,7 +122,7 @@ async function connectGoogle(){
     provider: 'google',
     options: {
       scopes: GOOGLE_SCOPES,
-      redirectTo: window.location.origin + window.location.pathname,
+      redirectTo: APP_URL,
       queryParams: { access_type:'offline', prompt:'consent' }
     }
   });

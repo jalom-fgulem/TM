@@ -56,8 +56,8 @@ self.addEventListener('message', e => {
   if (data.type === 'SHOW_NOTIFICATION') {
     self.registration.showNotification(data.title, {
       body: data.body || '',
-      icon: data.icon || '/TM/icon-192.png',
-      badge: '/TM/icon-192.png',
+      icon: data.icon || './icon-192.png',
+      badge: './icon-192.png',
       tag: data.tag || 'tm-' + Date.now(),
       data: { url: data.url || '/' },
       requireInteraction: data.requireInteraction || false,
@@ -74,8 +74,8 @@ self.addEventListener('message', e => {
       _pendingTimers.delete(id);
       self.registration.showNotification(title, {
         body: body || '',
-        icon: '/TM/icon-192.png',
-        badge: '/TM/icon-192.png',
+        icon: './icon-192.png',
+        badge: './icon-192.png',
         tag: tag || id,
         data: { url: url || '/' },
         requireInteraction: requireInteraction || false,
@@ -100,10 +100,10 @@ self.addEventListener('push', e => {
   e.waitUntil(
     self.registration.showNotification(d.title || 'Mi Oficina', {
       body: d.body || '',
-      icon: '/TM/icon-192.png',
-      badge: '/TM/icon-192.png',
+      icon: './icon-192.png',
+      badge: './icon-192.png',
       tag: d.tag || 'tm-push',
-      data: { url: d.url || '/TM/' }
+      data: { url: d.url || './' }
     })
   );
 });
@@ -111,11 +111,11 @@ self.addEventListener('push', e => {
 // Al hacer clic en una notificación, abre/enfoca la app
 self.addEventListener('notificationclick', e => {
   e.notification.close();
-  const url = e.notification.data?.url || '/TM/';
+  const url = e.notification.data?.url || './';
   e.waitUntil(
     anotarDestino(url).then(() =>
     self.clients.matchAll({ type: 'window', includeUncontrolled: true })).then(clients => {
-      const abierta = clients.find(c => c.url.includes('/TM') || c.url.includes('localhost'));
+      const abierta = clients.find(c => c.url.startsWith(self.registration.scope));
       if (abierta) {
         // Ya está abierta: se le indica qué abrir, porque cambiar la dirección
         // de una ventana existente no siempre la hace reaccionar.

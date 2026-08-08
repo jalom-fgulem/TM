@@ -2,6 +2,13 @@
 // Parte de la app TM. Script clásico: comparte ámbito global con el resto.
 
 const STORAGE_KEY = 'tablero-fgulem-datos';
+// Origen y raíz de la aplicación. Único sitio donde se decide con qué dirección
+// se construyen las URL absolutas propias (por ejemplo el retorno del login).
+// Se deducen de dónde está servida, así que valen igual en Render (raíz), en
+// GitHub Pages (bajo un subdirectorio) y en local. Si algún día hay que fijarlos a un
+// dominio concreto, se cambia aquí y en ningún otro sitio.
+const APP_ORIGIN = window.location.origin;
+const APP_URL    = APP_ORIGIN + window.location.pathname;
 const SUPABASE_URL = 'https://awnitqzydpqvbjxqgjfk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_3cqXbZ0mntG4tGgqzVA3JQ_xNWHlmbJ';
 const DEFAULT_AREAS = ['Desarrollo profesional','Formación y congresos','Transferencia e innovación','Encargos de gestión','Desarrollo digital','Servicios generales','Dirección / Transversal'];

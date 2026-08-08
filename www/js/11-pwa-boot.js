@@ -24,7 +24,7 @@ function installApp(){
 }
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/TM/sw.js?v=10')
+  navigator.serviceWorker.register('sw.js?v=10')
     .then(reg => { _swReg = reg; })
     .catch(() => {});
 }
@@ -34,15 +34,15 @@ function _swNotify(title, body, opts = {}) {
   if (_swReg) {
     _swReg.showNotification(title, {
       body,
-      icon: '/TM/icon-192.png',
-      badge: '/TM/icon-192.png',
+      icon: './icon-192.png',
+      badge: './icon-192.png',
       tag: opts.tag || ('tm-' + Date.now()),
       requireInteraction: opts.requireInteraction || false,
       data: { url: opts.url || location.href },
       actions: opts.actions || []
     });
   } else {
-    new Notification(title, { body, icon: '/TM/icon-192.png', tag: opts.tag });
+    new Notification(title, { body, icon: './icon-192.png', tag: opts.tag });
   }
 }
 
