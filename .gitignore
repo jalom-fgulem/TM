@@ -1,2 +1,7 @@
 supabase/.temp/
 .DS_Store
+docs/
+.env
+.env.local
+*.p8
+*.mobileprovision
